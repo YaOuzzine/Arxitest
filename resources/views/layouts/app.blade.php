@@ -15,7 +15,7 @@
         <div class="flex items-center justify-between px-4 py-2">
             <div class="flex items-center space-x-4">
                 <div class="flex items-center space-x-2 hover:opacity-80 transition-opacity duration-300 cursor-pointer">
-                    <img src="{{ asset('logo.svg') }}" alt="Logo" class="w-8 h-8">
+                    <img src="{{ asset('images/logo.svg') }}" alt="Logo" class="w-8 h-8">
                     <select class="text-sm font-medium border-0 focus:ring-0 cursor-pointer hover:bg-gray-50 rounded-md transition-colors duration-300">
                         <option>YasserOuzzine</option>
                     </select>

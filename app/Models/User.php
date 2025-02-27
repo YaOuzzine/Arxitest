@@ -14,15 +14,38 @@ class User extends Authenticatable
     use HasApiTokens, HasUuids, Notifiable;
 
     protected $fillable = [
+        'name',
         'email',
         'password_hash',
-        'name',
         'role',
     ];
 
     protected $hidden = [
         'password_hash',
+        'remember_token',
     ];
+
+    protected $passwordField = 'password_hash';
+
+    public function setPasswordAttribute($value)
+    {
+        $this->attributes['password_hash'] = $value;
+    }
+
+    public function getPasswordAttribute()
+    {
+        return $this->attributes['password_hash'];
+    }
+
+    public function getKeyType()
+    {
+        return 'string';
+    }
+
+    public function getIncrementing()
+    {
+        return false;
+    }
 
     public function teams()
     {
@@ -38,4 +61,6 @@ class User extends Authenticatable
     {
         return $this->hasMany(TestScript::class, 'creator_id');
     }
+
+
 }

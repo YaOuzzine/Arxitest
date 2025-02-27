@@ -1,19 +1,20 @@
 <?php
+
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
-use App\Models\TestSuite;
-use App\Models\User;
-use App\Models\JiraStory;
-use App\Models\TestVersion;
-use App\Models\TestScriptData;
-use App\Models\TestExecution;
 
 class TestScript extends Model
 {
-    use HasUuids;
+    use HasFactory, HasUuids;
 
+    /**
+     * The attributes that are mass assignable.
+     *
+     * @var array<int, string>
+     */
     protected $fillable = [
         'suite_id',
         'creator_id',
@@ -24,37 +25,60 @@ class TestScript extends Model
         'metadata',
     ];
 
+    /**
+     * The attributes that should be cast.
+     *
+     * @var array<string, string>
+     */
     protected $casts = [
         'metadata' => 'json',
     ];
 
-    public function suite()
+    /**
+     * Get the test suite that owns the test script.
+     */
+    public function testSuite()
     {
         return $this->belongsTo(TestSuite::class, 'suite_id');
     }
 
+    /**
+     * Get the user that created the test script.
+     */
     public function creator()
     {
         return $this->belongsTo(User::class, 'creator_id');
     }
 
+    /**
+     * Get the Jira story associated with the test script.
+     */
     public function jiraStory()
     {
         return $this->belongsTo(JiraStory::class);
     }
 
-    public function versions()
+    /**
+     * Get the test executions for the test script.
+     */
+    public function testExecutions()
+    {
+        return $this->hasMany(TestExecution::class, 'script_id');
+    }
+
+    /**
+     * Get the test versions for the test script.
+     */
+    public function testVersions()
     {
         return $this->hasMany(TestVersion::class, 'script_id');
     }
 
+    /**
+     * Get the test data for the test script.
+     */
     public function testScriptData()
     {
         return $this->hasMany(TestScriptData::class, 'script_id');
-    }
-
-    public function executions()
-    {
-        return $this->hasMany(TestExecution::class, 'script_id');
     }
 }

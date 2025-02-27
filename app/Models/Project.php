@@ -33,12 +33,17 @@ class Project extends Model
         return $this->hasMany(TestSuite::class);
     }
 
+    public function testScripts()
+    {
+        return $this->hasManyThrough(TestScript::class, TestSuite::class, 'project_id', 'suite_id');
+    }
+
     public function environments()
     {
         return $this->belongsToMany(Environment::class);
     }
 
-    public function projectIntegrations()
+    public function integrations()
     {
         return $this->hasMany(ProjectIntegration::class);
     }
