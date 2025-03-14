@@ -20,5 +20,6 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Blade::component('components.flash-messages', 'flash-messages');
     }
 }

@@ -23,3 +23,98 @@
         transform: translateY(-10px);
     }
 }
+
+/* Form entrance animation */
+.animate-fadeInUp {
+    animation: fadeInUp 0.5s ease-out;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Animated dots */
+.dot-animation {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(1.5);
+        opacity: 0.5;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.delay-300 {
+    animation-delay: 0.3s;
+}
+
+.delay-700 {
+    animation-delay: 0.7s;
+}
+
+.delay-1000 {
+    animation-delay: 1s;
+}
+
+.delay-1500 {
+    animation-delay: 1.5s;
+}
+
+.custom-dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.dropdown-trigger {
+    padding: 0.5rem 2.5rem 0.5rem 0.75rem; /* Top, Right, Bottom, Left */
+    font-size: 0.875rem; /* 14px */
+    color: #111827; /* Dark gray-black text */
+    background-color: white;
+    border: 1px solid #D1D5DB; /* Light gray border */
+    border-radius: 0.375rem; /* 6px rounded corners */
+    cursor: pointer;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" fill="%239CA3AF"><polygon points="0,0 10,0 5,5"/></svg>');
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center; /* Arrow positioned on the right */
+    background-size: 10px 10px; /* Small arrow size */
+}
+
+.dropdown-menu {
+    display: none; /* Hidden by default */
+    position: absolute;
+    top: 100%; /* Appears below the trigger */
+    left: 0;
+    width: 100%;
+    background-color: white;
+    border: 1px solid #D1D5DB; /* Matches trigger border */
+    border-radius: 0.375rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* Subtle shadow for depth */
+    z-index: 10; /* Ensures menu appears above other elements */
+}
+
+.dropdown-item {
+    display: block;
+    padding: 0.5rem 0.75rem;
+    color: #111827; /* Dark gray-black text */
+    text-decoration: none;
+}
+
+.dropdown-item:hover {
+    background-color: #F3F4F6; /* Light gray on hover */
+}

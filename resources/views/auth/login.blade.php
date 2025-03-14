@@ -181,51 +181,50 @@
 
         // Login form submission
         document.getElementById('login-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const errorAlert = document.getElementById('error-alert');
-            const errorMessage = document.getElementById('error-message');
+    e.preventDefault();
+    const errorAlert = document.getElementById('error-alert');
+    const errorMessage = document.getElementById('error-message');
 
-            try {
-                const response = await fetch('/api/auth/login', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        email: document.getElementById('email').value,
-                        password: document.getElementById('password').value,
-                        remember: document.getElementById('remember').checked
-                    }),
-                    // Important: include credentials to ensure cookies are stored
-                    credentials: 'include'
-                });
-
-                const data = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(data.message || 'Invalid credentials');
-                }
-
-                // Store the token
-                localStorage.setItem('token', data.access_token);
-
-                // For debugging
-                console.log('Authentication successful', data);
-
-                // Do a simple redirect - no need for an extra fetch since Auth::login()
-                // has already been called in the AuthController
-                window.location.href = '/';
-            } catch (error) {
-                errorMessage.textContent = error.message;
-                errorAlert.classList.remove('hidden');
-
-                setTimeout(() => {
-                    errorAlert.classList.add('hidden');
-                }, 5000);
-            }
+    try {
+        const response = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+                email: document.getElementById('email').value,
+                password: document.getElementById('password').value,
+                remember: document.getElementById('remember').checked
+            }),
+            credentials: 'include' // Important: include credentials to ensure cookies are stored
         });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.message || 'Invalid credentials');
+        }
+
+        // Store the token
+        localStorage.setItem('token', data.access_token);
+
+        // For debugging
+        console.log('Authentication successful', data);
+
+        // Do a simple redirect - no need for an extra fetch since Auth::login()
+        // has already been called in the AuthController
+        window.location.href = '/';
+    } catch (error) {
+        errorMessage.textContent = error.message;
+        errorAlert.classList.remove('hidden');
+
+        setTimeout(() => {
+            errorAlert.classList.add('hidden');
+        }, 5000);
+    }
+});
     </script>
 </body>
 

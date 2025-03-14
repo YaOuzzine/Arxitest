@@ -2,42 +2,50 @@
 
 namespace Database\Seeders;
 
-use App\Models\ExecutionStatus;
 use Illuminate\Database\Seeder;
+use App\Models\ExecutionStatus;
 
 class ExecutionStatusSeeder extends Seeder
 {
-    public function run()
+    /**
+     * Run the database seeds.
+     */
+    public function run(): void
     {
         $statuses = [
             [
-                'name' => 'pending',
-                'description' => 'Test execution is queued'
+                'name' => 'Pending',
+                'description' => 'Test execution is pending and has not started yet',
             ],
             [
-                'name' => 'running',
-                'description' => 'Test is currently executing'
+                'name' => 'Running',
+                'description' => 'Test execution is currently in progress',
             ],
             [
-                'name' => 'completed',
-                'description' => 'Test completed successfully'
+                'name' => 'Passed',
+                'description' => 'Test execution completed successfully with all tests passing',
             ],
             [
-                'name' => 'failed',
-                'description' => 'Test execution failed'
+                'name' => 'Failed',
+                'description' => 'Test execution completed with one or more test failures',
             ],
             [
-                'name' => 'cancelled',
-                'description' => 'Test execution was cancelled'
+                'name' => 'Error',
+                'description' => 'Test execution failed due to a system or environment error',
             ],
             [
-                'name' => 'error',
-                'description' => 'Test encountered an error during execution'
-            ]
+                'name' => 'Cancelled',
+                'description' => 'Test execution was cancelled by a user or system',
+            ],
         ];
 
         foreach ($statuses as $status) {
-            ExecutionStatus::create($status);
+            ExecutionStatus::firstOrCreate(
+                ['name' => $status['name']],
+                ['description' => $status['description']]
+            );
         }
+
+        $this->command->info('Execution statuses seeded successfully!');
     }
 }

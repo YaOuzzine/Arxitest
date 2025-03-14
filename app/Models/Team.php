@@ -14,6 +14,11 @@ class Team extends Model
     protected $fillable = [
         'name',
         'description',
+        'settings',
+    ];
+
+    protected $casts = [
+        'settings' => 'json',
     ];
 
     public function users()
@@ -29,5 +34,25 @@ class Team extends Model
     public function subscriptions()
     {
         return $this->hasMany(Subscription::class);
+    }
+
+    /**
+     * Get the current invitation code
+     *
+     * @return string|null
+     */
+    public function getInvitationCode()
+    {
+        return $this->settings['invitation_code'] ?? null;
+    }
+
+    /**
+     * Get when the invitation code was generated
+     *
+     * @return string|null
+     */
+    public function getInvitationGeneratedAt()
+    {
+        return $this->settings['invitation_generated_at'] ?? null;
     }
 }

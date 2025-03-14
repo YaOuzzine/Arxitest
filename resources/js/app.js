@@ -23,3 +23,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
+document.addEventListener('click', function(event) {
+    const dropdowns = document.querySelectorAll('.custom-dropdown');
+    dropdowns.forEach(function(dropdown) {
+        const trigger = dropdown.querySelector('.dropdown-trigger');
+        const menu = dropdown.querySelector('.dropdown-menu');
+        if (trigger.contains(event.target)) {
+            // Toggle menu visibility on trigger click
+            menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+        } else {
+            // Hide menu when clicking outside
+            menu.style.display = 'none';
+        }
+    });
+});

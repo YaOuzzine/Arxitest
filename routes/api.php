@@ -4,6 +4,8 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\TestScriptController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\TestScriptGenerationController;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -28,3 +30,15 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Add other protected API routes here...
 });
+
+Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
+    return $request->user();
+});
+
+// Test Script Generation with OpenAI
+Route::post('/test-scripts/openai-generate', [TestScriptGenerationController::class, 'generateWithOpenAI'])
+    ->middleware('auth:sanctum');
+
+// If you need to handle file uploads separately
+Route::post('/test-scripts/upload-context-files', [TestScriptGenerationController::class, 'uploadContextFiles'])
+    ->middleware('auth:sanctum');

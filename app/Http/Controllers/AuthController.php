@@ -96,80 +96,37 @@ class AuthController extends Controller
                 'password' => 'required'
             ]);
 
-            // Custom authentication logic since we're using password_hash
-            Log::info("Looking for the user with email: " . $validated['email']);
-
             $user = User::where('email', $validated['email'])->first();
 
-            if (!$user) {
-                Log::warning("User not found: " . $validated['email']);
+            if (!$user || !Hash::check($validated['password'], $user->password_hash)) {
                 return response()->json([
                     'message' => 'Invalid credentials'
                 ], 401);
             }
 
-            // Properly log user object as JSON
-            error_log("Found user" . json_encode($user->toArray()));
+            // Create token
+            $token = $user->createToken('auth_token')->plainTextToken;
 
-            if (!Hash::check($validated['password'], $user->password_hash)) {
-                error_log("Invalid password for user: " . $validated['email']);
-                return response()->json([
-                    'message' => 'Invalid credentials'
-                ], 401);
-            }
+            // This is the crucial part - we need to actually log the user in
+            // for session authentication
+            Auth::login($user, $request->remember ?? false);
 
-            Log::info("Creating auth token for user ID: " . $user->id);
-            try {
-                // Check if the user model has the HasApiTokens trait
-                if (!method_exists($user, 'createToken')) {
-                    error_log("User model is missing HasApiTokens trait");
-                    throw new \Exception("User model is missing required trait for token creation");
-                }
+            // Force the session to be saved immediately
+            session()->save();
 
-                // Check if personal_access_tokens table exists
-                $tableExists = DB::getSchemaBuilder()->hasTable('personal_access_tokens');
-                if (!$tableExists) {
-                    error_log("personal_access_tokens table does not exist");
-                    throw new \Exception("Database table for tokens does not exist");
-                }
-
-                $token = $user->createToken('auth_token')->plainTextToken;
-                error_log("Token created successfully");
-
-                Auth::login($user, $request->remember ?? false);
-                error_log("Logged in successfully with token ". $token);
-                // For the login response, consider not returning the full user object
-                // to reduce response size and potential circular reference issues
-                return response()->json([
-                    'user' => [
-                        'id' => $user->id,
-                        'name' => $user->name,
-                        'email' => $user->email,
-                        'role' => $user->role
-                    ],
-                    'access_token' => $token
-                ]);
-            } catch (\Exception $e) {
-                error_log("Token creation failed: " . $e->getMessage());
-                error_log($e->getTraceAsString());
-
-                // Return a more specific error message but don't expose internal details
-                return response()->json([
-                    'message' => 'Authentication system error. Please contact support.',
-                    'error_code' => 'token_creation_failed'
-                ], 500);
-            }
-        } catch (ValidationException $e) {
-            Log::warning("Validation failed: " . json_encode($e->errors()));
             return response()->json([
-                'message' => 'Validation failed',
-                'errors' => $e->errors()
-            ], 422);
+                'user' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'role' => $user->role
+                ],
+                'access_token' => $token
+            ]);
         } catch (\Exception $e) {
             Log::error("Login failed: " . $e->getMessage());
-            Log::error($e->getTraceAsString());
             return response()->json([
-                'message' => 'Login failed: An unexpected error occurred'
+                'message' => 'Login failed: ' . $e->getMessage()
             ], 500);
         }
     }

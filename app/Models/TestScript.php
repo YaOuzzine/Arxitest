@@ -81,4 +81,17 @@ class TestScript extends Model
     {
         return $this->hasMany(TestScriptData::class, 'script_id');
     }
+
+    public static function getSuitesForCurrentUser()
+    {
+        $user = auth()->user();
+
+        return TestSuite::whereHas('project.team', function ($query) use ($user) {
+            $query->whereHas('users', function ($q) use ($user) {
+                $q->where('user_id', $user->id);
+            });
+        })
+        ->with('project.team')
+        ->get();
+    }
 }

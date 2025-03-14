@@ -11,6 +11,7 @@ class DatabaseSeeder extends Seeder
         $this->call([
             ExecutionStatusSeeder::class,
             UserSeeder::class,
+            TestSuiteSeeder::class,
         ]);
     }
 }
