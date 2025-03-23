@@ -1,6 +1,7 @@
 @extends('layouts.app')
 
 @section('content')
+<div id="execution-status" data-execution-id="{{ $testExecution->id }}" data-status="{{ $testExecution->executionStatus->name }}" class="hidden"></div>
 <div class="container mx-auto px-4 py-6">
     <!-- Navigation -->
     <div class="flex items-center text-sm text-gray-500 mb-4">
@@ -24,7 +25,7 @@
         </div>
         <div class="flex space-x-3">
             @if($testExecution->s3_results_key)
-                <a href="#" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg flex items-center">
+                <a href="{{ route('api.test-executions.download-results', $testExecution->id) }}" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg flex items-center">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
                         <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
                     </svg>
@@ -78,19 +79,19 @@
             </h2>
             <div>
                 @if($testExecution->executionStatus->name == 'Passed')
-                    <span class="px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                    <span id="status-badge" class="px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full bg-green-100 text-green-800">
                         Passed
                     </span>
                 @elseif($testExecution->executionStatus->name == 'Failed')
-                    <span class="px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full bg-red-100 text-red-800">
+                    <span id="status-badge" class="px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full bg-red-100 text-red-800">
                         Failed
                     </span>
                 @elseif($testExecution->executionStatus->name == 'Running')
-                    <span class="px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                    <span id="status-badge" class="px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
                         Running
                     </span>
                 @else
-                    <span class="px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
+                    <span id="status-badge" class="px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
                         {{ $testExecution->executionStatus->name }}
                     </span>
                 @endif
@@ -417,19 +418,19 @@
 
     // Container logs modal
     function showContainerLogs(containerId) {
-        document.getElementById('logs-modal').classList.remove('hidden');
-        document.getElementById('logs-modal-title').textContent = 'Container Logs';
-        document.getElementById('container-logs').textContent = 'Loading logs...';
+    document.getElementById('logs-modal').classList.remove('hidden');
+    document.getElementById('logs-modal-title').textContent = 'Container Logs';
+    document.getElementById('container-logs').textContent = 'Loading logs...';
 
-        // In a real application, you would fetch the logs from the server
-        fetch(`/api/containers/${containerId}/logs`)
-            .then(response => response.text())
-            .then(logs => {
-                document.getElementById('container-logs').textContent = logs;
-            })
-            .catch(error => {
-                document.getElementById('container-logs').textContent = 'Error loading logs: ' + error.message;
-            });
+    // Fetch logs from the API
+    fetch(`/api/containers/${containerId}/logs`)
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('container-logs').textContent = data.logs || 'No logs available';
+        })
+        .catch(error => {
+            document.getElementById('container-logs').textContent = 'Error loading logs: ' + error.message;
+        });
     }
 
     function hideLogsModal() {

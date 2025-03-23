@@ -1,0 +1,30 @@
+version: '3'
+services:
+  ide:
+    image: lscr.io/linuxserver/code-server:latest
+    container_name: code_server
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - PASSWORD=devpassword
+    volumes:
+      - ./project:/config/workspace
+    ports:
+      - "8443:8443"
+    restart: unless-stopped
+
+  selenium:
+    image: selenium/standalone-chrome:latest
+    container_name: selenium_chrome
+    ports:
+      - "4444:4444"
+    environment:
+      - SE_NODE_MAX_CONCURRENT_SESSIONS=1
+    restart: unless-stopped
+  cypress:
+    image: cypress/included:12.8.1
+    container_name: cypress_runner
+    volumes:
+      - ./project:/e2e
+    working_dir: /e2e
+    entrypoint: ["tail", "-f", "/dev/null"]

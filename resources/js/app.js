@@ -1,4 +1,5 @@
 import './bootstrap';
+import './test-execution';
 import * as lucide from 'lucide';
 
 // Initialize Lucide icons when the page loads

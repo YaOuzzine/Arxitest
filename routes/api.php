@@ -5,7 +5,7 @@ use App\Http\Controllers\TestScriptController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\TestScriptGenerationController;
-
+use App\Http\Controllers\TestExecutionController;
 
 /*
 |--------------------------------------------------------------------------
@@ -28,7 +28,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/auth/me', [AuthController::class, 'me']);
     Route::get('/test-scripts', [TestScriptController::class, 'index']);
 
-    // Add other protected API routes here...
+    Route::get('/test-executions/{testExecution}/status', [TestExecutionController::class, 'getStatus']);
+    Route::get('/containers/{containerId}/logs', [TestExecutionController::class, 'getContainerLogs']);
+    Route::get('/test-executions/{testExecution}/results', [TestExecutionController::class, 'downloadResults']);
 });
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {

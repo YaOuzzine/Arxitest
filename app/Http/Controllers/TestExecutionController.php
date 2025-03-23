@@ -7,14 +7,24 @@ use App\Models\TestScript;
 use App\Models\Environment;
 use App\Models\ExecutionStatus;
 use App\Models\Container;
+use App\Services\TestExecutionService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class TestExecutionController extends Controller
 {
+    protected $executionService;
+
+    public function __construct(TestExecutionService $executionService = null)
+    {
+        $this->executionService = $executionService ?? new TestExecutionService();
+    }
+
     /**
      * Display a listing of the test executions.
      */
@@ -85,7 +95,10 @@ class TestExecutionController extends Controller
      */
     public function create()
     {
-        return view('test-executions.create');
+        $scripts = TestScript::getSuitesForCurrentUser();
+        $environments = Environment::where('is_active', true)->get();
+
+        return view('test-executions.create', compact('scripts', 'environments'));
     }
 
     /**
@@ -108,37 +121,58 @@ class TestExecutionController extends Controller
         // Get the running status
         $runningStatus = ExecutionStatus::where('name', 'Running')->firstOrFail();
 
-        // Create the test execution
-        $testExecution = TestExecution::create([
-            'script_id' => $request->script_id,
-            'initiator_id' => Auth::id(),
-            'environment_id' => $request->environment_id,
-            'status_id' => $runningStatus->id,
-            'start_time' => now(),
-        ]);
+        try {
+            // Create the test execution
+            $testExecution = TestExecution::create([
+                'script_id' => $request->script_id,
+                'initiator_id' => Auth::id(),
+                'environment_id' => $request->environment_id,
+                'status_id' => $runningStatus->id,
+                'start_time' => now(),
+            ]);
 
-        // Create a container for this execution
-        $container = Container::create([
-            'execution_id' => $testExecution->id,
-            'container_id' => 'container-' . Str::random(10), // This would be the actual container ID in a real system
-            'status' => 'running',
-            'configuration' => [
-                'resources' => [
-                    'cpu' => '1 Core',
-                    'memory' => '2GB'
+            // Create a container for this execution and store notes in configuration
+            $container = Container::create([
+                'execution_id' => $testExecution->id,
+                'container_id' => 'container-' . Str::random(10),
+                'status' => 'pending',
+                'configuration' => [
+                    'resources' => [
+                        'cpu' => '1',
+                        'memory' => '2GB'
+                    ],
+                    'priority' => $request->has('priority'),
+                    'notes' => $request->run_notes,
                 ],
-                'priority' => $request->has('priority'),
-                'notes' => $request->run_notes,
-            ],
-            'start_time' => now(),
-        ]);
+                'start_time' => now(),
+            ]);
 
-        // In a real application, you would call your container orchestration service here
-        // to actually start the container and run the test
+            // Execute the test in background
+            try {
+                $this->executionService->executeTest($testExecution);
+            } catch (\Exception $e) {
+                Log::error("Error executing test: " . $e->getMessage());
 
-        // For this example, we'll just display the execution details
-        return redirect()->route('test-executions.show', $testExecution->id)
-            ->with('success', 'Test execution started successfully!');
+                // Update status to Failed
+                $failedStatus = ExecutionStatus::where('name', 'Failed')->first();
+                if ($failedStatus) {
+                    $testExecution->update([
+                        'status_id' => $failedStatus->id,
+                        'end_time' => now()
+                    ]);
+                }
+            }
+
+            return redirect()->route('test-executions.show', $testExecution->id)
+                ->with('success', 'Test execution started successfully!');
+
+        } catch (\Exception $e) {
+            Log::error("Error creating test execution: " . $e->getMessage());
+
+            return redirect()->back()
+                ->with('error', 'Could not start test execution: ' . $e->getMessage())
+                ->withInput();
+        }
     }
 
     /**
@@ -217,7 +251,7 @@ class TestExecutionController extends Controller
         }
 
         // Get the canceled status
-        $canceledStatus = ExecutionStatus::where('name', 'Canceled')->first();
+        $canceledStatus = ExecutionStatus::where('name', 'Cancelled')->first();
         if (!$canceledStatus) {
             // If no canceled status exists, use a failed status
             $canceledStatus = ExecutionStatus::where('name', 'Failed')->firstOrFail();
@@ -236,14 +270,65 @@ class TestExecutionController extends Controller
                     'status' => 'terminated',
                     'end_time' => now(),
                 ]);
+
+                // Actually stop the Docker container
+                try {
+                    exec("docker stop {$container->container_id} 2>&1", $output, $returnCode);
+                } catch (\Exception $e) {
+                    Log::error("Error stopping container {$container->container_id}: " . $e->getMessage());
+                }
             }
         }
 
-        // In a real application, you would call your container orchestration service here
-        // to actually terminate the containers
-
         return redirect()->route('test-executions.index')
             ->with('success', 'Test execution canceled successfully!');
+    }
+
+    /**
+     * Get the current status of a test execution.
+     */
+    public function getStatus(TestExecution $testExecution)
+    {
+        $testExecution->load('executionStatus');
+
+        $runningTime = null;
+        if ($testExecution->start_time) {
+            $endTime = $testExecution->end_time ?? now();
+            $runningTime = $testExecution->start_time->diffInSeconds($endTime);
+        }
+
+        return response()->json([
+            'status' => $testExecution->executionStatus->name,
+            'running_time' => $runningTime
+        ]);
+    }
+
+    /**
+     * Get logs for a container.
+     */
+    public function getContainerLogs($containerId)
+    {
+        $container = Container::findOrFail($containerId);
+
+        if (!$container->s3_logs_key || !Storage::exists($container->s3_logs_key)) {
+            return response()->json(['error' => 'Logs not available'], 404);
+        }
+
+        $logs = Storage::get($container->s3_logs_key);
+
+        return response()->json(['logs' => $logs]);
+    }
+
+    /**
+     * Download test results.
+     */
+    public function downloadResults(TestExecution $testExecution)
+    {
+        if (!$testExecution->s3_results_key || !Storage::exists($testExecution->s3_results_key)) {
+            return redirect()->back()->with('error', 'Results not available');
+        }
+
+        return Storage::download($testExecution->s3_results_key, 'test_results_' . $testExecution->id . '.json');
     }
 
     /**
@@ -381,9 +466,30 @@ class TestExecutionController extends Controller
             ];
         }
 
-        // In a real application, you would calculate the actual usage from your database
-        // For this example, we'll just use some placeholder values
-        $containerHours = 10;
+        // Actually calculate container hours used instead of placeholder
+        $containerHours = 0;
+
+        // Get all containers from team executions in the current billing period
+        $startDate = $subscription->start_date;
+        $endDate = $subscription->end_date ?? Carbon::now();
+
+        $teamIds = $user->teams()->pluck('teams.id');
+
+        $containers = Container::join('test_executions', 'containers.execution_id', '=', 'test_executions.id')
+            ->join('test_scripts', 'test_executions.script_id', '=', 'test_scripts.id')
+            ->join('test_suites', 'test_scripts.suite_id', '=', 'test_suites.id')
+            ->join('projects', 'test_suites.project_id', '=', 'projects.id')
+            ->whereIn('projects.team_id', $teamIds)
+            ->whereBetween('containers.created_at', [$startDate, $endDate])
+            ->whereNotNull('containers.start_time')
+            ->get();
+
+        foreach ($containers as $container) {
+            $endTime = $container->end_time ?? Carbon::now();
+            $containerHours += $container->start_time->diffInMinutes($endTime) / 60;
+        }
+
+        $containerHours = round($containerHours, 1);
         $maxHours = $subscription->max_containers * 24;
         $percentage = $maxHours > 0 ? round(($containerHours / $maxHours) * 100) : 0;
 

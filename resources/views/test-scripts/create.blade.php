@@ -321,7 +321,106 @@
     }
 </style>
 
-<div class="relative py-8">
+<div class="relative py-2">
+    <header class="bg-white border-b border-gray-200 py-3 px-6 mb-2">
+        <div class="flex items-center justify-between">
+            <!-- Logo and Navigation -->
+            <div class="flex items-center space-x-6">
+                <!-- Back Button -->
+                <a href="{{ url()->previous() }}" class="flex items-center text-gray-600 hover:text-gray-900 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 mr-1">
+                        <path d="M19 12H5"></path>
+                        <path d="M12 19l-7-7 7-7"></path>
+                    </svg>
+                    <span class="text-sm font-medium">Back</span>
+                </a>
+
+                <!-- Divider -->
+                <div class="h-6 w-px bg-gray-200"></div>
+
+                <!-- Logo -->
+                <a href="{{ route('home') }}" class="flex items-center">
+                    <div class="bg-gradient-to-br from-gray-800 to-gray-900 p-2 rounded-lg shadow-sm mr-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-white">
+                            <path d="M14 2v6h6"></path>
+                            <path d="M4 6v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6H6a2 2 0 0 0-2 2z"></path>
+                            <path d="M12 18v-6"></path>
+                            <path d="M9 15h6"></path>
+                        </svg>
+                    </div>
+                    <span class="text-xl font-semibold text-gray-900">Arxitest</span>
+                </a>
+
+                <!-- Page Title -->
+                <div class="hidden md:flex items-center">
+                    <div class="h-6 w-px bg-gray-200 mr-4"></div>
+                    <h1 class="text-lg font-medium text-gray-600">Create Test Script</h1>
+                </div>
+            </div>
+
+            <!-- Right Side Actions -->
+            <div class="flex items-center space-x-4">
+                <!-- Help Button -->
+                <button type="button" class="p-2 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100 transition-all duration-200">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                        <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                    </svg>
+                </button>
+
+                <!-- Dashboard Link -->
+                <a href="{{ route('home') }}" class="hidden sm:inline-flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 mr-1.5">
+                        <rect x="3" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="14" width="7" height="7"></rect>
+                        <rect x="3" y="14" width="7" height="7"></rect>
+                    </svg>
+                    Dashboard
+                </a>
+
+                <!-- User Avatar (Simplified) -->
+                <div class="relative">
+                    <button type="button" class="flex items-center">
+                        <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white">
+                            {{ Auth::user() ? substr(Auth::user()->name, 0, 1) : 'U' }}
+                        </div>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="px-6 mb-6">
+        <nav class="flex" aria-label="Breadcrumb">
+            <ol class="inline-flex items-center space-x-1 md:space-x-3">
+                <li class="inline-flex items-center">
+                    <a href="{{ route('home') }}" class="text-sm font-medium text-gray-500 hover:text-gray-700">
+                        Dashboard
+                    </a>
+                </li>
+                <li>
+                    <div class="flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 text-gray-400">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                        <a href="{{ route('test-scripts.index') }}" class="ml-1 text-sm font-medium text-gray-500 hover:text-gray-700 md:ml-2">
+                            Test Scripts
+                        </a>
+                    </div>
+                </li>
+                <li aria-current="page">
+                    <div class="flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 text-gray-400">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                        <span class="ml-1 text-sm font-medium text-gray-500 md:ml-2">Create</span>
+                    </div>
+                </li>
+            </ol>
+        </nav>
+    </div>
     <!-- Animated background elements -->
     <div class="absolute inset-0 overflow-hidden pointer-events-none">
         <div class="absolute -top-24 -right-24 w-96 h-96 bg-gradient-to-br from-blue-100/30 to-purple-100/30 rounded-full blur-3xl"></div>
