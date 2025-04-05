@@ -34,5 +34,20 @@ return [
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
         ],
     ],
+    'github' => [
+        'client_id' => env('GITHUB_OAUTH_CLIENT_ID'),
+        'client_secret' => env('GITHUB_OAUTH_CLIENT_SECRET'),
+        'redirect' => env('GITHUB_OAUTH_CALLBACK_URL'),
+    ],
+    'google' => [
+        'client_id' => env('GOOGLE_OAUTH_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_OAUTH_CLIENT_SECRET'),
+        'redirect' => env('GOOGLE_OAUTH_CALLBACK_URL'),
+    ],
+    'microsoft' => [
+        'client_id' => env('MICROSOFT_OAUTH_CLIENT_VALUE'),
+        'client_secret' => env('MICROSOFT_OAUTH_CLIENT_SECRET'),
+        'redirect' => env('MICROSOFT_OAUTH_CALLBACK_URL'),
+    ],
 
 ];

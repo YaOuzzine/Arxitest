@@ -2,47 +2,41 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Notifications\Notifiable;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Concerns\HasUuids; // Laravel 10+ UUID helper
 
-class User extends Authenticatable
+class User extends Model
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable;
+    use HasUuids;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var list<string>
-     */
+    protected $table = 'users';      // Optional if table name matches plural
+    protected $keyType = 'string';   // UUID = string
+    public $incrementing = false;    // UUID not auto increment
+
     protected $fillable = [
-        'name',
         'email',
-        'password',
+        'password_hash',
+        'name',
+        'role',
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var list<string>
-     */
-    protected $hidden = [
-        'password',
-        'remember_token',
-    ];
+    // Relationships
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
-    protected function casts(): array
+    // User belongs to a team
+    public function team()
     {
-        return [
-            'email_verified_at' => 'datetime',
-            'password' => 'hashed',
-        ];
+        return $this->belongsTo(Team::class);
+    }
+
+    // User creates many TestScripts
+    public function testScripts()
+    {
+        return $this->hasMany(TestScript::class, 'creator_id');
+    }
+
+    // User initiates many TestExecutions
+    public function testExecutions()
+    {
+        return $this->hasMany(TestExecution::class, 'initiator_id');
     }
 }
