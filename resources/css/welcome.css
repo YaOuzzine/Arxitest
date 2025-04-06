@@ -1,0 +1,162 @@
+/* Welcome page specific styling */
+
+/* Background patterns */
+.bg-grid-pattern {
+    background-size: 40px 40px;
+    background-image:
+        linear-gradient(to right, rgba(0, 0, 0, 0.05) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(0, 0, 0, 0.05) 1px, transparent 1px);
+}
+
+.dark .bg-grid-pattern {
+    background-image:
+        linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+}
+
+/* Navigation links */
+.nav-link {
+    @apply text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-white font-medium transition duration-150;
+}
+
+.mobile-nav-link {
+    @apply block text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-white font-medium py-2 transition duration-150;
+}
+
+/* Buttons */
+.btn-primary {
+    @apply px-6 py-3 bg-zinc-800 hover:bg-zinc-700 dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-zinc-900 font-medium rounded-lg shadow-sm transition duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-zinc-500 dark:focus:ring-offset-zinc-800;
+}
+
+.btn-primary-sm {
+    @apply px-4 py-2 bg-zinc-800 hover:bg-zinc-700 dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-zinc-900 font-medium rounded-lg shadow-sm transition duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-zinc-500 dark:focus:ring-offset-zinc-800;
+}
+
+.btn-secondary {
+    @apply px-6 py-3 bg-white hover:bg-zinc-100 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-100 border border-zinc-300 dark:border-zinc-700 font-medium rounded-lg shadow-sm transition duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-zinc-500 dark:focus:ring-offset-zinc-800;
+}
+
+.btn-cta-primary {
+    @apply px-8 py-4 bg-white hover:bg-zinc-100 text-zinc-800 font-semibold rounded-lg shadow-md transition duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-zinc-500 focus:ring-offset-zinc-900;
+}
+
+.btn-cta-secondary {
+    @apply px-8 py-4 bg-transparent hover:bg-zinc-800 text-white border border-white font-semibold rounded-lg shadow-md transition duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-zinc-500 focus:ring-offset-zinc-900;
+}
+
+/* Feature cards */
+.feature-card {
+    @apply bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 p-6 rounded-xl shadow-sm transition duration-150 hover:shadow-md hover:-translate-y-1;
+}
+
+.feature-icon {
+    @apply inline-flex p-3 rounded-lg mb-4;
+}
+
+/* Step numbers for How It Works section */
+.step-number {
+    @apply flex items-center justify-center h-12 w-12 bg-zinc-800 dark:bg-zinc-100 text-white dark:text-zinc-900 text-xl font-bold rounded-full;
+}
+
+/* Testimonial cards */
+.testimonial-card {
+    @apply bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 p-6 rounded-xl shadow-sm transition duration-150 hover:shadow-md;
+}
+
+/* Pricing cards */
+.pricing-card {
+    @apply bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-sm overflow-hidden transition duration-300 hover:shadow-lg relative;
+}
+
+.pricing-header {
+    @apply px-6 pt-6 pb-4 border-b border-zinc-200 dark:border-zinc-700;
+}
+
+.pricing-features {
+    @apply space-y-3 px-6 py-6;
+}
+
+.pricing-features li {
+    @apply flex items-start text-zinc-600 dark:text-zinc-300;
+}
+
+.pricing-features li::before {
+    content: "✓";
+    @apply text-green-500 mr-2 flex-shrink-0;
+}
+
+.pricing-cta {
+    @apply block w-full py-3 text-center font-medium transition-colors duration-150;
+}
+
+.pricing-popular {
+    @apply ring-2 ring-zinc-800 dark:ring-zinc-200;
+}
+
+.pricing-popular-badge {
+    @apply absolute top-0 right-0 bg-zinc-800 dark:bg-zinc-200 text-white dark:text-zinc-900 text-xs font-bold px-3 py-1 rounded-bl-lg;
+}
+
+/* FAQ styling */
+.faq-item {
+    @apply border-b border-zinc-200 dark:border-zinc-700 py-4;
+}
+
+.faq-question {
+    @apply flex w-full justify-between items-center text-left focus:outline-none;
+}
+
+.faq-question span {
+    @apply text-lg font-medium text-zinc-800 dark:text-white;
+}
+
+.faq-answer {
+    @apply pt-4 pb-2 text-zinc-600 dark:text-zinc-300;
+}
+
+.faq-active .faq-question span {
+    @apply text-zinc-900 dark:text-white font-semibold;
+}
+
+/* Smooth scrolling for page navigation */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Animation keyframes */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideUp {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+/* Apply animations to elements as they enter viewport */
+.animate-on-scroll {
+    opacity: 0;
+    animation: fadeIn 0.6s ease forwards, slideUp 0.6s ease forwards;
+}
+
+/* Better dark mode transitions */
+.dark body,
+body {
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Media queries for responsive design */
+@media (max-width: 640px) {
+    .feature-card, .testimonial-card, .pricing-card {
+        @apply p-4;
+    }
+
+    .btn-primary, .btn-secondary {
+        @apply px-4 py-2 text-sm;
+    }
+
+    .btn-cta-primary, .btn-cta-secondary {
+        @apply px-6 py-3;
+    }
+}

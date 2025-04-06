@@ -20,11 +20,39 @@ class Story extends Model
         'metadata'
     ];
 
-    public function testCases(){
+    protected $casts = [
+        'metadata' => 'array'
+    ];
+
+    /**
+     * Get the test cases derived from this story.
+     */
+    public function testCases()
+    {
         return $this->hasMany(TestCase::class);
     }
 
-    public function testScripts(){
+    /**
+     * Get the test scripts that reference this story.
+     */
+    public function testScripts()
+    {
         return $this->hasMany(TestScript::class);
+    }
+
+    /**
+     * Scope query to stories from a specific source.
+     */
+    public function scopeFromSource($query, $source)
+    {
+        return $query->where('source', $source);
+    }
+
+    /**
+     * Scope query to find a story by its external ID.
+     */
+    public function scopeByExternalId($query, $externalId)
+    {
+        return $query->where('external_id', $externalId);
     }
 }
