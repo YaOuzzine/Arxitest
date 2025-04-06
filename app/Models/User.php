@@ -2,41 +2,66 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Concerns\HasUuids; // Laravel 10+ UUID helper
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
 
-class User extends Model
+class User extends Authenticatable
 {
-    use HasUuids;
+    use HasUuids, Notifiable;
 
-    protected $table = 'users';      // Optional if table name matches plural
-    protected $keyType = 'string';   // UUID = string
-    public $incrementing = false;    // UUID not auto increment
+    protected $keyType = 'string';
+    public $incrementing = false;
 
     protected $fillable = [
+        'name',
         'email',
         'password_hash',
-        'name',
         'role',
+        'phone_number',
+        'phone_verified',
+        'google_id',
+        'github_id',
+        'microsoft_id',
     ];
 
-    // Relationships
+    /**
+     * The attributes that should be hidden for serialization.
+     *
+     * @var array<int, string>
+     */
+    protected $hidden = [
+        'password_hash',
+        'remember_token',
+    ];
 
-    // User belongs to a team
-    public function team()
+    /**
+     * The attributes that should be cast.
+     *
+     * @var array<string, string>
+     */
+    protected $casts = [
+        'email_verified_at' => 'datetime',
+        'phone_verified' => 'boolean',
+    ];
+
+    // User belongs to many teams (many-to-many)
+    public function teams()
     {
-        return $this->belongsTo(Team::class);
+        return $this->belongsToMany(Team::class)
+                    ->withPivot('team_role')
+                    ->withTimestamps();
     }
 
-    // User creates many TestScripts
-    public function testScripts()
-    {
-        return $this->hasMany(TestScript::class, 'creator_id');
-    }
-
-    // User initiates many TestExecutions
+    // User initiates many test executions
     public function testExecutions()
     {
         return $this->hasMany(TestExecution::class, 'initiator_id');
+    }
+
+    // User creates many test scripts
+    public function testScripts()
+    {
+        return $this->hasMany(TestScript::class, 'creator_id');
     }
 }

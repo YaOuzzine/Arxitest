@@ -14,7 +14,7 @@ return new class extends Migration
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
 
-            $table->string('password_hash');
+            $table->string('password_hash')->nullable();
             $table->string('role')->default('casual');
 
             $table->string('phone_number')->unique()->nullable();

@@ -21,7 +21,7 @@ return new class extends Migration
 
             $table->string('title');
             $table->jsonb('steps');
-            $table->string('exptected_results');
+            $table->string('expected_results');
 
             $table->timestamps();
         });

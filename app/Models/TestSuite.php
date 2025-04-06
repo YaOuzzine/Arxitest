@@ -14,13 +14,31 @@ class TestSuite extends Model
 
     protected $fillable = ['name', 'description', 'settings'];
 
+    protected $casts = [
+        'settings' => 'array',
+    ];
 
-    public function project(){
+    /**
+     * Get the project that owns the test suite.
+     */
+    public function project()
+    {
         return $this->belongsTo(Project::class);
     }
 
-    public function testCases(){
-        return $this->hasMany(TestCase::class);
+    /**
+     * Get the test cases for this suite.
+     */
+    public function testCases()
+    {
+        return $this->hasMany(TestCase::class, 'suite_id');
     }
 
+    /**
+     * Get all test scripts through test cases.
+     */
+    public function testScripts()
+    {
+        return $this->hasManyThrough(TestScript::class, TestCase::class, 'suite_id', 'test_case_id');
+    }
 }

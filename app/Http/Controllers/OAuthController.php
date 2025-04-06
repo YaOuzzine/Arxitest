@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use Laravel\Socialite\Facades\Socialite;
 use Illuminate\Support\Facades\Auth;
 use App\Models\User;
@@ -25,13 +24,14 @@ class OAuthController extends Controller
             [
                 'name'  => $oauthUser->getName() ?? $oauthUser->getNickname(),
                 'email' => $oauthUser->getEmail(),
+
             ]
         );
 
         // Log the user into our application
-        Auth::login($user);
+        Auth::login($user, true);
 
         // Redirect to intended page or dashboard
-        return redirect()->intended('/dashboard');
+        return redirect()->intended('/');
     }
 }

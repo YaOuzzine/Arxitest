@@ -17,10 +17,19 @@ Route::get('/register', function() {
 })->name('register');
 
 
+Route::get('/session-test', function () {
+    session(['foo' => 'bar']);
+
+    return session()->all();
+});
+
+
+// routes/web.php
 
 Route::get('auth/{provider}/redirect', [OAuthController::class, 'redirect'])
-     ->where('provider', 'google|github|microsoft');
+     ->where('provider', 'google|github|microsoft')->name('auth.oauth.redirect');
 
 Route::get('auth/{provider}/callback', [OAuthController::class, 'callback'])
      ->where('provider', 'google|github|microsoft');
+
 

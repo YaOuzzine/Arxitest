@@ -14,17 +14,27 @@ class Team extends Model
 
     protected $fillable = ['name', 'description'];
 
-    // Relationships
+    /**
+     * The users that belong to the team.
+     */
     public function users()
     {
-        return $this->belongsToMany(User::class);
+        return $this->belongsToMany(User::class)
+                    ->withPivot('team_role')
+                    ->withTimestamps();
     }
 
+    /**
+     * The projects managed by this team.
+     */
     public function projects()
     {
         return $this->hasMany(Project::class);
     }
 
+    /**
+     * The subscriptions owned by this team.
+     */
     public function subscriptions()
     {
         return $this->hasMany(Subscription::class);

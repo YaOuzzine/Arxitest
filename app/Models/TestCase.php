@@ -18,12 +18,49 @@ class TestCase extends Model
         'expected_results'
     ];
 
-    public function story(){
+    protected $casts = [
+        'steps' => 'array'
+    ];
+
+    /**
+     * Get the story this test case is derived from.
+     */
+    public function story()
+    {
         return $this->belongsTo(Story::class);
     }
 
-    public function testSuite(){
-        return $this->belongsTo(TestSuite::class);
+    /**
+     * Get the test suite this case belongs to.
+     */
+    public function testSuite()
+    {
+        return $this->belongsTo(TestSuite::class, 'suite_id');
     }
 
+    /**
+     * Get the test scripts generated from this test case.
+     */
+    public function testScripts()
+    {
+        return $this->hasMany(TestScript::class, 'test_case_id');
+    }
+
+    /**
+     * Get the test data associated with this test case.
+     */
+    public function testData()
+    {
+        return $this->belongsToMany(TestData::class, 'test_case_data')
+                    ->withPivot('usage_context')
+                    ->withTimestamps();
+    }
+
+    /**
+     * Get the test case data pivot records.
+     */
+    public function testCaseData()
+    {
+        return $this->hasMany(TestCaseData::class);
+    }
 }

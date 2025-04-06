@@ -14,23 +14,50 @@ class Project extends Model
 
     protected $fillable = ['name', 'description', 'settings'];
 
+    protected $casts = [
+        'settings' => 'array',
+    ];
 
-    //Relationships
-
-    public function team(){
+    /**
+     * Get the team that owns the project.
+     */
+    public function team()
+    {
         return $this->belongsTo(Team::class);
     }
 
-    public function testSuites(){
+    /**
+     * Get the test suites for the project.
+     */
+    public function testSuites()
+    {
         return $this->hasMany(TestSuite::class);
     }
 
-    public function environments(){
-        return $this->belongsToMany(Environment::class, 'environment_project');
+    /**
+     * The environments associated with this project.
+     */
+    public function environments()
+    {
+        return $this->belongsToMany(Environment::class, 'environment_project')
+                    ->withTimestamps();
     }
 
+    /**
+     * Get the project-specific integrations.
+     */
     public function projectIntegrations()
     {
-        return $this->hasMany(ProjectIntegration::class, 'project_id');
+        return $this->hasMany(ProjectIntegration::class);
+    }
+
+    /**
+     * Get all integrations associated with the project.
+     */
+    public function integrations()
+    {
+        return $this->belongsToMany(Integration::class, 'project_integrations')
+                    ->withPivot(['encrypted_credentials', 'project_specific_config', 'is_active'])
+                    ->withTimestamps();
     }
 }
