@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\OAuthController;
+use App\Http\Controllers\PhoneAuthController;
 use Illuminate\Support\Facades\Auth;
 
 
@@ -26,6 +27,15 @@ Route::middleware(['guest'])->group(function () {
     Route::get('auth/{provider}/callback', [OAuthController::class, 'callback'])
         ->where('provider', 'google|github|microsoft');
 
+    Route::get('/auth/phone', [PhoneAuthController::class, 'showPhoneForm'])->name('auth.phone');
+    Route::get('/auth/phone/verify', [PhoneAuthController::class, 'showVerificationForm'])->name('auth.phone.verify');
+    Route::get('/auth/phone/register', [PhoneAuthController::class, 'showRegistrationForm'])->name('auth.phone.register');
+    Route::post('/auth/phone/register', [PhoneAuthController::class, 'completeRegistration'])->name('auth.phone.register.post');
+});
+
+Route::middleware(['guest', 'throttle:5,1'])->group(function () {
+    Route::post('/auth/phone', [PhoneAuthController::class, 'sendCode'])->name('auth.phone.send');
+    Route::post('/auth/phone/verify', [PhoneAuthController::class, 'verifyCode'])->name('auth.phone.verify.post');
 });
 
 Route::middleware(['auth'])->group(function () {
@@ -34,4 +44,9 @@ Route::middleware(['auth'])->group(function () {
     })->name('dashboard');
 });
 
+
+// Phone authentication routes
+Route::middleware(['guest'])->group(function () {
+
+});
 

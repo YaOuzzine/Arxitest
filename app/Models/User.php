@@ -64,4 +64,8 @@ class User extends Authenticatable
     {
         return $this->hasMany(TestScript::class, 'creator_id');
     }
+
+    public function phone_verifications(){
+        return $this->hasMany(PhoneVerification::class);
+    }
 }

@@ -49,5 +49,10 @@ return [
         'client_secret' => env('MICROSOFT_OAUTH_CLIENT_SECRET'),
         'redirect' => env('MICROSOFT_OAUTH_CALLBACK_URL'),
     ],
+    'twilio' => [
+    'sid' => env('TWILIO_SID'),
+    'auth_token' => env('TWILIO_AUTH_TOKEN'),
+    'phone_number' => env('TWILIO_PHONE_NUMBER'),
+    ],
 
 ];
