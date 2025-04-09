@@ -1,3 +1,4 @@
+import showNotification from './showNotification.js';
 /**
  * Phone verification form handling
  */
@@ -198,36 +199,4 @@ function setupResendCode() {
             showNotification('An error occurred. Please try again.', 'error');
         });
     });
-}
-
-/**
- * Show a notification message
- *
- * @param {string} message The message to display
- * @param {string} type The type of notification (success, error)
- */
-function showNotification(message, type = 'success') {
-    const notification = document.createElement('div');
-    notification.classList.add(
-        'fixed', 'top-4', 'right-4', 'px-4', 'py-3', 'rounded-md', 'shadow-md',
-        'transform', 'transition-transform', 'duration-300', 'translate-y-0',
-        'max-w-xs'
-    );
-
-    if (type === 'success') {
-        notification.classList.add('bg-green-50', 'dark:bg-green-900/20', 'text-green-600', 'dark:text-green-400');
-    } else {
-        notification.classList.add('bg-red-50', 'dark:bg-red-900/20', 'text-red-600', 'dark:text-red-400');
-    }
-
-    notification.innerHTML = message;
-    document.body.appendChild(notification);
-
-    // Remove after 3 seconds
-    setTimeout(() => {
-        notification.classList.add('translate-y-[-100%]', 'opacity-0');
-        setTimeout(() => {
-            document.body.removeChild(notification);
-        }, 300);
-    }, 3000);
 }

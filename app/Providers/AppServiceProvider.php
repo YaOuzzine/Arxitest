@@ -26,6 +26,5 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(function (SocialiteWasCalled $event) {
             $event->extendSocialite('microsoft', Provider::class);
         });
-
     }
 }

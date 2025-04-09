@@ -10,7 +10,7 @@ use Twilio\Rest\Verify\V2\Service\VerificationList;
 
 
 
-Route::middleware(['guest'])->group(function () {
+Route::middleware(['guest', 'web'])->group(function () {
 
     Route::get('/', function () {
         return view('welcome');
@@ -47,7 +47,7 @@ Route::middleware(['guest', 'throttle:5,1'])->group(function () {
     Route::post('/auth/phone/verify', [PhoneAuthController::class, 'verifyCode'])->name('auth.phone.verify.post');
 });
 
-Route::middleware(['auth'])->group(function () {
+Route::middleware(['web', 'auth:web'])->group(function () {
     Route::get('/dashboard', function() {
         return view('dashboard.index');
     })->name('dashboard');

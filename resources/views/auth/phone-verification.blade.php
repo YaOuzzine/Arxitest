@@ -97,5 +97,5 @@
 @endsection
 
 @push('scripts')
-    @vite(['resources/js/auth/form-animations.js', 'resources/js/auth/phone-verification.js'])
+    @vite(['resources/js/auth/form-animation.js', 'resources/js/auth/phone-verification.js'])
 @endpush
