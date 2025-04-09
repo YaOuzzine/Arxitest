@@ -105,3 +105,21 @@
 .dark .social-btn-phone:hover {
     background-color: rgba(52, 211, 153, 0.2);
 }
+
+/* Hide password toggle icon when not needed */
+input[type="text"] + button [data-icon="eye"],
+input[type="password"] + button [data-icon="eye-closed"] {
+    display: none;
+}
+
+/* Password input container */
+.relative {
+    position: relative;
+}
+
+/* Toggle button positioning */
+.absolute {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+}

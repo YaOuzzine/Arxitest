@@ -30,7 +30,7 @@
                     </div>
                 @endif
 
-                <form method="POST" action="{{ route('dashboard') }}" class="auth-form space-y-6" x-data="{ processing: false }">
+                <form method="POST" action="{{ route('auth.register.complete') }}" class="auth-form space-y-6" x-data="{ processing: false }">
                     @csrf
                     <input type="hidden" name="verified_email" value="{{ session('verified_email') }}">
 
@@ -54,7 +54,7 @@
                                    placeholder="••••••••">
                             <button type="button"
                                     class="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 focus:outline-none"
-                                    onclick="togglePasswordVisibility('password')">
+                                    onclick="togglePasswordVisibility('reg-password', 'reg-password-toggle')">
                                 <span id="password-toggle-icon">
                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
                                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
@@ -105,5 +105,5 @@
 @endsection
 
 @push('scripts')
-    @vite(['resources/js/auth/form-animations.js', 'resources/js/auth/password-strength.js'])
+    @vite(['resources/js/auth/form-animation.js', 'resources/js/auth/password-strength.js'])
 @endpush

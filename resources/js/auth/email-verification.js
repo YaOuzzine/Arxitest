@@ -80,10 +80,12 @@ document.addEventListener('DOMContentLoaded', function() {
             'transform', 'transition-transform', 'duration-300', 'translate-y-0', 'max-w-xs'
         );
 
-        notification.classList.add(type === 'success'
-            ? 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400'
-            : 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
-        );
+        if (type === 'success') {
+            notification.classList.add('bg-green-50', 'dark:bg-green-900/20', 'text-green-600', 'dark:text-green-400');
+        } else {
+            notification.classList.add('bg-red-50', 'dark:bg-red-900/20', 'text-red-600', 'dark:text-red-400');
+        }
+
 
         notification.innerHTML = message;
         document.body.appendChild(notification);
@@ -98,6 +100,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // 4. Resend Code Functionality
     function setupResendCode() {
         const resendButton = document.getElementById('resend-code');
+        const resendUrl = resendButton.dataset.resendUrl;
         const countdownEl = document.getElementById('resend-countdown');
 
         if (!resendButton || !countdownEl) return;
@@ -128,7 +131,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }, 1000);
 
             // API Request
-            fetch("{{ route('auth.email.resend') }}", {
+            fetch(resendUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

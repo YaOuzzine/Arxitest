@@ -34,6 +34,7 @@
     </style>
 
     <!-- Scripts -->
+
     @vite(['resources/js/app.js', 'resources/js/welcome.js'])
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>

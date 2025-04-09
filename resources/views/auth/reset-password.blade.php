@@ -77,5 +77,5 @@
 @endsection
 
 @push('scripts')
-    @vite(['resources/js/auth/form-animations.js'])
+    @vite(['resources/js/auth/form-animation.js'])
 @endpush

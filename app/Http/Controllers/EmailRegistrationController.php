@@ -111,7 +111,7 @@ class EmailRegistrationController extends Controller
         $verifiedEmail = $request->session()->get('verified_email');
 
         $user = User::create([
-            'name' => $request->name,
+            'name' => $request->username,
             'email' => $verifiedEmail,
             'password_hash' => Hash::make($request->password),
             'email_verified_at' => now()

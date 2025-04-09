@@ -1,6 +1,6 @@
 <?php
 
-use App\Http\Controllers\LoginController;
+use App\Http\Controllers\ApiLoginController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -10,10 +10,10 @@ Route::get('/user', function (Request $request) {
 
 
 // Public routes
-Route::post('login', [LoginController::class, 'login']);
+Route::post('login', [ApiLoginController::class, 'apiLogin']);
 
 // Protected routes
 Route::middleware('auth:api')->group(function () {
-    Route::get('user', [LoginController::class, 'user']);
-    Route::post('logout', [LoginController::class, 'logout']);
+    Route::get('user', [ApiLoginController::class, 'user']);
+    Route::post('logout', [ApiLoginController::class, 'logout']);
 });
