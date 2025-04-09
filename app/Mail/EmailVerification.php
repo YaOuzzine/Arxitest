@@ -28,19 +28,20 @@ class EmailVerification extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Arxitest Email Verification Request',
+            subject: "Arxitest Email Verification Code: $this->code",
         );
     }
 
     /**
      * Get the message content definition.
      */
-    public function content(int $code): Content
+    public function content(): Content
     {
         return new Content(
             view: 'auth.email-verification-content',
-            text: $code,
-
+            with: [
+                'code' => $this->code
+            ],
         );
     }
 

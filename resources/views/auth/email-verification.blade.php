@@ -49,7 +49,8 @@
                                 @for ($i = 1; $i <= 6; $i++)
                                     <input id="code-{{ $i }}" type="text" maxlength="1" pattern="[0-9]" inputmode="numeric"
                                            class="auth-input w-full aspect-square text-center text-xl font-semibold appearance-none block px-0 py-3 border border-zinc-300 dark:border-zinc-600 rounded-md shadow-sm bg-white dark:bg-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-500 dark:focus:ring-zinc-400 focus:border-transparent transition duration-150"
-                                           onkeyup="moveToNext(this, {{ $i }})" {{ $i == 1 ? 'autofocus' : '' }}>
+                                           data-index="{{ $i }}"
+                                           {{ $i == 1 ? 'autofocus' : '' }}>
                                 @endfor
                                 <input type="hidden" name="verification_code" id="verification_code_hidden">
                             </div>
@@ -98,83 +99,5 @@
 @endsection
 
 @push('scripts')
-    @vite(['resources/js/auth/form-animations.js', 'resources/js/auth/phone-verification.js'])
-    <script>
-        // Reusing phone verification script for email verification since they work the same way
-        document.addEventListener('DOMContentLoaded', function() {
-            prepareInputCells();
-            setupResendCode();
-
-            // Handle OTP form submission
-            const form = document.querySelector('.auth-form');
-            const hiddenInput = document.getElementById('verification_code_hidden');
-
-            if (form && hiddenInput) {
-                form.addEventListener('submit', function(event) {
-                    const code = getFullCode();
-                    if (code.length !== 6) {
-                        event.preventDefault();
-                        return false;
-                    }
-
-                    hiddenInput.value = code;
-                });
-            }
-        });
-
-        // Modify resend functionality for email instead of phone
-        function setupResendCode() {
-            const resendButton = document.getElementById('resend-code');
-            const countdownEl = document.getElementById('resend-countdown');
-
-            if (!resendButton || !countdownEl) return;
-
-            let countdownTime = 60;
-            let countdownInterval = null;
-
-            resendButton.addEventListener('click', function() {
-                // Disable the button and show countdown
-                resendButton.classList.add('opacity-50', 'cursor-not-allowed');
-                resendButton.disabled = true;
-
-                countdownEl.classList.remove('hidden');
-                countdownEl.textContent = `(${countdownTime}s)`;
-
-                // Start countdown
-                countdownInterval = setInterval(() => {
-                    countdownTime--;
-                    countdownEl.textContent = `(${countdownTime}s)`;
-
-                    if (countdownTime <= 0) {
-                        clearInterval(countdownInterval);
-                        countdownTime = 60;
-
-                        resendButton.classList.remove('opacity-50', 'cursor-not-allowed');
-                        resendButton.disabled = false;
-                        countdownEl.classList.add('hidden');
-                    }
-                }, 1000);
-
-                // Send API request to resend verification code
-                fetch('/register/resend-verification', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        showNotification('Verification code resent successfully!', 'success');
-                    } else {
-                        showNotification('Failed to resend code. Please try again.', 'error');
-                    }
-                })
-                .catch(() => {
-                    showNotification('An error occurred. Please try again.', 'error');
-                });
-            });
-        }
-    </script>
+    @vite(['resources/js/auth/form-animations.js', 'resources/js/auth/email-verification.js'])
 @endpush

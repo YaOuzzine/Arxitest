@@ -10,6 +10,7 @@ export default defineConfig({
                 'resources/js/auth/theme-toggle.js',
                 'resources/js/auth/animated-background.js',
                 'resources/js/auth/form-animations.js',
+                'resources/js/auth/email-verification.js',
                 'resources/js/auth/password-strength.js',
                 'resources/js/auth/phone-verification.js',],
             refresh: true,
