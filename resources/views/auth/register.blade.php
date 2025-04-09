@@ -28,18 +28,8 @@
                     </div>
                 @endif
 
-                <form method="POST" action="{{ route('register') }}" class="auth-form space-y-6" x-data="{ processing: false }">
+                <form method="POST" action="{{ route('register.email') }}" class="auth-form space-y-6" x-data="{ processing: false }">
                     @csrf
-
-                    <div>
-                        <label for="name" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                            Full Name
-                        </label>
-                        <input id="name" name="name" type="text" autocomplete="name" required
-                               class="auth-input appearance-none block w-full px-3 py-3 border border-zinc-300 dark:border-zinc-600 rounded-md shadow-sm placeholder-zinc-400 dark:placeholder-zinc-500 bg-white dark:bg-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-500 dark:focus:ring-zinc-400 focus:border-transparent transition duration-150"
-                               value="{{ old('name') }}"
-                               placeholder="John Doe">
-                    </div>
 
                     <div>
                         <label for="email" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
@@ -52,70 +42,11 @@
                     </div>
 
                     <div>
-                        <label for="password" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                            Password
-                        </label>
-                        <div class="relative">
-                            <input id="password" name="password" type="password" autocomplete="new-password" required
-                                   class="auth-input appearance-none block w-full px-3 py-3 border border-zinc-300 dark:border-zinc-600 rounded-md shadow-sm placeholder-zinc-400 dark:placeholder-zinc-500 bg-white dark:bg-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-500 dark:focus:ring-zinc-400 focus:border-transparent transition duration-150"
-                                   placeholder="••••••••">
-                            <button type="button"
-                                    class="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 focus:outline-none"
-                                    onclick="togglePasswordVisibility('password')">
-                                <span id="password-toggle-icon">
-                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
-                                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                                         class="w-5 h-5">
-                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                                        <circle cx="12" cy="12" r="3"></circle>
-                                    </svg>
-                                </span>
-                            </button>
-                        </div>
-                        <div class="mt-1">
-                            <div class="text-xs text-zinc-500 dark:text-zinc-400" id="password-strength-indicator">
-                                Password must be at least 8 characters
-                            </div>
-                        </div>
-                    </div>
-
-                    <div>
-                        <label for="password_confirmation" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                            Confirm Password
-                        </label>
-                        <div class="relative">
-                            <input id="password_confirmation" name="password_confirmation" type="password" autocomplete="new-password" required
-                                   class="auth-input appearance-none block w-full px-3 py-3 border border-zinc-300 dark:border-zinc-600 rounded-md shadow-sm placeholder-zinc-400 dark:placeholder-zinc-500 bg-white dark:bg-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-500 dark:focus:ring-zinc-400 focus:border-transparent transition duration-150"
-                                   placeholder="••••••••">
-                            <button type="button"
-                                    class="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 focus:outline-none"
-                                    onclick="togglePasswordVisibility('password_confirmation')">
-                                <span id="password_confirmation-toggle-icon">
-                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
-                                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                                         class="w-5 h-5">
-                                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                                        <circle cx="12" cy="12" r="3"></circle>
-                                    </svg>
-                                </span>
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="flex items-start">
-                        <input id="terms" name="terms" type="checkbox" required
-                               class="h-4 w-4 mt-1 text-zinc-800 dark:text-zinc-200 border-zinc-300 dark:border-zinc-600 rounded focus:ring-zinc-500 dark:focus:ring-zinc-400 transition duration-150">
-                        <label for="terms" class="ml-2 block text-sm text-zinc-700 dark:text-zinc-300">
-                            I agree to the <a href="#" class="text-zinc-800 dark:text-zinc-100 font-medium hover:underline">Terms of Service</a> and <a href="#" class="text-zinc-800 dark:text-zinc-100 font-medium hover:underline">Privacy Policy</a>
-                        </label>
-                    </div>
-
-                    <div>
                         <button type="submit"
                                 class="btn-auth w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-zinc-800 hover:bg-zinc-900 dark:bg-zinc-700 dark:hover:bg-zinc-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-zinc-500 dark:focus:ring-offset-zinc-800 transition duration-150"
                                 x-bind:disabled="processing"
                                 x-on:click="processing = true">
-                            <span x-show="!processing">Create Account</span>
+                            <span x-show="!processing">Continue with Email</span>
                             <span x-show="processing" x-cloak class="flex items-center">
                                 <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -140,7 +71,7 @@
 
                 <div class="grid grid-cols-2 gap-3">
                     <!-- Google Auth -->
-                    <a href="{{ route('auth.google') }}"
+                    <a href="{{ route('auth.oauth.redirect', ['provider' => 'google']) }}"
                        class="social-btn social-btn-google border border-zinc-300 dark:border-zinc-600 rounded-md shadow-sm bg-white dark:bg-zinc-900 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-zinc-500 dark:focus:ring-offset-zinc-800 transition duration-150">
                         <svg viewBox="0 0 24 24" width="24" height="24" xmlns="http://www.w3.org/2000/svg">
                             <g transform="matrix(1, 0, 0, 1, 27.009001, -39.238998)">
@@ -154,7 +85,7 @@
                     </a>
 
                     <!-- Microsoft Auth -->
-                    <a href="{{ route('auth.microsoft') }}"
+                    <a href="{{ route('auth.oauth.redirect', ['provider' => 'microsoft']) }}"
                        class="social-btn social-btn-microsoft border border-zinc-300 dark:border-zinc-600 rounded-md shadow-sm bg-white dark:bg-zinc-900 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-zinc-500 dark:focus:ring-offset-zinc-800 transition duration-150">
                         <svg width="21" height="21" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">
                             <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
@@ -166,7 +97,7 @@
                     </a>
 
                     <!-- GitHub Auth -->
-                    <a href="{{ route('auth.github') }}"
+                    <a href="{{ route('auth.oauth.redirect', ['provider' => 'github']) }}"
                        class="social-btn social-btn-github border border-zinc-300 dark:border-zinc-600 rounded-md shadow-sm bg-white dark:bg-zinc-900 text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-zinc-500 dark:focus:ring-offset-zinc-800 transition duration-150">
                         <svg width="20" height="20" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
                             <path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" fill="currentColor"/>
@@ -197,5 +128,5 @@
 @endsection
 
 @push('scripts')
-    @vite(['resources/js/auth/form-animations.js', 'resources/js/auth/password-strength.js'])
+    @vite(['resources/js/auth/form-animations.js'])
 @endpush

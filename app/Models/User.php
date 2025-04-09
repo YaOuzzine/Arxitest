@@ -2,13 +2,15 @@
 
 namespace App\Models;
 
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Passport\HasApiTokens;
 
-class User extends Authenticatable
+class User extends Authenticatable implements MustVerifyEmail
 {
-    use HasUuids, Notifiable;
+    use HasApiTokens, HasUuids, Notifiable;
 
     protected $keyType = 'string';
     public $incrementing = false;
@@ -65,6 +67,7 @@ class User extends Authenticatable
         return $this->hasMany(TestScript::class, 'creator_id');
     }
 
+    // User has many phone verifications
     public function phone_verifications(){
         return $this->hasMany(PhoneVerification::class);
     }

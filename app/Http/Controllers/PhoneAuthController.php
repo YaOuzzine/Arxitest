@@ -164,14 +164,14 @@ class PhoneAuthController extends Controller
 
         $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['string', 'email', 'max:255', 'unique:users'],
+            'email' => ['nullable', 'string', 'email', 'max:255', 'unique:users'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
         ]);
 
         // Create the user
         $user = User::create([
             'name' => $request->name,
-            'email' => $request->email,
+            'email' => $request->email ?? null,
             'password_hash' => Hash::make($request->password),
             'phone_number' => $verifiedPhone,
             'phone_verified' => true,
