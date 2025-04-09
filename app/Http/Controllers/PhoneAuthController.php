@@ -63,7 +63,42 @@ class PhoneAuthController extends Controller
         // Saving phone number in session for verification
         session(['phone_number' => $phone]);
 
-        return redirect()->route('auth.phone.verify')->with('status', 'Verification code sent to your phone.');
+        return redirect()->route('auth.phone.verification')->with('status', 'Verification code sent to your phone.');
+    }
+
+    public function resendCode(Request $request){
+        $request->validate([
+            'phone_number' => ['required', 'string', 'regex:/^\+[1-9]\d{1,14}$/'], // E.164 format
+        ]);
+
+        $phone = $request->input('phone_number');
+
+        // Generating a random OTP code
+        $code = random_int(100000, 999999);
+
+        // Calculating expiration, 5 minutes from now
+        $expiresAt = Carbon::now()->addMinutes(5);
+
+        // Storing the OTP in thje database
+        PhoneVerification::create([
+            'phone_number' => $phone,
+            'code'         => $code,
+            'expires_at'   => $expiresAt,
+        ]);
+
+        // Sending the OTP via SMS
+        $sent = $this->smsService->sendVerificationCode($phone, $code);
+
+        if (!$sent) {
+
+            Log::error("Failed to send verification code to $phone");
+        }
+
+        // Saving phone number in session for verification
+        session(['phone_number' => $phone]);
+
+
+        return response()->json(['success' => true, 'message' => 'Verification code resent successfully!']);
     }
 
     /**
@@ -103,12 +138,12 @@ class PhoneAuthController extends Controller
             ->first();
 
         if (!$verification) {
-            return redirect()->route('auth.phone.verify')->withErrors(['verification_code' => 'Verification code expired or invalid. Please request a new one.']);
+            return redirect()->route('auth.phone.verification')->withErrors(['verification_code' => 'Verification code expired or invalid. Please request a new one.']);
         }
 
         // Use constant-time comparison to prevent timing attacks
         if (!Hash::equals((string)$verification->code, (string)$code)) {
-            return redirect()->route('auth.phone.verify')->withErrors(['verification_code' => 'Invalid verification code. Please try again.']);
+            return redirect()->route('auth.phone.verification')->withErrors(['verification_code' => 'Invalid verification code. Please try again.']);
         }
 
         // Mark the verification as used

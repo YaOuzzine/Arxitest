@@ -76,7 +76,9 @@
                             Didn't receive the code?
                             <button type="button"
                                     class="text-zinc-800 dark:text-zinc-200 font-medium hover:underline transition duration-150 ml-1"
-                                    id="resend-code">
+                                    id="resend-code"
+                                    data-resend-url="{{ route('auth.phone.resend') }}"
+                                    >
                                 Resend code
                             </button>
                             <span class="hidden ml-1" id="resend-countdown"></span>

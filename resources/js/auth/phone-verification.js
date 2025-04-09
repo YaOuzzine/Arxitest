@@ -145,6 +145,7 @@ function fillInputs(code) {
  */
 function setupResendCode() {
     const resendButton = document.getElementById('resend-code');
+    const resendUrl = resendButton.dataset.resendUrl;
     const countdownEl = document.getElementById('resend-countdown');
 
     if (!resendButton || !countdownEl) return;
@@ -176,7 +177,7 @@ function setupResendCode() {
         }, 1000);
 
         // Send API request to resend code
-        fetch('/auth/phone/resend', {
+        fetch(resendUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -195,7 +196,8 @@ function setupResendCode() {
                 showNotification('Failed to resend code. Please try again.', 'error');
             }
         })
-        .catch(() => {
+        .catch((data) => {
+            console.log(data);
             showNotification('An error occurred. Please try again.', 'error');
         });
     });
