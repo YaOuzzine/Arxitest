@@ -54,5 +54,17 @@ Route::middleware(['web', 'auth:web'])->group(function () {
     })->name('dashboard');
 
     Route::post('/logout', [WebLoginController::class, 'webLogout'])->name('logout');
+
+    Route::get('/dashboard/projects', function() {
+        return view('dashboard.projects');
+    })->name('dashboard.projects');
+
+    Route::get('/dashboard/projects/{id}', function() {
+        return view('dashboard.project-details');
+    })->name('dashboard.project-details');
+
+    Route::get('/dashboard/test-cases/{id}', function() {
+        return view('dashboard.test-case-detail');
+    })->name('dashboard.test-case-detail');
 });
 
