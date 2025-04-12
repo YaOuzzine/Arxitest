@@ -114,8 +114,8 @@
         >
             <div class="h-16 flex items-center justify-between px-4 border-b border-zinc-200 dark:border-zinc-700">
                 <a href="{{ route('dashboard') }}" class="flex items-center space-x-2">
-                    <img src="{{ asset('images/logo-icon.svg') }}" alt="Arxitest Logo" class="h-8 w-auto block dark:hidden">
-                    <img src="{{ asset('images/logo-icon-w.png') }}" alt="Arxitest Logo" class="h-8 w-auto hidden dark:block">
+                    <img src="{{ asset('images/logo-icon.svg') }}" alt="Arxitest Logo" class="h-20 w-auto block dark:hidden">
+                    <img src="{{ asset('images/logo-icon-w.png') }}" alt="Arxitest Logo" class="h-20 w-auto hidden dark:block">
                 </a>
                 <button
                     @click="sidebarOpen = !sidebarOpen"

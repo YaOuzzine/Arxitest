@@ -39,4 +39,12 @@ class Team extends Model
     {
         return $this->hasMany(Subscription::class);
     }
+
+    public function usageSummary()
+    {
+        $activeSubscription = $this->subscriptions()->where('is_active', true)->first();
+
+
+
+    }
 }
