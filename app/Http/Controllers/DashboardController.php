@@ -3,28 +3,38 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
     public function showDashboard(){
-        $current_team = session('current_team');
-
-        if (!$current_team){
-            return redirect()->route('dashboard.select-team');
-        }
-
         return view('dashboard.index');
     }
 
     public function showSelectTeam()
     {
-        $user = User::find(session('user_id'));
+        $user = auth('web')->user();
         $teams = $user->teams()->with('users')->get();
 
         return view('dashboard.select-team', [
             'teams' => $teams,
             'user' => $user,
         ]);
+    }
+
+    public function setCurrentTeam(Request $request){
+        $team_id = $request->input('team_id');
+
+        try{
+            $team = auth('web')->user()->teams()->findOrFail($team_id);
+        }
+        catch (ModelNotFoundException $e){
+            return back()->withErrors([
+                'team_id' => 'You do not belong to that team.'
+            ]);
+        }
+
+        return redirect()->intended('dashboard');
     }
 }

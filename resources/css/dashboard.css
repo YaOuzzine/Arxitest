@@ -19,12 +19,12 @@
 .card-hover:hover {
     transform: translateY(-4px) scale(1.02);
     box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1),
-                0 8px 10px -6px rgba(0, 0, 0, 0.1);
+        0 8px 10px -6px rgba(0, 0, 0, 0.1);
 }
 
 .dark .card-hover:hover {
     box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3),
-                0 8px 10px -6px rgba(0, 0, 0, 0.2);
+        0 8px 10px -6px rgba(0, 0, 0, 0.2);
 }
 
 /* Custom scrollbar */
@@ -68,4 +68,20 @@
 
 .dark #animated-background {
     background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+}
+
+
+.dropdown-parent {
+    position: relative;
+}
+
+.dropdown-menu {
+    position: absolute;
+    top: 100%;
+    /* Position right below the trigger */
+    right: 0;
+    z-index: 50;
+    /* Ensure it appears above other content */
+    margin-top: 0.5rem;
+    /* Small gap from the trigger */
 }

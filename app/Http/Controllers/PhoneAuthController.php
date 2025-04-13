@@ -162,7 +162,7 @@ class PhoneAuthController extends Controller
             // Log the user in
             Auth::login($user);
 
-            return redirect()->intended('/dashboard');
+            return redirect()->intended('dashboard');
         } else {
             // This is a new registration - create the user
             // At this point you might want to collect additional information

@@ -4,6 +4,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EmailRegistrationController;
 use App\Http\Controllers\OAuthController;
 use App\Http\Controllers\PhoneAuthController;
+use App\Http\Controllers\TeamController;
 use App\Http\Controllers\WebLoginController;
 use Illuminate\Support\Facades\Route;
 
@@ -78,12 +79,9 @@ Route::middleware(['guest', 'throttle:5,1'])->group(function () {
 | ('web', 'auth:web'). Safe for accessing internal dashboard areas.
 */
 
-Route::middleware(['web', 'auth:web'])->group(function () {
+Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
     // --- DASHBOARD HOME ---
-    Route::get('/dashboard', [DashboardController::class, 'showDashboard'] )->name('dashboard');
-
-    // --- LOGOUT ---
-    Route::post('/logout', [WebLoginController::class, 'webLogout'])->name('logout');
+    Route::get('/dashboard', [DashboardController::class, 'showDashboard'])->name('dashboard');
 
     // --- DASHBOARD PROJECTS OVERVIEW ---
     Route::get('/dashboard/projects', function() {
@@ -100,5 +98,16 @@ Route::middleware(['web', 'auth:web'])->group(function () {
         return view('dashboard.test-case-detail');
     })->name('dashboard.test-case-detail');
 
+});
+
+Route::middleware(['web', 'auth:web'])->group(function () {
+
+    // --- LOGOUT ---
+    Route::post('/logout', [WebLoginController::class, 'webLogout'])->name('logout');
+
     Route::get('/dashboard/select-team', [DashboardController::class, 'showSelectTeam'])->name('dashboard.select-team');
+
+    Route::post('/dashboard/select-team', [DashboardController::class, 'setCurrentTeam'])->name('dashboard.select-team');
+
+    Route::get('/dashboard/team/create', [TeamController::class, 'showCreateTeam'])->name('teams.create');
 });

@@ -6,14 +6,31 @@
     <style>
         body {
             font-family: 'Inter', sans-serif;
+            background-color: #f7f7fc; /* Light background */
+            color: #333; /* Dark text */
+        }
+
+        .dark body {
+            background-color: #1a202c; /* Dark background */
+            color: #f7f7fc; /* Light text */
         }
 
         .team-card {
-            transition: all 0.3s ease;
+            transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
+            border: 1px solid #e2e8f0; /* Light border */
+        }
+
+        .dark .team-card {
+            border-color: #4a5568; /* Dark border */
         }
 
         .team-card:hover {
-            transform: translateY(-4px);
+            transform: scale(1.05);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .dark .team-card:hover {
+            box-shadow: 0 10px 20px rgba(255, 255, 255, 0.1);
         }
 
         .tab-content {
@@ -22,17 +39,18 @@
 
         .tab-content.active {
             display: block;
-            animation: fadeIn 0.5s ease-in-out;
+            animation: slideIn 0.4s ease-out forwards;
         }
 
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
         }
 
         .shine-effect {
             position: relative;
             overflow: hidden;
+            border-radius: 0.5rem; /* Match card radius */
         }
 
         .shine-effect::after {
@@ -40,17 +58,48 @@
             position: absolute;
             top: -50%;
             left: -50%;
-            width: 200%;
-            height: 200%;
-            background: linear-gradient(to right, transparent 0%, rgba(255, 255, 255, 0.3) 50%, transparent 100%);
-            transform: rotate(30deg);
-            animation: shine 3s infinite linear;
+            width: 150%;
+            height: 150%;
+            background: rgba(255, 255, 255, 0.2);
+            transform: rotate(35deg);
+            transition: transform 0.5s ease-in-out;
             pointer-events: none;
         }
 
-        @keyframes shine {
-            from { transform: translateX(-100%) rotate(30deg); }
-            to { transform: translateX(100%) rotate(30deg); }
+        .shine-effect:hover::after {
+            transform: translateX(100%) translateY(100%) rotate(35deg);
+        }
+
+        .notification-container {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 9999;
+        }
+
+        .notification {
+            background-color: #8b5cf6; /* Purple notification background */
+            color: white;
+            padding: 1rem 2rem;
+            border-radius: 0.375rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            animation: fadeInNotification 0.5s ease-out, fadeOutNotification 0.5s ease-in 3s forwards;
+        }
+
+        .dark .notification {
+            background-color: #a78bfa; /* Lighter purple for dark mode */
+            color: #1a202c;
+        }
+
+        @keyframes fadeInNotification {
+            from { opacity: 0; transform: translate(-50%, -20px); }
+            to { opacity: 1; transform: translateX(-50%); }
+        }
+
+        @keyframes fadeOutNotification {
+            from { opacity: 1; transform: translateX(-50%); }
+            to { opacity: 0; transform: translate(-50%, -20px); }
         }
 
         .modal-transition {
@@ -60,13 +109,19 @@
 @endpush
 
 @section('content')
+    <div class="notification-container" id="notification-container">
+        <div class="notification">
+            You need to select a team before you proceed.
+        </div>
+    </div>
+
     <div class="min-h-screen flex flex-col" x-data="{ tab: 'my-teams'}">
         <main class="flex-grow py-8">
             <div class="max-w-9xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div class="bg-white dark:bg-zinc-800 rounded-lg shadow overflow-hidden">
                     <div class="border-b border-gray-200 dark:border-zinc-700">
                         <nav class="flex -mb-px" aria-label="Tabs">
-                            <button @click="tab = 'my-teams'" :class="{'border-blue-500 text-blue-600 dark:text-blue-400': tab === 'my-teams', 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-500': tab !== 'my-teams'}" class="group inline-flex items-center py-4 px-6 border-b-2 font-medium text-sm" id="tab-my-teams" aria-controls="tab-panel-my-teams" :aria-selected="tab === 'my-teams'">
+                            <button @click="tab = 'my-teams'" :class="{'border-purple-500 text-purple-600 dark:text-purple-400': tab === 'my-teams', 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-500': tab !== 'my-teams'}" class="group inline-flex items-center py-4 px-6 border-b-2 font-medium text-sm" id="tab-my-teams" aria-controls="tab-panel-my-teams" :aria-selected="tab === 'my-teams'">
                                 <svg class="mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
                                     <circle cx="9" cy="7" r="4"></circle>
@@ -75,21 +130,15 @@
                                 </svg>
                                 My Teams
                             </button>
-                            <button @click="tab = 'recent'" :class="{'border-blue-500 text-blue-600 dark:text-blue-400': tab === 'recent', 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-500': tab !== 'recent'}" class="group inline-flex items-center py-4 px-6 border-b-2 font-medium text-sm" id="tab-recent" aria-controls="tab-panel-recent" :aria-selected="tab === 'recent'">
-                                <svg class="mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
-                                </svg>
-                                Recent
-                            </button>
                         </nav>
                     </div>
 
                     <div class="p-6">
                         <div x-show="tab === 'my-teams'" id="tab-panel-my-teams" class="tab-content active" aria-labelledby="tab-my-teams">
                             <div class="flex justify-between items-center mb-6">
-                                <h2 class="text-xl font-semibold">Your Teams</h2>
+                                <h2 class="text-xl font-semibold text-gray-900 dark:text-white">Your Teams</h2>
                                 <div class="flex space-x-3">
-                                    <a href="{{ route('dashboard') }}" class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-zinc-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-zinc-300 bg-white dark:bg-zinc-700 hover:bg-gray-50 dark:hover:bg-zinc-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                                    <a href="{{ route('dashboard') }}" class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-zinc-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-zinc-300 bg-white dark:bg-zinc-700 hover:bg-gray-50 dark:hover:bg-zinc-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500">
                                         <svg class="-ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                             <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
                                             <circle cx="8.5" cy="7" r="4"></circle>
@@ -98,7 +147,7 @@
                                         </svg>
                                         Join Team
                                     </a>
-                                    <a href="{{ route('dashboard') }}" class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                                    <a href="{{ route('teams.create') }}" class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500">
                                         <svg class="-ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                             <line x1="12" y1="5" x2="12" y2="19"></line>
                                             <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -109,8 +158,15 @@
                             </div>
 
                             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                                @if($errors->has('team_id'))
+                                    <div class="col-span-full mb-4">
+                                        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+                                            <span class="block sm:inline">{{ $errors->first('team_id') }}</span>
+                                        </div>
+                                    </div>
+                                @endif
                                 @forelse($teams as $team)
-                                    <div class="team-card bg-white dark:bg-zinc-700 rounded-lg shadow-sm overflow-hidden border border-gray-200 dark:border-zinc-600">
+                                    <div class="team-card bg-white dark:bg-zinc-700 rounded-lg shadow-sm overflow-hidden border border-gray-200 dark:border-zinc-600 shine-effect">
                                         <div class="p-5">
                                             <div class="flex justify-between items-start">
                                                 <div class="flex items-center mb-3">
@@ -118,7 +174,7 @@
                                                     @php
                                                         $initials = collect(explode(' ', $team->name))->map(fn($p)=>mb_substr($p,0,1))->join('');
                                                     @endphp
-                                                    <div class="h-12 w-12 rounded-md bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-blue-600 dark:text-blue-300 font-bold text-xl">
+                                                    <div class="h-12 w-12 rounded-md bg-purple-100 dark:bg-purple-900 flex items-center justify-center text-purple-600 dark:text-purple-300 font-bold text-xl">
                                                         {{ $initials }}
                                                     </div>
                                                     <div class="ml-3">
@@ -129,9 +185,9 @@
                                                     </div>
                                                 </div>
                                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                                                        {{ $team->owner_id === $user->id
-                                                            ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
-                                                            : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300' }}">
+                                                            {{ $team->owner_id === $user->id
+                                                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
+                                                                : 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300' }}">
                                                     {{ $team->owner_id === $user->id ? 'Owner' : 'Member' }}
                                                 </span>
                                             </div>
@@ -145,21 +201,21 @@
                                                             $minit = collect(explode(' ', $member->name))->map(fn($p)=>mb_substr($p,0,1))->join('');
                                                         @endphp
                                                         <div class="inline-block h-6 w-6 rounded-full ring-2 ring-white dark:ring-zinc-700
-                                                            bg-gray-200 dark:bg-gray-700 text-xs flex items-center justify-center">
+                                                                    bg-gray-200 dark:bg-gray-700 text-xs flex items-center justify-center">
                                                             {{ $minit }}
                                                         </div>
                                                     @endforeach
                                                     @if($team->members->count() > 3)
                                                         <div class="inline-block h-6 w-6 rounded-full ring-2 ring-white dark:ring-zinc-700
-                                                            bg-indigo-500 text-white text-xs flex items-center justify-center">
+                                                                    bg-indigo-500 text-white text-xs flex items-center justify-center">
                                                             +{{ $team->members->count() - 3 }}
                                                         </div>
                                                     @endif
                                                 </div>
-                                                <form action="/dashboard/set-team" method="POST">
+                                                <form action="{{ route('dashboard.select-team') }}" method="POST">
                                                     @csrf
                                                     <input type="hidden" name="team_id" value="{{ $team->id }}">
-                                                    <button type="submit" class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                                                    <button type="submit" class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded shadow-sm text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500">
                                                         Select Team
                                                     </button>
                                                 </form>
@@ -181,49 +237,11 @@
                                 @endforelse
                             </div>
                         </div>
-
-                        <div x-show="tab === 'recent'" id="tab-panel-recent" class="tab-content" aria-labelledby="tab-recent">
-                            <h2 class="text-xl font-semibold mb-6">Recently Accessed Teams</h2>
-                            <div class="space-y-4">
-                                <div class="bg-white dark:bg-zinc-700 rounded-lg shadow-sm overflow-hidden border border-gray-200 dark:border-zinc-600 flex items-center p-4">
-                                    <div class="h-10 w-10 rounded-md bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-blue-600 dark:text-blue-300 font-bold text-lg">
-                                        DT
-                                    </div>
-                                    <div class="ml-4 flex-1">
-                                        <h3 class="text-md font-medium text-gray-900 dark:text-white">DevTest Team</h3>
-                                        <span class="text-sm text-gray-500 dark:text-gray-400">Accessed 2 hours ago</span>
-                                    </div>
-                                    <form action="/dashboard/set-team" method="POST">
-                                        @csrf
-                                        <input type="hidden" name="team_id" value="1">
-                                        <button type="submit" class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                                            Select
-                                        </button>
-                                    </form>
-                                </div>
-
-                                <div class="bg-white dark:bg-zinc-700 rounded-lg shadow-sm overflow-hidden border border-gray-200 dark:border-zinc-600 flex items-center p-4">
-                                    <div class="h-10 w-10 rounded-md bg-purple-100 dark:bg-purple-900 flex items-center justify-center text-purple-600 dark:text-purple-300 font-bold text-lg">
-                                        QA
-                                    </div>
-                                    <div class="ml-4 flex-1">
-                                        <h3 class="text-md font-medium text-gray-900 dark:text-white">QA Analysis</h3>
-                                        <span class="text-sm text-gray-500 dark:text-gray-400">Accessed yesterday</span>
-                                    </div>
-                                    <form action="/dashboard/set-team" method="POST">
-                                        @csrf
-                                        <input type="hidden" name="team_id" value="2">
-                                        <button type="submit" class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                                            Select
-                                        </button>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>
         </main>
+    </div>
 
 @endsection
 
@@ -231,41 +249,40 @@
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.12.0/dist/cdn.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/lucide@latest"></script>
     <script>
-        // Dynamic content interaction
         document.addEventListener('DOMContentLoaded', function() {
-            // Theme initialization
-            if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-                document.documentElement.classList.add('dark');
-            } else {
-                document.documentElement.classList.remove('dark');
-            }
+            // Display notification on load
+            const notificationContainer = document.getElementById('notification-container');
+            if (notificationContainer) {
+                // Notification will automatically fade out after 3 seconds due to CSS animation
 
-            // Theme toggle functionality
-            const themeToggle = document.getElementById('theme-toggle');
-            if (themeToggle) {
-                themeToggle.addEventListener('click', function() {
-                    if (document.documentElement.classList.contains('dark')) {
-                        document.documentElement.classList.remove('dark');
-                        localStorage.theme = 'light';
-                    } else {
-                        document.documentElement.classList.add('dark');
-                        localStorage.theme = 'dark';
-                    }
-                });
-            }
+                // Theme initialization (keeping this as it was)
+                if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                    document.documentElement.classList.add('dark');
+                } else {
+                    document.documentElement.classList.remove('dark');
+                }
 
-            // Initialize Lucide icons
-            lucide.createIcons();
+                const themeToggle = document.getElementById('theme-toggle');
+                if (themeToggle) {
+                    themeToggle.addEventListener('click', function() {
+                        if (document.documentElement.classList.contains('dark')) {
+                            document.documentElement.classList.remove('dark');
+                            localStorage.theme = 'light';
+                        } else {
+                            document.documentElement.classList.add('dark');
+                            localStorage.theme = 'dark';
+                        }
+                    });
+                }
+
+                lucide.createIcons();
+            }
         });
 
-        // Tab switching functionality
         function switchTab(tabName) {
-            // Hide all tabs
             document.querySelectorAll('.tab-content').forEach(tab => {
                 tab.classList.remove('active');
             });
-
-            // Show selected tab
             document.querySelector(`.tab-content[data-tab="${tabName}"]`).classList.add('active');
         }
     </script>

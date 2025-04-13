@@ -331,7 +331,7 @@
                             <i data-lucide="moon" class="block dark:hidden w-5 h-5"></i>
                         </button>
 
-                        <div x-data="{ hasUnreadNotifications: true }" class="relative">
+                        <div class="dropdown-container">
                             <button
                                 @click="notificationsOpen = !notificationsOpen"
                                 class="p-2 rounded-md text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 focus:outline-none relative"
@@ -352,7 +352,7 @@
                                 x-transition:leave="transition ease-in duration-150"
                                 x-transition:leave-start="opacity-100 scale-100"
                                 x-transition:leave-end="opacity-0 scale-95"
-                                class="absolute right-0 mt-2 w-80 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md shadow-lg z-50"
+                                class="dropdown-menu"
                                 x-cloak
                             >
                                 <div class="p-3 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between">
@@ -405,7 +405,7 @@
                             </div>
                         </div>
 
-                        <div class="relative">
+                        <div class="dropdown-container">
                             <button
                                 @click="userMenuOpen = !userMenuOpen"
                                 class="flex items-center text-sm rounded-full focus:outline-none"
@@ -431,7 +431,7 @@
                                 x-transition:leave="transition ease-in duration-150"
                                 x-transition:leave-start="opacity-100 scale-100"
                                 x-transition:leave-end="opacity-0 scale-95"
-                                class="absolute right-0 mt-2 w-48 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-md shadow-lg z-50"
+                                class="dropdown-menu"
                                 x-cloak
                             >
                                 <div class="py-1">
