@@ -5,6 +5,7 @@ use App\Http\Controllers\EmailRegistrationController;
 use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\OAuthController;
 use App\Http\Controllers\PhoneAuthController;
+use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\TeamController;
 use App\Http\Controllers\WebLoginController;
 use Illuminate\Support\Facades\Route;
@@ -90,23 +91,6 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
     // --- DASHBOARD HOME ---
     Route::get('/dashboard', [DashboardController::class, 'showDashboard'])->name('dashboard');
 
-    // --- DASHBOARD PROJECTS OVERVIEW ---
-    Route::get('/dashboard/projects', function() {
-        return view('dashboard.projects');
-    })->name('dashboard.projects');
-
-    // --- DASHBOARD PROJECT DETAIL ---
-    Route::get('/dashboard/projects/{id}', function() {
-        return view('dashboard.project-details');
-    })->name('dashboard.project-details');
-
-    // --- DASHBOARD TEST CASE DETAILS ---
-    Route::get('/dashboard/test-cases/{id}', function() {
-        return view('dashboard.test-case-detail');
-    })->name('dashboard.test-case-detail');
-
-
-
     // Team details and management
     Route::get('/dashboard/teams', [TeamController::class, 'index'])->name('dashboard.teams.index');
     Route::get('/dashboard/teams/{id}', [TeamController::class, 'show'])->name('teams.show');
@@ -119,6 +103,13 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
     Route::put('/teams/{teamId}/members/{userId}', [TeamController::class, 'updateMemberRole'])->name('teams.members.update');
     Route::delete('/teams/{teamId}/members/{userId}', [TeamController::class, 'removeMember'])->name('teams.members.remove');
 
+    Route::get('/dashboard/projects', [ProjectController::class, 'index'])->name('dashboard.projects');
+    Route::get('/dashboard/projects/create', [ProjectController::class, 'create'])->name('dashboard.projects.create');
+    Route::post('/dashboard/projects', [ProjectController::class, 'store'])->name('dashboard.projects.store');
+    Route::get('/dashboard/projects/{id}', [ProjectController::class, 'show'])->name('dashboard.projects.show');
+    Route::get('/dashboard/projects/{id}/edit', [ProjectController::class, 'edit'])->name('dashboard.projects.edit');
+    Route::put('/dashboard/projects/{id}', [ProjectController::class, 'update'])->name('dashboard.projects.update');
+    Route::delete('/dashboard/projects/{id}', [ProjectController::class, 'destroy'])->name('dashboard.projects.destroy');
 });
 
 Route::middleware(['web', 'auth:web'])->group(function () {
