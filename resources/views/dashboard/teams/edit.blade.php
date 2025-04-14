@@ -1,4 +1,3 @@
-```php
 @extends('layouts.dashboard')
 
 @section('title', 'Edit Team')
@@ -6,7 +5,7 @@
 @section('breadcrumbs')
     <li class="flex items-center">
         <i data-lucide="chevron-right" class="w-4 h-4 text-zinc-400 mx-1"></i>
-        <a href="{{ route('dashboard.select-team') }}" class="text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300">
+        <a href="{{ route('dashboard.teams.index') }}" class="text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300">
             Teams
         </a>
     </li>

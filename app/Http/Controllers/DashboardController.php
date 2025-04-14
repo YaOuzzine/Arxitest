@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
+use App\Models\TeamInvitation;
 
 class DashboardController extends Controller
 {
@@ -17,9 +18,16 @@ class DashboardController extends Controller
         $user = auth('web')->user();
         $teams = $user->teams()->with('users')->get();
 
+        // Get pending invitations for the current user
+        $pendingInvitations = TeamInvitation::where('email', $user->email)
+            ->where('expires_at', '>', now())
+            ->with('team')
+            ->get();
+
         return view('dashboard.select-team', [
             'teams' => $teams,
             'user' => $user,
+            'pendingInvitations' => $pendingInvitations,
         ]);
     }
 
@@ -34,6 +42,8 @@ class DashboardController extends Controller
                 'team_id' => 'You do not belong to that team.'
             ]);
         }
+
+        session(['current_team' => $team_id]);
 
         return redirect()->intended('dashboard');
     }

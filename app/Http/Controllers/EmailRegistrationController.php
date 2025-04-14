@@ -49,7 +49,7 @@ class EmailRegistrationController extends Controller
 
         $verification = $request->session()->get('verification');
 
-        if (!$verification || now()->isAfter($verification['expires_at'])){
+        if (!$verification || now()->isAfter($verification['expires_at'])) {
             return redirect()->route('auth.email-verification')
                 ->withErrors(['verification_code' => 'Verification code has expired. Please request a new one.']);
         }
@@ -64,7 +64,8 @@ class EmailRegistrationController extends Controller
         return redirect()->route('auth.registration-completion');
     }
 
-    public function resendVerificationCode(Request $request){
+    public function resendVerificationCode(Request $request)
+    {
         $verification = $request->session()->get('verification');
 
         $email = $verification['email'];
@@ -107,7 +108,14 @@ class EmailRegistrationController extends Controller
         return view('auth.complete-registration');
     }
 
-    public function completeRegistration(Request $request){
+    /**
+     * Complete the registration process
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\RedirectResponse
+     */
+    public function completeRegistration(Request $request)
+    {
         $verifiedEmail = $request->session()->get('verified_email');
 
         $user = User::create([
@@ -120,6 +128,11 @@ class EmailRegistrationController extends Controller
         $request->session()->forget(['verified_email', 'verifications']);
 
         Auth::login($user);
+
+        // Check if this registration was initiated from an invitation
+        if (session('invitation_token')) {
+            return redirect()->route('invitations.complete');
+        }
 
         return redirect()->route('dashboard');
     }

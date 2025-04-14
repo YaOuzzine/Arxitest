@@ -5,7 +5,7 @@
 @section('breadcrumbs')
     <li class="flex items-center">
         <i data-lucide="chevron-right" class="w-4 h-4 text-zinc-400 mx-1"></i>
-        <a href="{{ route('dashboard.select-team') }}"
+        <a href="{{ route('dashboard.teams.index') }}"
             class="text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300">
             Teams
         </a>
@@ -19,14 +19,16 @@
 @section('content')
     <div class="h-full" x-data="teamDetails()">
         <!-- Team Header -->
-        <div class="bg-white dark:bg-zinc-900 rounded-2xl shadow-lg border border-zinc-200/50 dark:border-zinc-700/30 overflow-hidden mb-8">
+        <div
+            class="bg-white dark:bg-zinc-900 rounded-2xl shadow-lg border border-zinc-200/50 dark:border-zinc-700/30 overflow-hidden mb-8">
             <div class="flex flex-col md:flex-row md:items-center p-8">
                 <div class="flex-shrink-0 mb-6 md:mb-0 md:mr-8">
                     @if ($team->logo_path)
                         <img src="{{ Storage::url($team->logo_path) }}" alt="{{ $team->name }}"
                             class="h-24 w-24 rounded-xl object-cover shadow-lg ring-2 ring-white/50 dark:ring-zinc-800/50">
                     @else
-                        <div class="h-24 w-24 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center shadow-lg">
+                        <div
+                            class="h-24 w-24 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center shadow-lg">
                             <span class="text-white text-3xl font-bold">{{ substr($team->name, 0, 1) }}</span>
                         </div>
                     @endif
@@ -121,7 +123,8 @@
                     <div class="relative w-72">
                         <input type="text" placeholder="Search members..." x-model="memberSearch"
                             class="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-zinc-200/80 dark:border-zinc-700/50 bg-white/50 dark:bg-zinc-800/30 focus:ring-2 focus:ring-blue-500/50 focus:border-transparent placeholder-zinc-400/80 dark:placeholder-zinc-500/80 transition-all duration-200">
-                        <i data-lucide="search" class="absolute left-3 top-5 w-5 h-5 text-zinc-400/80 dark:text-zinc-500/80"></i>
+                        <i data-lucide="search"
+                            class="absolute left-3 top-5 w-5 h-5 text-zinc-400/80 dark:text-zinc-500/80"></i>
                     </div>
                 </div>
 
@@ -129,10 +132,18 @@
                     <table class="w-full divide-y divide-zinc-200/50 dark:divide-zinc-700/30">
                         <thead class="bg-zinc-50/50 dark:bg-zinc-800/30">
                             <tr>
-                                <th class="px-6 py-4 text-left text-xs font-semibold text-zinc-500/90 dark:text-zinc-400/90 uppercase tracking-wider">Member</th>
-                                <th class="px-6 py-4 text-left text-xs font-semibold text-zinc-500/90 dark:text-zinc-400/90 uppercase tracking-wider">Role</th>
-                                <th class="px-6 py-4 text-left text-xs font-semibold text-zinc-500/90 dark:text-zinc-400/90 uppercase tracking-wider">Joined</th>
-                                <th class="px-6 py-4 text-right text-xs font-semibold text-zinc-500/90 dark:text-zinc-400/90 uppercase tracking-wider">Actions</th>
+                                <th
+                                    class="px-6 py-4 text-left text-xs font-semibold text-zinc-500/90 dark:text-zinc-400/90 uppercase tracking-wider">
+                                    Member</th>
+                                <th
+                                    class="px-6 py-4 text-left text-xs font-semibold text-zinc-500/90 dark:text-zinc-400/90 uppercase tracking-wider">
+                                    Role</th>
+                                <th
+                                    class="px-6 py-4 text-left text-xs font-semibold text-zinc-500/90 dark:text-zinc-400/90 uppercase tracking-wider">
+                                    Joined</th>
+                                <th
+                                    class="px-6 py-4 text-right text-xs font-semibold text-zinc-500/90 dark:text-zinc-400/90 uppercase tracking-wider">
+                                    Actions</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-zinc-200/50 dark:divide-zinc-700/30 bg-white dark:bg-zinc-900/20">
@@ -140,31 +151,40 @@
                                 <tr class="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/20 transition-colors duration-150">
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <div class="flex items-center">
-                                            <img :src="member.avatarUrl" alt="" class="h-10 w-10 rounded-lg object-cover border-2 border-white/50 dark:border-zinc-800/50 shadow-sm">
+                                            <img :src="member.avatarUrl" alt=""
+                                                class="h-10 w-10 rounded-lg object-cover border-2 border-white/50 dark:border-zinc-800/50 shadow-sm">
                                             <div class="ml-4">
-                                                <div class="font-medium text-zinc-900/90 dark:text-white/90" x-text="member.name"></div>
-                                                <div class="text-sm text-zinc-500/80 dark:text-zinc-400/80" x-text="member.email"></div>
+                                                <div class="font-medium text-zinc-900/90 dark:text-white/90"
+                                                    x-text="member.name"></div>
+                                                <div class="text-sm text-zinc-500/80 dark:text-zinc-400/80"
+                                                    x-text="member.email"></div>
                                             </div>
                                         </div>
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium"
                                             :class="{
-                                                'bg-green-100/50 text-green-800 dark:bg-green-900/20 dark:text-green-400': member.role === 'owner',
-                                                'bg-blue-100/50 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400': member.role === 'admin',
-                                                'bg-zinc-100/50 text-zinc-800 dark:bg-zinc-700/30 dark:text-zinc-300': member.role === 'member'
+                                                'bg-green-100/50 text-green-800 dark:bg-green-900/20 dark:text-green-400': member
+                                                    .role === 'owner',
+                                                'bg-blue-100/50 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400': member
+                                                    .role === 'admin',
+                                                'bg-zinc-100/50 text-zinc-800 dark:bg-zinc-700/30 dark:text-zinc-300': member
+                                                    .role === 'member'
                                             }">
                                             <span x-text="member.role"></span>
                                         </span>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-zinc-500/80 dark:text-zinc-400/80" x-text="member.joined"></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-zinc-500/80 dark:text-zinc-400/80"
+                                        x-text="member.joined"></td>
                                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                         <div class="flex justify-end space-x-3">
-                                            <button x-show="canManageMembers && member.id !== currentUserId" @click="openEditRoleModal(member)"
+                                            <button x-show="canManageMembers && member.id !== currentUserId"
+                                                @click="openEditRoleModal(member)"
                                                 class="text-zinc-500/80 hover:text-blue-600 dark:text-zinc-400/80 dark:hover:text-blue-400 transition-colors duration-200">
                                                 <i data-lucide="settings" class="w-5 h-5"></i>
                                             </button>
-                                            <button x-show="canManageMembers && member.id !== currentUserId" @click="confirmRemoveMember(member)"
+                                            <button x-show="canManageMembers && member.id !== currentUserId"
+                                                @click="confirmRemoveMember(member)"
                                                 class="text-zinc-500/80 hover:text-red-600 dark:text-zinc-400/80 dark:hover:text-red-400 transition-colors duration-200">
                                                 <i data-lucide="user-x" class="w-5 h-5"></i>
                                             </button>
@@ -294,18 +314,16 @@
 
         <!-- Invite Member Modal -->
         <div x-show="showInviteModal" class="fixed inset-0 z-50 overflow-y-auto" x-cloak>
-            <div class="flex items-center justify-center min-h-screen px-4 text-center backdrop-blur-sm transition-all duration-300">
-                <div class="fixed inset-0 bg-zinc-900/50 dark:bg-zinc-900/80 transition-opacity" @click="showInviteModal = false"
-                    x-transition:enter="ease-out duration-300"
+            <div
+                class="flex items-center justify-center min-h-screen px-4 text-center backdrop-blur-sm transition-all duration-300">
+                <div class="fixed inset-0 bg-zinc-900/50 dark:bg-zinc-900/80 transition-opacity"
+                    @click="showInviteModal = false" x-transition:enter="ease-out duration-300"
                     x-transition:leave="ease-in duration-200"></div>
 
                 <div class="inline-block w-full max-w-md p-6 my-8 text-left align-middle transition-all transform bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-700/30"
-                    x-transition:enter="ease-out duration-300"
-                    x-transition:enter-start="opacity-0 translate-y-4"
-                    x-transition:enter-end="opacity-100 translate-y-0"
-                    x-transition:leave="ease-in duration-200"
-                    x-transition:leave-start="opacity-100 translate-y-0"
-                    x-transition:leave-end="opacity-0 translate-y-4">
+                    x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-4"
+                    x-transition:enter-end="opacity-100 translate-y-0" x-transition:leave="ease-in duration-200"
+                    x-transition:leave-start="opacity-100 translate-y-0" x-transition:leave-end="opacity-0 translate-y-4">
 
                     <div class="flex items-center space-x-4 mb-6">
                         <div class="p-3 bg-blue-100/50 dark:bg-blue-900/20 rounded-xl">
@@ -319,52 +337,58 @@
                         </div>
                     </div>
 
-                    <div class="space-y-5">
-                        <div>
-                            <label class="block text-sm font-medium text-zinc-700/90 dark:text-zinc-300/90 mb-2">
-                                Email Addresses
-                            </label>
-                            <textarea x-model="inviteEmails" rows="4"
-                                class="w-full px-4 py-3 rounded-xl border border-zinc-200/80 dark:border-zinc-700/50 bg-white/50 dark:bg-zinc-800/30 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/30 placeholder-zinc-400/80 dark:placeholder-zinc-500/80 text-zinc-900/90 dark:text-zinc-100/90 resize-none transition-all duration-200"
-                                placeholder="john@example.com\nalice@company.com"></textarea>
-                        </div>
+                    <form @submit.prevent="sendInvites">
+                        <div class="space-y-5">
+                            <div>
+                                <label for="invite-emails"
+                                    class="block text-sm font-medium text-zinc-700/90 dark:text-zinc-300/90 mb-2">
+                                    Email Addresses <span class="text-red-500">*</span>
+                                </label>
+                                <p class="text-xs text-zinc-500 dark:text-zinc-400 mb-2">Enter multiple email addresses
+                                    separated by commas or on new lines</p>
+                                <textarea id="invite-emails" x-model="inviteEmails" rows="4"
+                                    class="w-full px-4 py-3 rounded-xl border border-zinc-200/80 dark:border-zinc-700/50 bg-white/50 dark:bg-zinc-800/30 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/30 placeholder-zinc-400/80 dark:placeholder-zinc-500/80 text-zinc-900/90 dark:text-zinc-100/90 resize-none transition-all duration-200"
+                                    placeholder="john@example.com&#10;alice@company.com" required></textarea>
+                                <div x-show="inviteError" class="mt-2 text-sm text-red-600 dark:text-red-400"
+                                    x-text="inviteError"></div>
+                            </div>
 
-                        <div>
-                            <label class="block text-sm font-medium text-zinc-700/90 dark:text-zinc-300/90 mb-2">
-                                Role
-                            </label>
-                            <div class="relative">
-                                <select x-model="inviteRole"
-                                    class="w-full px-4 py-3 pr-10 rounded-xl border border-zinc-200/80 dark:border-zinc-700/50 bg-white/50 dark:bg-zinc-800/30 appearance-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/30 text-zinc-900/90 dark:text-zinc-100/90 transition-all duration-200">
-                                    <option value="member">Member</option>
-                                    <option value="admin">Admin</option>
-                                </select>
-                                <div class="absolute right-3 flex items-center pointer-events-none">
-                                    <i data-lucide="chevron-down" class="w-5 h-5 text-zinc-400/80 dark:text-zinc-500/80"></i>
+                            <div>
+                                <label for="invite-role"
+                                    class="block text-sm font-medium text-zinc-700/90 dark:text-zinc-300/90 mb-2">
+                                    Role
+                                </label>
+                                <div class="relative">
+                                    <select id="invite-role" x-model="inviteRole"
+                                        class="w-full px-4 py-3 pr-10 rounded-xl border border-zinc-200/80 dark:border-zinc-700/50 bg-white/50 dark:bg-zinc-800/30 appearance-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/30 text-zinc-900/90 dark:text-zinc-100/90 transition-all duration-200">
+                                        <option value="member">Member</option>
+                                        <option value="admin">Admin</option>
+                                    </select>
+                                    <div class="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                                        <i data-lucide="chevron-down"
+                                            class="w-5 h-5 text-zinc-400/80 dark:text-zinc-500/80"></i>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
 
-                    <div class="mt-8 flex space-x-3">
-                        <button @click="showInviteModal = false"
-                            class="flex-1 px-5 py-2.5 rounded-xl border border-zinc-200/80 dark:border-zinc-700/50 bg-transparent hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30 text-zinc-700/90 dark:text-zinc-300/90 transition-all duration-200">
-                            Cancel
-                        </button>
-                        <button @click="sendInvites" :disabled="inviteLoading"
-                            class="flex-1 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-blue-sm hover:shadow-blue-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
-                            <template x-if="inviteLoading">
-                                <svg class="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                            </template>
-                            <span x-text="inviteLoading ? 'Sending...' : 'Invite Members'"></span>
-                        </button>
-                    </div>
+                        <div class="mt-8 flex space-x-3">
+                            <button type="button" @click="showInviteModal = false"
+                                class="flex-1 px-5 py-2.5 rounded-xl border border-zinc-200/80 dark:border-zinc-700/50 bg-transparent hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30 text-zinc-700/90 dark:text-zinc-300/90 transition-all duration-200">
+                                Cancel
+                            </button>
+                            <button type="submit"
+                                class="flex items-center justify-center flex-1 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                :disabled="inviteLoading">
+                                <i data-lucide="loader" x-show="inviteLoading" class="animate-spin mr-2 w-4 h-4"></i>
+                                <span x-text="inviteLoading ? 'Sending...' : 'Send Invites'"></span>
+                            </button>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>
+
 
         <!-- Edit Role Modal -->
         <div x-show="showEditRoleModal" class="fixed inset-0 z-50 overflow-y-auto" x-cloak>
@@ -568,271 +592,319 @@
 
         <!-- Notifications (for team actions) -->
         <div x-show="notification.show" x-transition:enter="transition ease-out duration-300"
-    x-transition:enter-start="opacity-0 translate-x-4"
-    x-transition:enter-end="opacity-100 translate-x-0"
-    x-transition:leave="transition ease-in duration-200"
-    x-transition:leave-start="opacity-100 translate-x-0"
-    x-transition:leave-end="opacity-0 translate-x-4"
-    class="fixed bottom-6 right-6 z-50 max-w-sm w-full">
-    <div class="p-4 rounded-xl shadow-lg border backdrop-blur-sm"
-        :class="{
-            'bg-green-50/80 border-green-200/50 dark:bg-green-900/30 dark:border-green-800/30': notification.type === 'success',
-            'bg-red-50/80 border-red-200/50 dark:bg-red-900/30 dark:border-red-800/30': notification.type === 'error'
-        }">
-        <div class="flex items-start">
-            <i data-lucide="check-circle" x-show="notification.type === 'success'"
-                class="flex-shrink-0 w-5 h-5 mt-0.5 mr-3 text-green-600 dark:text-green-400"></i>
-            <i data-lucide="alert-circle" x-show="notification.type === 'error'"
-                class="flex-shrink-0 w-5 h-5 mt-0.5 mr-3 text-red-600 dark:text-red-400"></i>
-            <div>
-                <h4 class="font-medium mb-1"
-                    :class="{
-                        'text-green-800 dark:text-green-200': notification.type === 'success',
-                        'text-red-800 dark:text-red-200': notification.type === 'error'
-                    }"
-                    x-text="notification.title"></h4>
-                <p class="text-sm"
-                    :class="{
-                        'text-green-700/90 dark:text-green-300/90': notification.type === 'success',
-                        'text-red-700/90 dark:text-red-300/90': notification.type === 'error'
-                    }"
-                    x-text="notification.message"></p>
+            x-transition:enter-start="opacity-0 translate-x-4" x-transition:enter-end="opacity-100 translate-x-0"
+            x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 translate-x-0"
+            x-transition:leave-end="opacity-0 translate-x-4" class="fixed bottom-6 right-6 z-50 max-w-sm w-full">
+            <div class="p-4 rounded-xl shadow-lg border backdrop-blur-sm"
+                :class="{
+                    'bg-green-50/80 border-green-200/50 dark:bg-green-900/30 dark:border-green-800/30': notification
+                        .type === 'success',
+                    'bg-red-50/80 border-red-200/50 dark:bg-red-900/30 dark:border-red-800/30': notification
+                        .type === 'error'
+                }">
+                <div class="flex items-start">
+                    <i data-lucide="check-circle" x-show="notification.type === 'success'"
+                        class="flex-shrink-0 w-5 h-5 mt-0.5 mr-3 text-green-600 dark:text-green-400"></i>
+                    <i data-lucide="alert-circle" x-show="notification.type === 'error'"
+                        class="flex-shrink-0 w-5 h-5 mt-0.5 mr-3 text-red-600 dark:text-red-400"></i>
+                    <div>
+                        <h4 class="font-medium mb-1"
+                            :class="{
+                                'text-green-800 dark:text-green-200': notification.type === 'success',
+                                'text-red-800 dark:text-red-200': notification.type === 'error'
+                            }"
+                            x-text="notification.title"></h4>
+                        <p class="text-sm"
+                            :class="{
+                                'text-green-700/90 dark:text-green-300/90': notification.type === 'success',
+                                'text-red-700/90 dark:text-red-300/90': notification.type === 'error'
+                            }"
+                            x-text="notification.message"></p>
+                    </div>
+                </div>
             </div>
         </div>
-    </div>
-</div>
     </div>
 @endsection
 
 @push('scripts')
-<script>
-    document.addEventListener('alpine:init', () => {
-        Alpine.data('teamDetails', () => ({
-            // UI state
-            memberSearch: '',
-            showInviteModal: false,
-            showEditRoleModal: false,
-            showRemoveMemberModal: false,
-            showDeleteTeamModal: false,
-            inviteEmails: '',
-            inviteRole: 'member',
-            selectedMember: {},
-            selectedMemberRole: '',
-            deleteConfirmed: false,
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('teamDetails', () => ({
+                // UI state
+                memberSearch: '',
+                showInviteModal: false,
+                showEditRoleModal: false,
+                showRemoveMemberModal: false,
+                showDeleteTeamModal: false,
+                inviteEmails: '',
+                inviteRole: 'member',
+                selectedMember: {},
+                selectedMemberRole: '',
+                deleteConfirmed: false,
 
-            // API state
-            inviteLoading: false,
-            roleUpdateLoading: false,
-            removeMemberLoading: false,
-            deleteTeamLoading: false,
+                // API state
+                inviteLoading: false,
+                inviteError: '',
+                roleUpdateLoading: false,
+                removeMemberLoading: false,
+                deleteTeamLoading: false,
 
-            // Notification system
-            notification: {
-                show: false,
-                type: 'success',
-                title: '',
-                message: '',
-                timeout: null
-            },
-
-            // Team data
-            teamId: '{{ $team->id }}',
-            canManageMembers: {{ Auth::user()->can('update', $team) ? 'true' : 'false' }},
-            currentUserId: '{{ Auth::id() }}',
-
-            // Mock data for UI demo (replace with API data in prod)
-            members: [
-                @foreach($team->users as $user)
-                {
-                    id: '{{ $user->id }}',
-                    name: @json($user->name),
-                    email: @json($user->email),
-                    role: '{{ $user->pivot->team_role }}',
-                    joined: '{{ $user->pivot->created_at->diffForHumans() }}',
-                    avatarUrl: 'https://ui-avatars.com/api/?name={{ urlencode($user->name) }}&background=random'
+                // Notification system
+                notification: {
+                    show: false,
+                    type: 'success',
+                    title: '',
+                    message: '',
+                    timeout: null
                 },
-                @endforeach
-            ],
 
-            projects: [
-                @foreach($team->projects as $project)
-                {
-                    id: '{{ $project->id }}',
-                    name: @json($project->name),
-                    description: @json($project->description),
-                    testSuites: {{ $project->testSuites->count() }},
-                    testCases: {{ $project->testSuites->flatMap->testCases->count() }},
-                    updatedAt: '{{ $project->updated_at->diffForHumans() }}',
-                    url: '{{ route('dashboard.project-details', $project->id) }}',
-                    iconBg: 'bg-indigo-100 dark:bg-indigo-900/30',
-                    iconColor: 'text-indigo-600 dark:text-indigo-400'
-                },
-                @endforeach
-            ],
+                // Team data
+                teamId: '{{ $team->id }}',
+                canManageMembers: {{ Auth::user()->can('update', $team) ? 'true' : 'false' }},
+                currentUserId: '{{ Auth::id() }}',
 
-            init() {
-                // Lucide icons
-                this.$nextTick(() => lucide.createIcons());
-
-                // Auto-hide notification
-                this.$watch('notification.show', value => {
-                    if (value) {
-                        if (this.notification.timeout) clearTimeout(this.notification.timeout);
-                        this.notification.timeout = setTimeout(() => { this.notification.show = false; }, 5000);
-                    }
-                });
-            },
-
-            // Computed properties
-            get filteredMembers() {
-                const search = this.memberSearch.toLowerCase();
-                if (!search) return this.members;
-                return this.members.filter(member =>
-                    member.name.toLowerCase().includes(search) ||
-                    member.email.toLowerCase().includes(search) ||
-                    member.role.toLowerCase().includes(search)
-                );
-            },
-
-            // UI Methods
-            showNotification(type, title, message) {
-                this.notification.type = type;
-                this.notification.title = title;
-                this.notification.message = message;
-                this.notification.show = true;
-                if (this.notification.timeout) clearTimeout(this.notification.timeout);
-                this.notification.timeout = setTimeout(() => { this.notification.show = false; }, 5000);
-            },
-
-            openEditRoleModal(member) {
-                this.selectedMember = member;
-                this.selectedMemberRole = member.role;
-                this.showEditRoleModal = true;
-            },
-            confirmRemoveMember(member) {
-                this.selectedMember = member;
-                this.showRemoveMemberModal = true;
-            },
-            confirmDeleteTeam() {
-                this.deleteConfirmed = false;
-                this.showDeleteTeamModal = true;
-            },
-
-            // API Methods
-            async sendInvites() {
-                if (!this.inviteEmails.trim()) return;
-                this.inviteLoading = true;
-                try {
-                    const emails = this.inviteEmails
-                        .split(/[,\n]/)
-                        .map(email => email.trim())
-                        .filter(email => email !== '');
-                    if (!emails.length) throw new Error('No emails provided');
-                    const response = await fetch(`/teams/${this.teamId}/invite`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                // Mock data for UI demo (replace with API data in prod)
+                members: [
+                    @foreach ($team->users as $user)
+                        {
+                            id: '{{ $user->id }}',
+                            name: @json($user->name),
+                            email: @json($user->email),
+                            role: '{{ $user->pivot->team_role }}',
+                            joined: '{{ $user->pivot->created_at->diffForHumans() }}',
+                            avatarUrl: 'https://ui-avatars.com/api/?name={{ urlencode($user->name) }}&background=random'
                         },
-                        body: JSON.stringify({
-                            emails: emails,
-                            role: this.inviteRole
-                        })
-                    });
-                    const data = await response.json();
-                    if (response.ok) {
-                        this.showInviteModal = false;
-                        this.inviteEmails = '';
-                        this.showNotification(
-                            'success',
-                            'Invitations Sent',
-                            `Successfully sent ${emails.length} invitation${emails.length !== 1 ? 's' : ''}.`
-                        );
-                    } else {
-                        throw new Error(data.message || 'Failed to send invitations');
-                    }
-                } catch (error) {
-                    this.showNotification('error', 'Error', error.message || 'An error occurred while sending invitations');
-                } finally {
-                    this.inviteLoading = false;
-                }
-            },
+                    @endforeach
+                ],
 
-            async updateMemberRole() {
-                this.roleUpdateLoading = true;
-                try {
-                    const response = await fetch(`/teams/${this.teamId}/members/${this.selectedMember.id}`, {
-                        method: 'PUT',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                projects: [
+                    @foreach ($team->projects as $project)
+                        {
+                            id: '{{ $project->id }}',
+                            name: @json($project->name),
+                            description: @json($project->description),
+                            testSuites: {{ $project->testSuites->count() }},
+                            testCases: {{ $project->testSuites->flatMap->testCases->count() }},
+                            updatedAt: '{{ $project->updated_at->diffForHumans() }}',
+                            url: '{{ route('dashboard.project-details', $project->id) }}',
+                            iconBg: 'bg-indigo-100 dark:bg-indigo-900/30',
+                            iconColor: 'text-indigo-600 dark:text-indigo-400'
                         },
-                        body: JSON.stringify({ role: this.selectedMemberRole })
-                    });
-                    const data = await response.json();
-                    if (response.ok) {
-                        const memberIndex = this.members.findIndex(m => m.id === this.selectedMember.id);
-                        if (memberIndex !== -1) this.members[memberIndex].role = this.selectedMemberRole;
-                        this.showEditRoleModal = false;
-                        this.showNotification('success', 'Role Updated', `${this.selectedMember.name}'s role has been updated to ${this.selectedMemberRole}.`);
-                    } else {
-                        throw new Error(data.message || 'Failed to update role');
-                    }
-                } catch (error) {
-                    this.showNotification('error', 'Error', error.message || 'An error occurred while updating role');
-                } finally {
-                    this.roleUpdateLoading = false;
-                }
-            },
+                    @endforeach
+                ],
 
-            async removeMember() {
-                this.removeMemberLoading = true;
-                try {
-                    const response = await fetch(`/teams/${this.teamId}/members/${this.selectedMember.id}`, {
-                        method: 'DELETE',
-                        headers: {
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                init() {
+                    // Lucide icons
+                    this.$nextTick(() => lucide.createIcons());
+
+                    // Auto-hide notification
+                    this.$watch('notification.show', value => {
+                        if (value) {
+                            if (this.notification.timeout) clearTimeout(this.notification
+                                .timeout);
+                            this.notification.timeout = setTimeout(() => {
+                                this.notification.show = false;
+                            }, 5000);
                         }
                     });
-                    if (response.ok) {
-                        this.members = this.members.filter(m => m.id !== this.selectedMember.id);
-                        this.showRemoveMemberModal = false;
-                        this.showNotification('success', 'Member Removed', `${this.selectedMember.name} has been removed from the team.`);
-                    } else {
-                        const data = await response.json();
-                        throw new Error(data.message || 'Failed to remove member');
-                    }
-                } catch (error) {
-                    this.showNotification('error', 'Error', error.message || 'An error occurred while removing member');
-                } finally {
-                    this.removeMemberLoading = false;
-                }
-            },
+                },
 
-            async deleteTeam() {
-                if (!this.deleteConfirmed) return;
-                this.deleteTeamLoading = true;
-                try {
-                    const response = await fetch(`/teams/${this.teamId}`, {
-                        method: 'DELETE',
-                        headers: {
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                        }
-                    });
-                    if (response.ok) {
-                        window.location.href = '{{ route('dashboard.select-team') }}';
-                    } else {
-                        const data = await response.json();
-                        throw new Error(data.message || 'Failed to delete team');
+                // Computed properties
+                get filteredMembers() {
+                    const search = this.memberSearch.toLowerCase();
+                    if (!search) return this.members;
+                    return this.members.filter(member =>
+                        member.name.toLowerCase().includes(search) ||
+                        member.email.toLowerCase().includes(search) ||
+                        member.role.toLowerCase().includes(search)
+                    );
+                },
+
+                // UI Methods
+                showNotification(type, title, message) {
+                    this.notification.type = type;
+                    this.notification.title = title;
+                    this.notification.message = message;
+                    this.notification.show = true;
+                    if (this.notification.timeout) clearTimeout(this.notification.timeout);
+                    this.notification.timeout = setTimeout(() => {
+                        this.notification.show = false;
+                    }, 5000);
+                },
+
+                openEditRoleModal(member) {
+                    this.selectedMember = member;
+                    this.selectedMemberRole = member.role;
+                    this.showEditRoleModal = true;
+                },
+                confirmRemoveMember(member) {
+                    this.selectedMember = member;
+                    this.showRemoveMemberModal = true;
+                },
+                confirmDeleteTeam() {
+                    this.deleteConfirmed = false;
+                    this.showDeleteTeamModal = true;
+                },
+
+                // API Methods
+                async sendInvites() {
+                    if (!this.inviteEmails.trim()) {
+                        this.inviteError = 'Please enter at least one email address';
+                        return;
                     }
-                } catch (error) {
-                    this.showNotification('error', 'Error', error.message || 'An error occurred while deleting the team');
-                    this.showDeleteTeamModal = false;
-                } finally {
-                    this.deleteTeamLoading = false;
+
+                    this.inviteError = '';
+                    this.inviteLoading = true;
+
+                    try {
+                        // Process email addresses from textarea (split by commas or newlines)
+                        const emails = this.inviteEmails
+                            .split(/[,\n]/)
+                            .map(email => email.trim())
+                            .filter(email => email !== '');
+
+                        // Validate emails
+                        const invalidEmails = emails.filter(email => !this.isValidEmail(email));
+                        if (invalidEmails.length > 0) {
+                            this.inviteError =
+                                `Invalid email address${invalidEmails.length > 1 ? 'es' : ''}: ${invalidEmails.join(', ')}`;
+                            this.inviteLoading = false;
+                            return;
+                        }
+
+                        const response = await fetch(`/teams/${this.teamId}/invite`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': document.querySelector(
+                                    'meta[name="csrf-token"]').content
+                            },
+                            body: JSON.stringify({
+                                emails: emails,
+                                role: this.inviteRole
+                            })
+                        });
+
+                        const result = await response.json();
+
+                        if (response.ok) {
+                            this.showInviteModal = false;
+                            this.inviteEmails = '';
+                            this.showNotification(
+                                'success',
+                                'Invitations Sent',
+                                result.message ||
+                                `${emails.length} invitation${emails.length !== 1 ? 's' : ''} sent successfully`
+                            );
+                        } else {
+                            throw new Error(result.message || 'Failed to send invitations');
+                        }
+                    } catch (error) {
+                        this.inviteError = error.message ||
+                            'An error occurred while sending invitations';
+                        this.showNotification('error', 'Error', this.inviteError);
+                    } finally {
+                        this.inviteLoading = false;
+                    }
+                },
+
+                isValidEmail(email) {
+                    const re = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
+                    return re.test(String(email).toLowerCase());
+                },
+
+                async updateMemberRole() {
+                    this.roleUpdateLoading = true;
+                    try {
+                        const response = await fetch(
+                            `/teams/${this.teamId}/members/${this.selectedMember.id}`, {
+                                method: 'PUT',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRF-TOKEN': document.querySelector(
+                                        'meta[name="csrf-token"]').getAttribute('content')
+                                },
+                                body: JSON.stringify({
+                                    role: this.selectedMemberRole
+                                })
+                            });
+                        const data = await response.json();
+                        if (response.ok) {
+                            const memberIndex = this.members.findIndex(m => m.id === this
+                                .selectedMember.id);
+                            if (memberIndex !== -1) this.members[memberIndex].role = this
+                                .selectedMemberRole;
+                            this.showEditRoleModal = false;
+                            this.showNotification('success', 'Role Updated',
+                                `${this.selectedMember.name}'s role has been updated to ${this.selectedMemberRole}.`
+                                );
+                        } else {
+                            throw new Error(data.message || 'Failed to update role');
+                        }
+                    } catch (error) {
+                        this.showNotification('error', 'Error', error.message ||
+                            'An error occurred while updating role');
+                    } finally {
+                        this.roleUpdateLoading = false;
+                    }
+                },
+
+                async removeMember() {
+                    this.removeMemberLoading = true;
+                    try {
+                        const response = await fetch(
+                            `/teams/${this.teamId}/members/${this.selectedMember.id}`, {
+                                method: 'DELETE',
+                                headers: {
+                                    'X-CSRF-TOKEN': document.querySelector(
+                                        'meta[name="csrf-token"]').getAttribute('content')
+                                }
+                            });
+                        if (response.ok) {
+                            this.members = this.members.filter(m => m.id !== this.selectedMember
+                            .id);
+                            this.showRemoveMemberModal = false;
+                            this.showNotification('success', 'Member Removed',
+                                `${this.selectedMember.name} has been removed from the team.`);
+                        } else {
+                            const data = await response.json();
+                            throw new Error(data.message || 'Failed to remove member');
+                        }
+                    } catch (error) {
+                        this.showNotification('error', 'Error', error.message ||
+                            'An error occurred while removing member');
+                    } finally {
+                        this.removeMemberLoading = false;
+                    }
+                },
+
+                async deleteTeam() {
+                    if (!this.deleteConfirmed) return;
+                    this.deleteTeamLoading = true;
+                    try {
+                        const response = await fetch(`/teams/${this.teamId}`, {
+                            method: 'DELETE',
+                            headers: {
+                                'X-CSRF-TOKEN': document.querySelector(
+                                    'meta[name="csrf-token"]').getAttribute('content')
+                            }
+                        });
+                        if (response.ok) {
+                            window.location.href = '{{ route('dashboard.select-team') }}';
+                        } else {
+                            const data = await response.json();
+                            throw new Error(data.message || 'Failed to delete team');
+                        }
+                    } catch (error) {
+                        this.showNotification('error', 'Error', error.message ||
+                            'An error occurred while deleting the team');
+                        this.showDeleteTeamModal = false;
+                    } finally {
+                        this.deleteTeamLoading = false;
+                    }
                 }
-            }
-        }));
-    });
-</script>
+            }));
+        });
+    </script>
 @endpush

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EmailRegistrationController;
+use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\OAuthController;
 use App\Http\Controllers\PhoneAuthController;
 use App\Http\Controllers\TeamController;
@@ -50,9 +51,15 @@ Route::middleware(['guest', 'web'])->group(function () {
 
     Route::post('auth/register/email', [EmailRegistrationController::class, 'registerEmail'])->name('register.email');
     Route::get('/auth/register/verify', [EmailRegistrationController::class, 'showEmailVerification'])->name('auth.email-verification');
+    Route::post('/auth/register/verify', [EmailRegistrationController::class, 'verifyEmail'])->name('auth.email.verify');
     Route::post('/auth/email/resend', [EmailRegistrationController::class, 'resendVerificationCode'])->name('auth.email.resend-verification');
     Route::get('/auth/register/complete', [EmailRegistrationController::class, 'showRegistrationCompletion'])->name('auth.registration-completion');
     Route::post('/auth/register/complete', [EmailRegistrationController::class, 'completeRegistration'])->name('auth.register.complete');
+
+    // Team invitation acceptance route (accessible without login)
+    Route::get('invitations/accept/{token}', [InvitationController::class, 'accept'])
+        ->name('invitations.accept');
+
 });
 
 /*
@@ -101,6 +108,7 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
 
 
     // Team details and management
+    Route::get('/dashboard/teams', [TeamController::class, 'index'])->name('dashboard.teams.index');
     Route::get('/dashboard/teams/{id}', [TeamController::class, 'show'])->name('teams.show');
     Route::get('/dashboard/teams/{id}/edit', [TeamController::class, 'edit'])->name('teams.edit');
     Route::put('/teams/{id}', [TeamController::class, 'update'])->name('teams.update');
@@ -125,4 +133,16 @@ Route::middleware(['web', 'auth:web'])->group(function () {
     // Team creation
     Route::get('/dashboard/team/create', [TeamController::class, 'showCreateTeam'])->name('teams.create');
     Route::post('/teams', [TeamController::class, 'store'])->name('teams.store');
+
+    Route::get('invitations/accept/{token}', 'InvitationController@accept')->name('invitations.accept');
+    Route::get('invitations/complete', 'InvitationController@complete')->name('invitations.complete');
+
+    // Complete the invitation process after login/registration
+    Route::get('invitations/complete', [InvitationController::class, 'complete'])
+        ->name('invitations.complete');
+
+    Route::post('invitations/accept-directly/{token}', [InvitationController::class, 'acceptDirectly'])
+        ->name('invitations.accept-directly');
+    Route::delete('invitations/reject/{id}', [InvitationController::class, 'reject'])
+        ->name('invitations.reject');
 });

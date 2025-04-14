@@ -2,19 +2,51 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use App\Models\Team;
 use App\Models\User;
+use App\Models\TeamInvitation;
+use App\Mail\TeamInvitation as TeamInvitationMail;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
-use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 class TeamController extends Controller
 {
     use AuthorizesRequests;
+
+    /**
+     * Display a listing of the teams.
+     *
+     * @return \Illuminate\View\View
+     */
+    public function index()
+    {
+        $user = Auth::user();
+
+        // Eager load team relationships to avoid N+1 query problem
+        $teams = $user->teams()
+            ->with(['users' => function($query) {
+                $query->select('users.id', 'name', 'email');
+            }])
+            ->withCount(['projects', 'users'])
+            ->get();
+
+        // Add pivot data directly to users for frontend access
+        $teams->each(function ($team) {
+            $team->users->each(function ($user) {
+                $user->role = $user->pivot->team_role;
+            });
+        });
+
+        return view('dashboard.teams.index', [
+            'teams' => $teams,
+            'currentTeamId' => session('current_team')
+        ]);
+    }
 
     /**
      * Show the team creation form
@@ -73,21 +105,7 @@ class TeamController extends Controller
         if ($request->has('invites')) {
             $invites = json_decode($request->invites, true);
             if (is_array($invites)) {
-                foreach ($invites as $invite) {
-                    // Check if user already exists
-                    $invitedUser = User::where('email', $invite['email'])->first();
-
-                    if ($invitedUser) {
-                        // Add existing user directly to team
-                        $team->users()->attach($invitedUser->id, [
-                            'team_role' => $invite['role']
-                        ]);
-                    } else {
-                        // Create a team invitation record
-                        // In a real implementation, you would create an invitation and send an email
-                        // This is simplified for the example
-                    }
-                }
+                $this->processTeamInvitations($team, $invites);
             }
         }
 
@@ -204,6 +222,78 @@ class TeamController extends Controller
     }
 
     /**
+     * Process team invitations
+     *
+     * @param Team $team
+     * @param array $invites
+     * @return int Number of invitations sent
+     */
+    private function processTeamInvitations(Team $team, array $invites): int
+    {
+        $processed = 0;
+        $user = Auth::user();
+
+        foreach ($invites as $invite) {
+            $email = $invite['email'];
+            $role = $invite['role'];
+
+            // Skip invalid emails
+            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                continue;
+            }
+
+            // Check if user already exists
+            $existingUser = User::where('email', $email)->first();
+
+            if ($existingUser) {
+                // Check if user is already a member
+                if (!$team->users->contains($existingUser->id)) {
+                    $team->users()->attach($existingUser->id, [
+                        'team_role' => $role
+                    ]);
+                    $processed++;
+                }
+            } else {
+                // Create invitation for new user
+                $token = Str::random(64);
+                $expiresAt = now()->addDays(7);
+
+                // Check if an invitation already exists
+                $existingInvitation = TeamInvitation::where('team_id', $team->id)
+                    ->where('email', $email)
+                    ->first();
+
+                if ($existingInvitation) {
+                    // Update existing invitation
+                    $existingInvitation->update([
+                        'role' => $role,
+                        'token' => $token,
+                        'expires_at' => $expiresAt
+                    ]);
+                } else {
+                    // Create new invitation
+                    TeamInvitation::create([
+                        'team_id' => $team->id,
+                        'email' => $email,
+                        'role' => $role,
+                        'token' => $token,
+                        'expires_at' => $expiresAt
+                    ]);
+                }
+
+                // Send invitation email
+                Mail::to($email)->send(
+                    new TeamInvitationMail($team, $user->name, $token, $role)
+                );
+
+                $processed++;
+            }
+        }
+
+        return $processed;
+    }
+
+    /**
      * Send invitations to join the team
      *
      * @param Request $request
@@ -231,38 +321,16 @@ class TeamController extends Controller
             ], 422);
         }
 
-        $processed = 0;
+        // Format invitations for processing
         $invites = [];
-
         foreach ($request->emails as $email) {
-            // Check if user already exists
-            $existingUser = User::where('email', $email)->first();
-
-            if ($existingUser) {
-                // Check if user is already a member
-                if (!$team->users->contains($existingUser->id)) {
-                    $team->users()->attach($existingUser->id, [
-                        'team_role' => $request->role
-                    ]);
-                    $processed++;
-                }
-            } else {
-                // Create invitation for new user
-                // For now, we'll simulate this
-                $invites[] = [
-                    'email' => $email,
-                    'role' => $request->role,
-                    'token' => Str::random(32)
-                ];
-
-                // You would implement actual email sending here
-                // Mail::to($email)->send(new TeamInvitation($team, $token));
-                $processed++;
-            }
+            $invites[] = [
+                'email' => $email,
+                'role' => $request->role
+            ];
         }
 
-        // In a real app, you would save these invites to the database
-        // TeamInvitation::insert($invites);
+        $processed = $this->processTeamInvitations($team, $invites);
 
         return response()->json([
             'success' => true,
@@ -368,7 +436,7 @@ class TeamController extends Controller
         $team = Team::findOrFail($id);
 
         // Check if user is authorized to delete team
-        $this->authorize('update', $team);
+        $this->authorize('delete', $team);
 
         // Clear current team from session if it's this one
         if (session('current_team') == $id) {
