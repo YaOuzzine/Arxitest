@@ -229,7 +229,7 @@
                     </a>
 
                     <a
-                        href="{{ route('dashboard') }}?page=team"
+                        href="{{ route('dashboard.select-team') }}?page=team"
                         class="nav-item group flex items-center px-3 py-2 text-sm font-medium rounded-md"
                         :class="activePage === 'team' ? 'bg-zinc-100 dark:bg-zinc-700 text-zinc-900 dark:text-white' : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700/50'"
                     >
@@ -238,7 +238,7 @@
                             class="mr-3 flex-shrink-0 w-5 h-5"
                             :class="activePage === 'team' ? 'text-zinc-800 dark:text-white' : 'text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-600 dark:group-hover:text-zinc-300'"
                         ></i>
-                        Team
+                        Teams
                     </a>
 
                     <a
@@ -319,7 +319,7 @@
                                 placeholder="Search..."
                                 class="w-64 pl-10 pr-4 py-2 text-sm rounded-md border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-500 dark:focus:ring-zinc-400"
                             >
-                            <i data-lucide="search" class="absolute left-3 top-2.5 w-4 h-4 text-zinc-400 dark:text-zinc-500"></i>
+                            <i data-lucide="search" class="absolute left-3 top-4.5 w-4 h-4 text-zinc-400 dark:text-zinc-500"></i>
                         </div>
 
                         <button

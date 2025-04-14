@@ -98,6 +98,19 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
         return view('dashboard.test-case-detail');
     })->name('dashboard.test-case-detail');
 
+
+
+    // Team details and management
+    Route::get('/dashboard/teams/{id}', [TeamController::class, 'show'])->name('teams.show');
+    Route::get('/dashboard/teams/{id}/edit', [TeamController::class, 'edit'])->name('teams.edit');
+    Route::put('/teams/{id}', [TeamController::class, 'update'])->name('teams.update');
+    Route::delete('/teams/{id}', [TeamController::class, 'destroy'])->name('teams.destroy');
+
+    // Team members management
+    Route::post('/teams/{id}/invite', [TeamController::class, 'sendInvitations'])->name('teams.invite');
+    Route::put('/teams/{teamId}/members/{userId}', [TeamController::class, 'updateMemberRole'])->name('teams.members.update');
+    Route::delete('/teams/{teamId}/members/{userId}', [TeamController::class, 'removeMember'])->name('teams.members.remove');
+
 });
 
 Route::middleware(['web', 'auth:web'])->group(function () {
@@ -109,5 +122,7 @@ Route::middleware(['web', 'auth:web'])->group(function () {
 
     Route::post('/dashboard/select-team', [DashboardController::class, 'setCurrentTeam'])->name('dashboard.select-team');
 
+    // Team creation
     Route::get('/dashboard/team/create', [TeamController::class, 'showCreateTeam'])->name('teams.create');
+    Route::post('/teams', [TeamController::class, 'store'])->name('teams.store');
 });
