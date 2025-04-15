@@ -85,3 +85,23 @@
     margin-top: 0.5rem;
     /* Small gap from the trigger */
 }
+
+.stat-card {
+    @apply relative overflow-hidden transition-all duration-300;
+}
+
+.stat-card::before {
+    @apply absolute inset-0 opacity-0 transition-opacity duration-300;
+    content: '';
+    background: radial-gradient(800px circle at var(--x) var(--y),
+        rgba(99, 102, 241, 0.1) 0%,
+        transparent 100%);
+}
+
+.stat-card:hover::before {
+    @apply opacity-100;
+}
+
+.group:hover .stat-card-hover-effect {
+    @apply opacity-100;
+}

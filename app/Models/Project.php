@@ -35,6 +35,23 @@ class Project extends Model
     }
 
     /**
+     * Get all test cases for the project through test suites.
+     */
+    public function testCases()
+    {
+        // Project -> TestSuite -> TestCase
+        // We define the path: Go through TestSuite model to get to TestCase model.
+        return $this->hasManyThrough(
+            TestCase::class,    // The final model we want to access (TestCase)
+            TestSuite::class,   // The intermediate model (TestSuite)
+            'project_id',       // Foreign key on the intermediate model (test_suites table) linking back to Project
+            'suite_id',         // Foreign key on the final model (test_cases table) linking back to TestSuite
+            'id',               // Local key on the starting model (projects table)
+            'id'                // Local key on the intermediate model (test_suites table)
+        );
+    }
+
+    /**
      * The environments associated with this project.
      */
     public function environments()
