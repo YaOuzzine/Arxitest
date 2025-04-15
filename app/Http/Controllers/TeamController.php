@@ -13,6 +13,8 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+use Illuminate\Support\Facades\Log;
+use PgSql\Lob;
 
 class TeamController extends Controller
 {
@@ -58,30 +60,21 @@ class TeamController extends Controller
         return view('dashboard.teams.create');
     }
 
-    /**
-     * Store a newly created team
-     *
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse|\Illuminate\Http\RedirectResponse
-     */
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:100',
             'description' => 'nullable|string|max:200',
-            'logo' => 'nullable|image|max:2048', // max 2MB
+            'logo' => 'nullable|image|max:2048',
             'invites' => 'nullable|json'
         ]);
 
         if ($validator->fails()) {
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'errors' => $validator->errors()
-                ], 422);
-            }
-
-            return redirect()->back()->withErrors($validator)->withInput();
+            // ... error handling ...
+             if ($request->expectsJson()) {
+                 return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+             }
+             return redirect()->back()->withErrors($validator)->withInput();
         }
 
         // Create the team
@@ -92,32 +85,46 @@ class TeamController extends Controller
 
         // Add the current user as owner
         $user = Auth::user();
-        $team->users()->attach($user->id, ['team_role' => 'owner']);
+        $team->users()->attach($user->id, ['team_role' => 'owner']); // Attach to DB
+
+        // *** NEW: Re-authenticate the user to refresh their relationships in the session ***
+        Auth::login($user); // This effectively refreshes the user model stored in the session state
 
         // Store team logo if provided
         if ($request->hasFile('logo')) {
-            $logoPath = $request->file('logo')->store('team-logos', 'public');
-            $team->logo_path = $logoPath;
-            $team->save();
+            // ... logo handling ...
+             $logoPath = $request->file('logo')->store('team-logos', 'public');
+             $team->logo_path = $logoPath;
+             $team->save();
         }
 
         // Process invites if present
-        if ($request->has('invites')) {
-            $invites = json_decode($request->invites, true);
-            if (is_array($invites)) {
-                $this->processTeamInvitations($team, $invites);
-            }
+        if ($request->filled('invites')) { // Use filled() for better check
+            try {
+                 $invites = json_decode($request->invites, true, 512, JSON_THROW_ON_ERROR);
+                 if (is_array($invites)) {
+                     $this->processTeamInvitations($team, $invites);
+                 }
+             } catch (\JsonException $e) {
+                 // Handle potential JSON decoding errors if necessary
+                 Log::error('Invalid JSON in team invites during creation: ' . $e->getMessage());
+                 // Optionally return an error back to the user
+             }
         }
+
 
         // Set current team in session
         session(['current_team' => $team->id]);
+
+        // Explicitly save the session AFTER setting the team and re-logging in
+        $request->session()->save();
 
         if ($request->expectsJson()) {
             return response()->json([
                 'success' => true,
                 'message' => 'Team created successfully',
-                'team' => $team,
-                'redirect' => route('dashboard')
+                'team' => $team->load('users'), // Optionally load users for response
+                'redirect' => route('dashboard') // Redirect to main dashboard after creation
             ]);
         }
 

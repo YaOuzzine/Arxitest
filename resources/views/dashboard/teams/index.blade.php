@@ -68,7 +68,7 @@
                                 <p class="text-sm text-zinc-500 dark:text-zinc-400" x-text="team.users_count + ' members'"></p>
                             </div>
                         </div>
-                        <div x-data="{ menuOpen: false }" class="relative">
+                        <div x-data="{ menuOpen: false }" class="dropdown-container">
                             <button
                                 @click="menuOpen = !menuOpen"
                                 class="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 p-1 rounded-full focus:outline-none"
@@ -85,7 +85,7 @@
                                 x-transition:leave="transition ease-in duration-150"
                                 x-transition:leave-start="opacity-100 scale-100"
                                 x-transition:leave-end="opacity-0 scale-95"
-                                class="absolute right-0 mt-2 w-48 rounded-lg shadow-lg bg-white dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 z-10"
+                                class="dropdown-menu"
                                 x-cloak
                             >
                                 <div class="py-1">

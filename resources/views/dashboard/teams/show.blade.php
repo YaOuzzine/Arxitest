@@ -687,7 +687,7 @@
                             testSuites: {{ $project->testSuites->count() }},
                             testCases: {{ $project->testSuites->flatMap->testCases->count() }},
                             updatedAt: '{{ $project->updated_at->diffForHumans() }}',
-                            url: '{{ route('dashboard.project-details', $project->id) }}',
+                            url: '{{ route('dashboard.projects.show', $project->id) }}',
                             iconBg: 'bg-indigo-100 dark:bg-indigo-900/30',
                             iconColor: 'text-indigo-600 dark:text-indigo-400'
                         },

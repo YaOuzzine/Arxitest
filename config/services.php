@@ -18,6 +18,11 @@ return [
         'token' => env('POSTMARK_TOKEN'),
     ],
 
+    'deepseek' => [
+        'key' => env('DEEPSEEK_API_KEY'),
+        'chat_url' => env('DEEPSEEK_CHAT_URL', 'https://api.deepseek.com/chat/completions'),
+    ],
+
     'ses' => [
         'key' => env('AWS_ACCESS_KEY_ID'),
         'secret' => env('AWS_SECRET_ACCESS_KEY'),

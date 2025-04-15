@@ -156,7 +156,7 @@
                         Projects
                     </a>
 
-                    <a href="{{ route('dashboard') }}?page=test-suites"
+                    <a href="{{ route('dashboard.test-suites.indexAll') }}?page=test-suites"
                         class="nav-item group flex items-center px-3 py-2 text-sm font-medium rounded-md"
                         :class="activePage === 'test-suites' ? 'bg-zinc-100 dark:bg-zinc-700 text-zinc-900 dark:text-white' :
                             'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700/50'">

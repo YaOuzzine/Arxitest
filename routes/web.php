@@ -7,6 +7,7 @@ use App\Http\Controllers\OAuthController;
 use App\Http\Controllers\PhoneAuthController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\TeamController;
+use App\Http\Controllers\TestSuiteController;
 use App\Http\Controllers\WebLoginController;
 use Illuminate\Support\Facades\Route;
 
@@ -106,10 +107,27 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
     Route::get('/dashboard/projects', [ProjectController::class, 'index'])->name('dashboard.projects');
     Route::get('/dashboard/projects/create', [ProjectController::class, 'create'])->name('dashboard.projects.create');
     Route::post('/dashboard/projects', [ProjectController::class, 'store'])->name('dashboard.projects.store');
-    Route::get('/dashboard/projects/{id}', [ProjectController::class, 'show'])->name('dashboard.projects.show');
-    Route::get('/dashboard/projects/{id}/edit', [ProjectController::class, 'edit'])->name('dashboard.projects.edit');
-    Route::put('/dashboard/projects/{id}', [ProjectController::class, 'update'])->name('dashboard.projects.update');
-    Route::delete('/dashboard/projects/{id}', [ProjectController::class, 'destroy'])->name('dashboard.projects.destroy');
+    Route::get('/dashboard/projects/{project}', [ProjectController::class, 'show'])->name('dashboard.projects.show');
+    Route::get('/dashboard/projects/{project}/edit', [ProjectController::class, 'edit'])->name('dashboard.projects.edit');
+    Route::put('/dashboard/projects/{project}', [ProjectController::class, 'update'])->name('dashboard.projects.update');
+    Route::delete('/dashboard/projects/{project}', [ProjectController::class, 'destroy'])->name('dashboard.projects.destroy');
+
+    Route::get('/dashboard/test-suites', [TestSuiteController::class, 'indexAll'])->name('dashboard.test-suites.indexAll');
+
+    // Routes nested under projects
+    Route::prefix('/dashboard/projects/{project}/test-suites')->name('dashboard.projects.test-suites.')->group(function () {
+        Route::get('/', [TestSuiteController::class, 'index'])->name('index'); // List suites for a specific project
+        Route::get('/create', [TestSuiteController::class, 'create'])->name('create'); // Show create form
+        Route::post('/', [TestSuiteController::class, 'store'])->name('store'); // Store new suite
+        Route::get('/{test_suite}', [TestSuiteController::class, 'show'])->name('show'); // Show specific suite
+        Route::get('/{test_suite}/edit', [TestSuiteController::class, 'edit'])->name('edit'); // Show edit form
+        Route::put('/{test_suite}', [TestSuiteController::class, 'update'])->name('update'); // Update specific suite
+        Route::delete('/{test_suite}', [TestSuiteController::class, 'destroy'])->name('destroy'); // Delete specific suite
+
+        // AI Generation Route (AJAX)
+        Route::post('/generate-ai', [TestSuiteController::class, 'generateWithAI'])->name('generateAI');
+    });
+
 });
 
 Route::middleware(['web', 'auth:web'])->group(function () {
@@ -126,7 +144,7 @@ Route::middleware(['web', 'auth:web'])->group(function () {
     Route::post('/teams', [TeamController::class, 'store'])->name('teams.store');
 
     Route::get('invitations/accept/{token}', 'InvitationController@accept')->name('invitations.accept');
-    Route::get('invitations/complete', 'InvitationController@complete')->name('invitations.complete');
+    Route::get('invitations/complete', [InvitationController::class, 'complete'])->name('invitations.complete');
 
     // Complete the invitation process after login/registration
     Route::get('invitations/complete', [InvitationController::class, 'complete'])
