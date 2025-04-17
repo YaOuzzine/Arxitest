@@ -3,13 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\Integration;
+use App\Models\OAuthState;
 use App\Models\Project;
 use App\Models\ProjectIntegration;
 use App\Models\Team;
-use App\Models\TestSuite;
 use App\Models\Story as ArxitestStory;
 use App\Models\TestCase as ArxitestTestCase;
-use App\Models\User; // Import User model
+use App\Models\TestSuite;
+use App\Models\User;
 use App\Services\JiraService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -19,142 +20,190 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
-use Illuminate\Validation\ValidationException;
-use Illuminate\Contracts\Encryption\DecryptException; // Import DecryptException
+use Illuminate\Contracts\Encryption\DecryptException;
 
 class IntegrationController extends Controller
 {
     /**
      * Display the integrations management view.
-     *
-     * @param Request $request
-     * @return \Illuminate\View\View|\Illuminate\Http\RedirectResponse
      */
     public function index(Request $request)
     {
-        // This method requires the user to be authenticated via middleware
+        // Get current team context
         $currentTeamId = session('current_team');
         if (!$currentTeamId) {
-            return redirect()->route('dashboard.select-team')->with('error', 'Please select a team first.');
+            return redirect()->route('dashboard.select-team')
+                ->with('error', 'Please select a team first.');
         }
 
         $team = Team::find($currentTeamId);
         if (!$team) {
-             return redirect()->route('dashboard.select-team')->with('error', 'Selected team not found.');
+            return redirect()->route('dashboard.select-team')
+                ->with('error', 'Selected team not found.');
         }
 
-        $currentProjectId = $request->query('project_id', $team->projects()->value('id')); // Get project context if provided, else default
+        // Get optional project context
+        $currentProjectId = $request->query('project_id', $team->projects()->value('id'));
 
-        // Check Jira connection status for the team
-        $jiraConnected = ProjectIntegration::whereHas('project', fn($q) => $q->where('team_id', $currentTeamId))
-            ->whereHas('integration', fn($q) => $q->where('type', Integration::TYPE_JIRA))
+        // Check for active Jira integration
+        $jiraConnected = ProjectIntegration::whereHas('project', function($q) use ($currentTeamId) {
+                $q->where('team_id', $currentTeamId);
+            })
+            ->whereHas('integration', function($q) {
+                $q->where('type', Integration::TYPE_JIRA);
+            })
             ->where('is_active', true)
             ->exists();
 
-        // Check GitHub connection status (Placeholder)
-        $githubConnected = ProjectIntegration::whereHas('project', fn($q) => $q->where('team_id', $currentTeamId))
-            ->whereHas('integration', fn($q) => $q->where('type', Integration::TYPE_GITHUB))
+        // Check for GitHub integration (placeholder)
+        $githubConnected = ProjectIntegration::whereHas('project', function($q) use ($currentTeamId) {
+                $q->where('team_id', $currentTeamId);
+            })
+            ->whereHas('integration', function($q) {
+                $q->where('type', Integration::TYPE_GITHUB);
+            })
             ->where('is_active', true)
             ->exists();
 
         return view('dashboard.integrations.index', compact('jiraConnected', 'githubConnected', 'currentProjectId'));
     }
 
-    // --- JIRA INTEGRATION ---
-
     /**
-     * Redirect the user to the Atlassian authorization page.
-     * Stores necessary context in the session.
-     *
-     * @param Request $request
-     * @return \Illuminate\Http\RedirectResponse
+     * Initiate Jira OAuth flow by redirecting to Atlassian.
      */
     public function jiraRedirect(Request $request)
-    {
-        // This route MUST be protected by auth middleware ('web', 'auth:web', 'require.team')
-
-        $targetProjectId = $request->query('target_project_id', session('current_project_id')); // Get from query or maybe session
-        $currentTeamId = session('current_team');
-        $userId = Auth::id(); // Get the initiating user's ID
-
-        if (!$targetProjectId) {
-             // If still no target project, try the first project of the current team
-             $team = Team::find($currentTeamId);
-             $targetProjectId = $team?->projects()->value('id');
-        }
-
-        // Validate that the target project exists and belongs to the current team
-        if (!$targetProjectId || !Project::where('id', $targetProjectId)->where('team_id', $currentTeamId)->exists()) {
-             Log::warning('Jira redirect initiated without a valid target project for the current team.', ['user_id' => $userId, 'team_id' => $currentTeamId, 'target_project_id' => $targetProjectId]);
-             return redirect()->route('dashboard.integrations.index')
-                 ->with('error', 'Cannot initiate Jira connection without a valid project context for your current team.');
-        }
-
-        $state = Str::random(40);
-
-        // Store state, target project ID, and the initiating user ID in the session
-        $request->session()->put('oauth_state', $state);
-        $request->session()->put('jira_target_project_id', $targetProjectId);
-        $request->session()->put('jira_initiating_user_id', $userId); // Store the user ID
-
-        $query = http_build_query([
-            'audience' => 'api.atlassian.com',
-            'client_id' => config('services.atlassian.client_id'),
-            'scope' => implode(' ', [
-                'read:jira-user', 'read:jira-work', 'write:jira-work', 'offline_access',
-            ]),
-            'redirect_uri' => config('services.atlassian.redirect'),
-            'state' => $state,
-            'response_type' => 'code',
-            'prompt' => 'consent',
-        ]);
-
-        Log::info('Redirecting to Atlassian for Jira OAuth.', ['user_id' => $userId, 'target_project_id' => $targetProjectId]);
-        return redirect('https://auth.atlassian.com/authorize?' . $query);
+{
+    // Authentication check
+    $userId = Auth::id();
+    if (!$userId) {
+        Log::error('Jira redirect attempted without authentication');
+        return redirect()->route('login')
+            ->with('error', 'You must be logged in to connect to Jira.');
     }
 
+    // Get project context
+    $targetProjectId = $request->query('target_project_id') ?? session('current_project_id');
+    $currentTeamId = session('current_team');
+
+    if (!$targetProjectId) {
+        $team = Team::find($currentTeamId);
+        $targetProjectId = $team?->projects()->value('id');
+    }
+
+    // Validation
+    if (!$targetProjectId || !Project::where('id', $targetProjectId)
+            ->where('team_id', $currentTeamId)
+            ->exists()) {
+        Log::warning('Invalid project for Jira integration', [
+            'user_id' => $userId,
+            'team_id' => $currentTeamId,
+            'target_project_id' => $targetProjectId
+        ]);
+        return redirect()->route('dashboard.integrations.index')
+            ->with('error', 'Please select a valid project for this integration.');
+    }
+
+    // Generate state using database storage - no session required
+    $state = OAuthState::generateState($userId, $targetProjectId);
+
+    Log::debug('Generating OAuth state in database', [
+        'state' => $state,
+        'user_id' => $userId,
+        'project_id' => $targetProjectId
+    ]);
+
+    // Build OAuth URL
+    $query = http_build_query([
+        'audience' => 'api.atlassian.com',
+        'client_id' => config('services.atlassian.client_id'),
+        'scope' => 'read:jira-user read:jira-work write:jira-work offline_access',
+        'redirect_uri' => config('services.atlassian.redirect'),
+        'state' => $state,
+        'response_type' => 'code',
+        'prompt' => 'consent',
+    ]);
+
+    Log::info('Redirecting to Atlassian for Jira OAuth', [
+        'user_id' => $userId,
+        'target_project_id' => $targetProjectId
+    ]);
+
+    return redirect('https://auth.atlassian.com/authorize?' . $query);
+}
+
     /**
-     * Handle the callback from Atlassian after authorization.
-     * Uses the "re-login" strategy.
-     *
-     * @param Request $request
-     * @return \Illuminate\Http\RedirectResponse
+     * Handle the callback from Atlassian after OAuth authorization.
      */
     public function jiraCallback(Request $request)
     {
-        Log::info('Jira OAuth callback received.');
+        Log::info('Jira OAuth callback received');
 
-        // --- 1. Retrieve State and Context from Session ---
-        $state = $request->session()->pull('oauth_state');
-        $targetProjectId = $request->session()->pull('jira_target_project_id');
-        $initiatingUserId = $request->session()->pull('jira_initiating_user_id'); // Get the user ID
+    // Debug incoming request
+    Log::debug('Callback received session state', [
+        'session_id' => session()->getId(),
+        'all_session_data' => session()->all(),
+        'cookies' => $request->cookies->all(),
+        'request_state' => $request->state
+    ]);
 
-        Log::debug('Jira Callback Session State:', ['session_id' => $request->session()->getId(), 'retrieved_state' => !empty($state), 'retrieved_project_id' => !empty($targetProjectId), 'retrieved_user_id' => !empty($initiatingUserId)]);
+    // Verify state parameter using database lookup
+    $stateParam = $request->state;
+    if (empty($stateParam)) {
+        Log::error('Jira OAuth callback missing state parameter');
+        return redirect()->route('login')
+            ->with('error', 'Invalid OAuth callback. Missing state parameter.');
+    }
 
-        // --- 2. Validate State ---
-        if (empty($state) || !$request->has('state') || $state !== $request->state) {
-            Log::error('Jira OAuth callback state mismatch or missing.', ['state_in_session' => !empty($state), 'state_in_request' => $request->has('state')]);
-            return redirect()->route('login')->with('error', 'OAuth security validation failed. Please try connecting again.'); // Redirect to login might be safer
+    $oauthState = OAuthState::findValidState($stateParam);
+
+    if (!$oauthState) {
+        Log::error('Jira OAuth invalid or expired state token', [
+            'state' => $stateParam
+        ]);
+        return redirect()->route('login')
+            ->with('error', 'OAuth verification failed. Invalid or expired state token.');
+    }
+
+    // Get the stored user and project IDs
+    $userId = $oauthState->user_id;
+    $targetProjectId = $oauthState->project_id;
+
+    Log::debug('Found valid OAuth state record', [
+        'state_id' => $oauthState->id,
+        'user_id' => $userId,
+        'project_id' => $targetProjectId
+    ]);
+
+    // Check for errors from OAuth provider
+    if ($request->has('error')) {
+        Log::error('Jira OAuth returned an error', [
+            'error' => $request->error,
+            'description' => $request->error_description
+        ]);
+
+        // Clean up the state record
+        $oauthState->delete();
+
+        return redirect()->route('dashboard.integrations.index')
+            ->with('error', 'Jira authorization failed: ' .
+                $request->input('error_description', $request->input('error', 'Unknown error')));
+    }
+
+        // Ensure we have stored context from the initial request
+        if (!$targetProjectId || !$userId) {
+            Log::error('Missing project ID or user ID in session', [
+                'has_project_id' => !empty($targetProjectId),
+                'has_user_id' => !empty($userId)
+            ]);
+
+            // Clear invalid session data
+            $this->clearJiraSessionData($request);
+
+            return redirect()->route('login')
+                ->with('error', 'Your session expired during authorization. Please try again.');
         }
-        Log::info('Jira OAuth callback state matched.');
 
-        // --- 3. Validate Context Retrieved from Session ---
-        if (!$initiatingUserId || !$targetProjectId) {
-            Log::error('Jira OAuth callback missing user or project context from session.', ['user_id' => $initiatingUserId, 'project_id' => $targetProjectId]);
-            return redirect()->route('login')->with('error', 'Your session context was lost during the Jira connection. Please log in and try again.');
-        }
-
-        // --- 4. Handle Potential Errors from Atlassian ---
-        if ($request->has('error')) {
-            Log::error('Jira OAuth callback error from Atlassian.', ['error' => $request->error, 'description' => $request->error_description]);
-            // Log the user in before redirecting with error, so they land on dashboard
-            Auth::loginUsingId($initiatingUserId);
-            $request->session()->regenerate(); // Regenerate session after login
-             // We might not have team context here, maybe redirect to select-team?
-            return redirect()->route('dashboard.integrations.index')->with('error', 'Jira authorization failed: ' . $request->input('error_description', $request->input('error', 'Unknown error')));
-        }
-
-        // --- 5. Exchange Code for Token ---
+        // Get access token using authorization code
         try {
             $tokenResponse = Http::asForm()->post('https://auth.atlassian.com/oauth/token', [
                 'grant_type' => 'authorization_code',
@@ -165,76 +214,88 @@ class IntegrationController extends Controller
             ]);
 
             if (!$tokenResponse->successful()) {
-                Log::error('Failed to get Jira access token.', ['status' => $tokenResponse->status(), 'body' => $tokenResponse->body()]);
-                throw new \Exception('Could not retrieve access token from Jira (' . $tokenResponse->status() . ').');
+                Log::error('Failed to get Jira access token', [
+                    'status' => $tokenResponse->status(),
+                    'body' => $tokenResponse->body()
+                ]);
+                throw new \Exception('Failed to retrieve access token (' . $tokenResponse->status() . ')');
             }
+
             $tokenData = $tokenResponse->json();
-            Log::info('Jira token data received successfully.', ['scopes' => $tokenData['scope'] ?? 'N/A']);
+            Log::info('Jira token obtained successfully');
 
         } catch (\Exception $e) {
-            // Log the user in before redirecting with error
-            Auth::loginUsingId($initiatingUserId);
-            $request->session()->regenerate();
-            return redirect()->route('dashboard.integrations.index')->with('error', 'Error exchanging code for token: ' . $e->getMessage());
+            Log::error('Error exchanging code for token', [
+                'error' => $e->getMessage()
+            ]);
+
+            $this->clearJiraSessionData($request);
+
+            return redirect()->route('dashboard.integrations.index')
+                ->with('error', 'Error obtaining Jira access token: ' . $e->getMessage());
         }
 
-        // --- 6. Get Accessible Resources ---
+        // Get accessible Jira sites/resources
         try {
             $resourceResponse = Http::withToken($tokenData['access_token'])
                 ->get('https://api.atlassian.com/oauth/token/accessible-resources');
 
             if (!$resourceResponse->successful() || empty($resourceResponse->json())) {
-                Log::error('Failed to get Jira accessible resources or none found.', ['status' => $resourceResponse->status(), 'body' => $resourceResponse->body()]);
-                throw new \Exception('Could not retrieve accessible Jira sites or none were found associated with your account.');
+                Log::error('Failed to get Jira resources', [
+                    'status' => $resourceResponse->status(),
+                    'body' => $resourceResponse->body()
+                ]);
+                throw new \Exception('Could not retrieve Jira sites or none found for your account');
             }
+
             $resources = $resourceResponse->json();
-            $jiraSite = $resources[0]; // Use the first site
+            $jiraSite = $resources[0]; // Use first site
 
         } catch (\Exception $e) {
-             // Log the user in before redirecting with error
-            Auth::loginUsingId($initiatingUserId);
-            $request->session()->regenerate();
-            return redirect()->route('dashboard.integrations.index')->with('error', 'Error fetching Jira resources: ' . $e->getMessage());
+            Log::error('Error fetching Jira resources', [
+                'error' => $e->getMessage()
+            ]);
+
+            $this->clearJiraSessionData($request);
+
+            return redirect()->route('dashboard.integrations.index')
+                ->with('error', 'Error accessing your Jira sites: ' . $e->getMessage());
         }
 
-        // --- 7. Log the User Back In Explicitly ---
-        Log::debug('Attempting to log user back in.', ['user_id' => $initiatingUserId]);
-        $user = User::find($initiatingUserId);
-        if (!$user) {
-            Log::error('Initiating user not found during Jira callback.', ['user_id' => $initiatingUserId]);
-            return redirect()->route('login')->with('error', 'Could not find your user account. Please contact support.');
+        // Ensure user is authenticated
+        if (!Auth::check()) {
+            try {
+                $user = User::findOrFail($userId);
+                Auth::login($user);
+                $request->session()->regenerate();
+                Log::info('User authenticated in Jira callback', ['user_id' => $userId]);
+            } catch (\Exception $e) {
+                Log::error('Failed to authenticate user', [
+                    'user_id' => $userId,
+                    'error' => $e->getMessage()
+                ]);
+                return redirect()->route('login')
+                    ->with('error', 'Authentication error. Please log in and try again.');
+            }
         }
-        Auth::guard('web')->login($user, true); // Log in the user using the 'web' guard, true for 'remember'
-        $request->session()->regenerate(); // Regenerate session ID after login for security
-        Log::info('User explicitly logged back in after Jira callback.', ['user_id' => Auth::id()]);
 
-        // --- 8. Verify Project Ownership (Now that user is logged in) ---
-        $arxitestProject = Project::find($targetProjectId);
-        if (!$arxitestProject) {
-            Log::error('Target Arxitest project not found after re-login.', ['project_id' => $targetProjectId]);
-            return redirect()->route('dashboard.integrations.index')->with('error', 'Target project could not be found.');
+        // Verify project exists and set team context
+        $project = Project::find($targetProjectId);
+        if (!$project) {
+            Log::error('Target project not found', ['project_id' => $targetProjectId]);
+
+            $this->clearJiraSessionData($request);
+
+            return redirect()->route('dashboard.projects')
+                ->with('error', 'The selected project no longer exists.');
         }
 
-        // Re-fetch current team from session *after* login and regeneration
-        $currentTeamId = session('current_team');
-        // If current_team isn't set (maybe lost during redirect/login), set it based on the project
-        if (!$currentTeamId || $arxitestProject->team_id !== $currentTeamId) {
-             Log::warning('Session current_team mismatch or missing after re-login. Setting based on target project.', ['user_id' => Auth::id(), 'target_project_id' => $targetProjectId, 'project_team_id' => $arxitestProject->team_id, 'session_team_id' => $currentTeamId]);
-             session(['current_team' => $arxitestProject->team_id]); // Set the team context
-             // Optionally check if the user belongs to this team
-             if (!$user->teams()->where('team_id', $arxitestProject->team_id)->exists()) {
-                  Log::error('User does not belong to the target project\'s team.', ['user_id' => Auth::id(), 'project_id' => $targetProjectId, 'team_id' => $arxitestProject->team_id]);
-                  Auth::logout(); // Log out as a safety measure
-                  $request->session()->invalidate();
-                  $request->session()->regenerateToken();
-                  return redirect()->route('login')->with('error', 'Permission error linking Jira. Please log in again.');
-             }
-        }
-        Log::info('Project ownership verified post-login.', ['project_id' => $targetProjectId, 'team_id' => $arxitestProject->team_id]);
+        // Set team context
+        session(['current_team' => $project->team_id]);
 
-
-        // --- 9. Store Credentials ---
-         try {
+        // Store the Jira credentials
+        try {
+            // Prepare credentials for storage
             $credentials = [
                 'access_token' => $tokenData['access_token'],
                 'refresh_token' => $tokenData['refresh_token'] ?? null,
@@ -242,102 +303,124 @@ class IntegrationController extends Controller
                 'cloud_id' => $jiraSite['id'],
                 'site_url' => $jiraSite['url'],
                 'site_name' => $jiraSite['name'],
-                'scopes' => $jiraSite['scopes'],
+                'scopes' => explode(' ', $tokenData['scope'] ?? '')
             ];
+
             $encryptedCredentials = Crypt::encryptString(json_encode($credentials));
 
+            // Get or create the Jira integration record
             $integration = Integration::firstOrCreate(
                 ['type' => Integration::TYPE_JIRA],
-                ['name' => 'Jira', 'is_active' => true, 'base_url' => 'https://api.atlassian.com']
-            );
-
-            ProjectIntegration::updateOrCreate(
-                ['project_id' => $arxitestProject->id, 'integration_id' => $integration->id],
                 [
-                    'encrypted_credentials' => $encryptedCredentials,
+                    'name' => 'Jira',
                     'is_active' => true,
-                    'project_specific_config' => json_encode([
-                         'site_name' => $jiraSite['name'], 'site_url' => $jiraSite['url'],
-                    ])
+                    'base_url' => 'https://api.atlassian.com'
                 ]
             );
 
-            Log::info('Jira integration successfully configured for project.', ['project_id' => $arxitestProject->id, 'jira_site' => $jiraSite['name'], 'user_id' => Auth::id()]);
+            // Associate with the project
+            ProjectIntegration::updateOrCreate(
+                [
+                    'project_id' => $project->id,
+                    'integration_id' => $integration->id
+                ],
+                [
+                    'encrypted_credentials' => $encryptedCredentials,
+                    'is_active' => true,
+                    'project_specific_config' => [
+                        'site_name' => $jiraSite['name'],
+                        'site_url' => $jiraSite['url'],
+                    ]
+                ]
+            );
+
+            Log::info('Jira integration successfully configured', [
+                'project_id' => $project->id,
+                'jira_site' => $jiraSite['name']
+            ]);
 
         } catch (DecryptException $e) {
-             Log::error('Encryption failed while storing Jira credentials.', ['project_id' => $arxitestProject->id, 'error' => $e->getMessage()]);
-             return redirect()->route('dashboard.integrations.index')->with('error', 'Failed to securely store Jira connection details (Encryption Error).');
+            Log::error('Encryption error storing Jira credentials', [
+                'error' => $e->getMessage()
+            ]);
+            return redirect()->route('dashboard.integrations.index')
+                ->with('error', 'Failed to securely store Jira connection (Encryption Error)');
         } catch (\Exception $e) {
-             Log::error('Failed to store Jira integration credentials.', ['project_id' => $arxitestProject->id, 'error' => $e->getMessage()]);
-             return redirect()->route('dashboard.integrations.index')->with('error', 'Failed to save Jira connection details.');
+            Log::error('Error storing Jira integration', [
+                'error' => $e->getMessage()
+            ]);
+            return redirect()->route('dashboard.integrations.index')
+                ->with('error', 'Failed to save Jira connection: ' . $e->getMessage());
         }
 
-        // --- 10. Redirect on Success ---
-        // User is now logged in, session regenerated, integration stored.
-        return redirect()->route('dashboard.integrations.index') // Or maybe project integrations settings page
-            ->with('success', 'Jira connected successfully to project: ' . $arxitestProject->name);
+        $oauthState->delete();
+
+    // Success - redirect to integrations page
+    return redirect()->route('dashboard.integrations.index')
+        ->with('success', 'Jira connected successfully to project: ' . $project->name);
     }
 
     /**
      * Disconnect Jira integration.
-     *
-     * @param Request $request
-     * @return \Illuminate\Http\RedirectResponse
      */
     public function jiraDisconnect(Request $request)
     {
-        // This route MUST be protected by auth middleware ('web', 'auth:web', 'require.team')
         $currentTeamId = session('current_team');
         if (!$currentTeamId) {
-            return redirect()->route('dashboard.select-team')->with('error', 'Team context lost.');
+            return redirect()->route('dashboard.select-team')
+                ->with('error', 'Team context lost.');
         }
 
         $jiraIntegration = Integration::where('type', Integration::TYPE_JIRA)->first();
-
-        if ($jiraIntegration) {
-            $projectIds = Project::where('team_id', $currentTeamId)->pluck('id');
-
-            if ($projectIds->isNotEmpty()) {
-                $deletedCount = ProjectIntegration::whereIn('project_id', $projectIds)
-                    ->where('integration_id', $jiraIntegration->id)
-                    ->delete();
-
-                if ($deletedCount > 0) {
-                    Log::info('Jira integrations disconnected for team.', ['team_id' => $currentTeamId, 'deleted_count' => $deletedCount, 'user_id' => Auth::id()]);
-                    return redirect()->route('dashboard.integrations.index')
-                        ->with('success', 'Jira integration disconnected successfully from all projects in this team.');
-                }
-            }
-            Log::warning('No active Jira integration found to disconnect for team.', ['team_id' => $currentTeamId, 'user_id' => Auth::id()]);
+        if (!$jiraIntegration) {
             return redirect()->route('dashboard.integrations.index')
-                ->with('info', 'No active Jira integration found to disconnect for this team.');
+                ->with('info', 'Jira integration configuration not found.');
+        }
+
+        $projectIds = Project::where('team_id', $currentTeamId)->pluck('id');
+        if ($projectIds->isEmpty()) {
+            return redirect()->route('dashboard.integrations.index')
+                ->with('info', 'No projects found to disconnect from Jira.');
+        }
+
+        $deletedCount = ProjectIntegration::whereIn('project_id', $projectIds)
+            ->where('integration_id', $jiraIntegration->id)
+            ->delete();
+
+        if ($deletedCount > 0) {
+            Log::info('Jira integrations disconnected', [
+                'team_id' => $currentTeamId,
+                'count' => $deletedCount
+            ]);
+            return redirect()->route('dashboard.integrations.index')
+                ->with('success', 'Jira integration disconnected from all projects in this team.');
         }
 
         return redirect()->route('dashboard.integrations.index')
-            ->with('info', 'Jira integration configuration not found.');
+            ->with('info', 'No active Jira integrations found to disconnect.');
     }
-
 
     /**
      * Show options for importing from Jira.
-     *
-     * @param Request $request
-     * @return \Illuminate\View\View|\Illuminate\Http\RedirectResponse
      */
     public function showJiraImportOptions(Request $request)
     {
-        // This route MUST be protected by auth middleware ('web', 'auth:web', 'require.team')
         $arxitestProjectId = $request->query('project_id');
         if (!$arxitestProjectId) {
-             return redirect()->route('dashboard.projects')->with('error', 'Please select an Arxitest project context before importing.');
+            return redirect()->route('dashboard.projects')
+                ->with('error', 'Please select a project before importing.');
         }
 
         $arxitestProject = Project::find($arxitestProjectId);
-        // Verify ownership against the *now authenticated* user's team context
         if (!$arxitestProject || $arxitestProject->team_id !== session('current_team')) {
-              Log::warning('Attempt to access Jira import options for invalid/unauthorized project.', ['user_id' => Auth::id(), 'target_project_id' => $arxitestProjectId, 'current_team_id' => session('current_team')]);
-              return redirect()->route('dashboard.projects')->with('error', 'Invalid or inaccessible Arxitest project selected.');
-         }
+            Log::warning('Invalid project access for Jira import', [
+                'user_id' => Auth::id(),
+                'project_id' => $arxitestProjectId,
+                'team_id' => session('current_team')
+            ]);
+            return redirect()->route('dashboard.projects')
+                ->with('error', 'You do not have access to this project.');
+        }
 
         try {
             $jiraService = new JiraService($arxitestProject);
@@ -349,21 +432,20 @@ class IntegrationController extends Controller
                 'arxitestProjectName' => $arxitestProject->name,
             ]);
         } catch (\Exception $e) {
-            Log::error('Error fetching Jira projects for import options: ' . $e->getMessage(), ['arxitest_project_id' => $arxitestProjectId, 'user_id' => Auth::id()]);
-            return redirect()->route('dashboard.integrations.index', ['project_id' => $arxitestProjectId]) // Pass project ID back if possible
-                ->with('error', 'Could not list Jira projects: ' . $e->getMessage() . '. Please ensure Jira is connected to project "' . $arxitestProject->name . '".');
+            Log::error('Error fetching Jira projects', [
+                'error' => $e->getMessage(),
+                'project_id' => $arxitestProjectId
+            ]);
+            return redirect()->route('dashboard.integrations.index', ['project_id' => $arxitestProjectId])
+                ->with('error', 'Could not access Jira projects: ' . $e->getMessage());
         }
     }
 
     /**
-     * Handle the import of a selected Jira project into the specified Arxitest project.
-     *
-     * @param Request $request
-     * @return \Illuminate\Http\RedirectResponse
+     * Import a Jira project into Arxitest.
      */
     public function importJiraProject(Request $request)
     {
-        // This route MUST be protected by auth middleware ('web', 'auth:web', 'require.team')
         $validated = $request->validate([
             'jira_project_key' => 'required|string|max:100',
             'jira_project_name' => 'required|string|max:255',
@@ -375,86 +457,159 @@ class IntegrationController extends Controller
         $arxitestProjectId = $validated['arxitest_project_id'];
 
         $arxitestProject = Project::findOrFail($arxitestProjectId);
-
         if ($arxitestProject->team_id !== session('current_team')) {
-            Log::warning('User attempted import into project outside current team.', ['user_id' => Auth::id(), 'target_project_id' => $arxitestProjectId, 'current_team_id' => session('current_team')]);
+            Log::warning('Unauthorized Jira import attempt', [
+                'user_id' => Auth::id(),
+                'project_id' => $arxitestProjectId
+            ]);
             return back()->with('error', 'You do not have permission to import into this project.');
         }
 
-        Log::info('Starting Jira project import.', ['jira_key' => $jiraProjectKey, 'arx_project' => $arxitestProject->name, 'user_id' => Auth::id()]);
+        Log::info('Starting Jira project import', [
+            'jira_key' => $jiraProjectKey,
+            'project_id' => $arxitestProjectId
+        ]);
 
-        // --- Start Import Process (Consider Job for large imports) ---
         DB::beginTransaction();
         try {
             $jiraService = new JiraService($arxitestProject);
+
+            // Get issues (epics and stories)
             $issues = $jiraService->getIssuesInProject(
                 $jiraProjectKey,
                 ['Epic', 'Story'],
-                ['summary', 'description', 'issuetype', 'parent', 'status', 'created', 'updated', 'labels', 'priority', 'customfield_XXXXX'] // REPLACE customfield_XXXXX with your Epic Link field ID
+                ['summary', 'description', 'issuetype', 'parent', 'status', 'created', 'updated', 'labels', 'priority']
             );
 
-            $epicToSuiteMap = []; $storiesCreated = 0; $testCasesCreated = 0; $defaultSuite = null;
+            // Track import progress
+            $epicToSuiteMap = [];
+            $storiesCreated = 0;
+            $testCasesCreated = 0;
+            $defaultSuite = null;
 
-            // Process Epics -> TestSuites
+            // Process Epics -> Test Suites
             foreach ($issues as $issue) {
-                 if (Arr::get($issue, 'fields.issuetype.name') === 'Epic') {
-                     $epicName = Arr::get($issue, 'fields.summary', 'Untitled Epic ' . $issue['key']);
-                     $suiteSettings = ['jira_epic_id' => $issue['id'], 'jira_epic_key' => $issue['key']];
-                     $testSuite = TestSuite::updateOrCreate(
-                         ['project_id' => $arxitestProject->id, 'settings->jira_epic_key' => $issue['key']],
-                         ['name' => $epicName, 'description' => Arr::get($issue, 'fields.description', '') ?? 'From Epic: ' . $issue['key'], 'settings' => $suiteSettings]
-                     );
-                     $epicToSuiteMap[$issue['id']] = $testSuite->id;
-                 }
+                if (Arr::get($issue, 'fields.issuetype.name') === 'Epic') {
+                    $epicName = Arr::get($issue, 'fields.summary', 'Untitled Epic ' . $issue['key']);
+                    $suiteSettings = [
+                        'jira_epic_id' => $issue['id'],
+                        'jira_epic_key' => $issue['key']
+                    ];
+
+                    $testSuite = TestSuite::updateOrCreate(
+                        [
+                            'project_id' => $arxitestProject->id,
+                            'settings->jira_epic_key' => $issue['key']
+                        ],
+                        [
+                            'name' => $epicName,
+                            'description' => Arr::get($issue, 'fields.description', '') ?? 'From Epic: ' . $issue['key'],
+                            'settings' => $suiteSettings
+                        ]
+                    );
+
+                    $epicToSuiteMap[$issue['id']] = $testSuite->id;
+                }
             }
 
-            // Process Stories -> Stories & TestCases
-             foreach ($issues as $issue) {
-                 if (Arr::get($issue, 'fields.issuetype.name') === 'Story') {
+            // Process Stories -> Stories & Test Cases
+            foreach ($issues as $issue) {
+                if (Arr::get($issue, 'fields.issuetype.name') === 'Story') {
                     $storyTitle = Arr::get($issue, 'fields.summary', 'Untitled Story ' . $issue['key']);
                     $storyDescription = Arr::get($issue, 'fields.description', '') ?? '';
-                    $parentEpicId = Arr::get($issue, 'fields.parent.id'); // Try parent field
-                    $epicKeyFromCustomField = Arr::get($issue, 'fields.customfield_XXXXX'); // REPLACE XXXXX
+                    $parentEpicId = Arr::get($issue, 'fields.parent.id');
 
+                    // Determine suite to associate with
                     $suiteId = null;
                     if ($parentEpicId && isset($epicToSuiteMap[$parentEpicId])) {
                         $suiteId = $epicToSuiteMap[$parentEpicId];
-                    } elseif ($epicKeyFromCustomField) {
-                        $matchingSuite = TestSuite::where('project_id', $arxitestProject->id)->where('settings->jira_epic_key', $epicKeyFromCustomField)->first();
-                        if ($matchingSuite) $suiteId = $matchingSuite->id;
-                    }
-                    if (!$suiteId) { // Default suite
-                        if (!$defaultSuite) $defaultSuite = TestSuite::firstOrCreate(['project_id' => $arxitestProject->id, 'name' => 'Imported (Uncategorized)'], ['description' => 'Imported Jira stories.', 'settings' => '{}']);
+                    } else {
+                        // Create default suite if needed
+                        if (!$defaultSuite) {
+                            $defaultSuite = TestSuite::firstOrCreate(
+                                [
+                                    'project_id' => $arxitestProject->id,
+                                    'name' => 'Imported (Uncategorized)'
+                                ],
+                                [
+                                    'description' => 'Imported Jira stories without epics.',
+                                    'settings' => []
+                                ]
+                            );
+                        }
                         $suiteId = $defaultSuite->id;
                     }
 
+                    // Create the story
                     $arxitestStory = ArxitestStory::updateOrCreate(
-                        ['external_id' => $issue['key'], 'source' => 'jira'],
-                        ['title' => $storyTitle, 'description' => $storyDescription, 'metadata' => json_encode(['jira_id' => $issue['id'], /* add other fields */])]
+                        [
+                            'external_id' => $issue['key'],
+                            'source' => 'jira'
+                        ],
+                        [
+                            'title' => $storyTitle,
+                            'description' => $storyDescription,
+                            'metadata' => [
+                                'jira_id' => $issue['id'],
+                                'jira_status' => Arr::get($issue, 'fields.status.name'),
+                                'jira_priority' => Arr::get($issue, 'fields.priority.name')
+                            ]
+                        ]
                     );
                     $storiesCreated++;
 
+                    // Create a basic test case for the story
                     ArxitestTestCase::firstOrCreate(
-                        ['story_id' => $arxitestStory->id, 'suite_id' => $suiteId, 'title' => 'Verify Story: ' . Str::limit($storyTitle, 200)],
-                        ['steps' => json_encode([['action' => 'Verify: ' . $issue['key']]]), 'expected_results' => 'Feature works as described.']
+                        [
+                            'story_id' => $arxitestStory->id,
+                            'suite_id' => $suiteId,
+                            'title' => 'Verify Story: ' . Str::limit($storyTitle, 100)
+                        ],
+                        [
+                            'steps' => [
+                                'Navigate to relevant feature',
+                                'Verify functionality described in: ' . $issue['key']
+                            ],
+                            'expected_results' => 'Feature works as described in story.',
+                            'priority' => 'medium',
+                            'status' => 'draft'
+                        ]
                     );
                     $testCasesCreated++;
-                 }
-             }
+                }
+            }
 
             DB::commit();
-            Log::info('Jira project import finished successfully.', ['jira_key' => $jiraProjectKey, 'arx_project' => $arxitestProject->name, 'stories' => $storiesCreated, 'cases' => $testCasesCreated, 'user_id' => Auth::id()]);
-            return redirect()->route('dashboard.projects.show', $arxitestProject->id)->with('success', "Imported {$storiesCreated} stories and created {$testCasesCreated} test cases from '{$jiraProjectName}'.");
+            Log::info('Jira project import successful', [
+                'jira_key' => $jiraProjectKey,
+                'stories' => $storiesCreated,
+                'test_cases' => $testCasesCreated
+            ]);
+
+            return redirect()->route('dashboard.projects.show', $arxitestProject->id)
+                ->with('success', "Imported {$storiesCreated} stories and created {$testCasesCreated} test cases from '{$jiraProjectName}'.");
 
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Error during Jira project import: ' . $e->getMessage(), ['jira_key' => $jiraProjectKey, 'arx_project_id' => $arxitestProjectId, 'user_id' => Auth::id(), 'trace' => Str::limit($e->getTraceAsString(), 1500)]);
-            return redirect()->route('integrations.jira.import.options', ['project_id' => $arxitestProjectId])->with('error', 'Import failed: ' . $e->getMessage());
+            Log::error('Jira import failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return redirect()->route('integrations.jira.import.options', ['project_id' => $arxitestProjectId])
+                ->with('error', 'Import failed: ' . $e->getMessage());
         }
     }
 
-
-    // --- GITHUB INTEGRATION (Placeholders) ---
-    // ... githubRedirect and githubCallback would follow similar patterns ...
-
-} // End of Controller Class
+    /**
+     * Clear Jira OAuth session data.
+     */
+    private function clearJiraSessionData(Request $request)
+    {
+        $request->session()->forget([
+            'jira_oauth_state',
+            'jira_target_project_id',
+            'jira_user_id'
+        ]);
+    }
+}

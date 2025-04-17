@@ -31,6 +31,8 @@ Route::middleware(['guest', 'web'])->group(function () {
         return view('welcome');
     });
 
+
+
     // --- WEB LOGIN FORM & SUBMIT ---
     Route::get('/login', [WebLoginController::class, 'showLogin'])->name('login');
     Route::post('/login', [WebLoginController::class, 'webLogin'])->name('login');
@@ -175,18 +177,22 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
         Route::post('/generate-ai', [TestDataController::class, 'generateWithAI'])->name('generateAI');
     });
 
-    // Integrations Routes
-    Route::get('/dashboard/integrations', [IntegrationController::class, 'index'])->name('dashboard.integrations.index');
+    Route::get('/dashboard/integrations', [IntegrationController::class, 'index'])
+        ->name('dashboard.integrations.index');
+    Route::get('/integrations/jira/redirect', [IntegrationController::class, 'jiraRedirect'])
+        ->name('integrations.jira.redirect');
+    Route::post('/integrations/jira/disconnect', [IntegrationController::class, 'jiraDisconnect'])
+        ->name('integrations.jira.disconnect');
+    Route::get('/dashboard/integrations/jira/import', [IntegrationController::class, 'showJiraImportOptions'])
+        ->name('integrations.jira.import.options');
+    Route::post('/dashboard/integrations/jira/import', [IntegrationController::class, 'importJiraProject'])
+        ->name('integrations.jira.import.project');
+});
 
-    // Jira OAuth Routes
-    Route::get('/integrations/jira/redirect', [IntegrationController::class, 'jiraRedirect'])->name('integrations.jira.redirect');
-    Route::get('/jira/callback', [IntegrationController::class, 'jiraCallback'])->name('integrations.jira.callback');
-    Route::post('/integrations/jira/disconnect', [IntegrationController::class, 'jiraDisconnect'])->name('integrations.jira.disconnect');
-    Route::get('/dashboard/integrations/jira/import', [IntegrationController::class, 'showJiraImportOptions'])->name('integrations.jira.import.options');
-    Route::post('/dashboard/integrations/jira/import', [IntegrationController::class, 'importJiraProject'])->name('integrations.jira.import.project');
-    // Add GitHub routes here later if needed
-    // Route::get('/integrations/github/redirect', [IntegrationController::class, 'githubRedirect'])->name('integrations.github.redirect');
-    // Route::get('/integrations/github/callback', [IntegrationController::class, 'githubCallback'])->name('integrations.github.callback');
+Route::middleware(['web'])->group(function () {
+    // OAuth callback - NO auth required
+    Route::get('/jira/callback', [IntegrationController::class, 'jiraCallback'])
+        ->name('integrations.jira.callback');
 });
 
 Route::middleware(['web', 'auth:web'])->group(function () {
