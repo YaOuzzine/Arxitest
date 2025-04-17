@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\View;
 use Laravel\Passport\Passport;
 use SocialiteProviders\Manager\SocialiteWasCalled;
 use SocialiteProviders\Microsoft\Provider;
+use SocialiteProviders\Atlassian\AtlassianExtendSocialite;
 
 class AppServiceProvider extends ServiceProvider
 {

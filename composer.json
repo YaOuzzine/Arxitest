@@ -11,6 +11,9 @@
         "laravel/passport": "^12.0",
         "laravel/socialite": "^5.19",
         "laravel/tinker": "^2.9",
+        "lesstif/php-jira-rest-client": "^5.10",
+        "socialiteproviders/atlassian": "^4.0",
+        "socialiteproviders/manager": "^4.8",
         "socialiteproviders/microsoft": "^4.6",
         "twilio/sdk": "^8.5"
     },

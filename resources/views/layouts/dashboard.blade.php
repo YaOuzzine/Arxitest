@@ -135,7 +135,7 @@
                                  </x-nav-link>
                              </li>
                              {{-- Links using query parameters (adjust route if dedicated routes exist) --}}
-                             <li> <x-nav-link :route="'dashboard'" :params="['page' => 'integrations']" icon="puzzle" :checkQueryParam="true">Integrations</x-nav-link> </li>
+                             <li> <x-nav-link :route="'dashboard.integrations.index'" :params="['page' => 'integrations']" icon="puzzle" :checkQueryParam="true">Integrations</x-nav-link> </li>
                              <li> <x-nav-link :route="'dashboard'" :params="['page' => 'environments']" icon="server" :checkQueryParam="true">Environments</x-nav-link> </li>
                              <li> <x-nav-link :route="'dashboard'" :params="['page' => 'profile']" icon="user-cog" :checkQueryParam="true">Profile</x-nav-link> </li>
                              <li> <x-nav-link :route="'dashboard'" :params="['page' => 'settings']" icon="settings" :checkQueryParam="true">Settings</x-nav-link> </li>

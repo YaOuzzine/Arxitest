@@ -77,4 +77,6 @@ class Project extends Model
                     ->withPivot(['encrypted_credentials', 'project_specific_config', 'is_active'])
                     ->withTimestamps();
     }
+
+
 }

@@ -24,8 +24,15 @@ return [
     ],
 
     'openai' => [
-    'key' => env('OPENAI_API_KEY'),
-    'model' => env('OPENAI_MODEL', 'gpt-4o'),
+        'key' => env('OPENAI_API_KEY'),
+        'model' => env('OPENAI_MODEL', 'gpt-4o'),
+    ],
+
+    // config/services.php
+    'atlassian' => [
+        'client_id' => env('ATLASSIAN_CLIENT_ID'),
+        'client_secret' => env('ATLASSIAN_CLIENT_SECRET'),
+        'redirect' => env('ATLASSIAN_OAUTH_CALLBACK'),
     ],
     'ses' => [
         'key' => env('AWS_ACCESS_KEY_ID'),
@@ -59,9 +66,9 @@ return [
         'redirect' => env('MICROSOFT_OAUTH_CALLBACK_URL'),
     ],
     'twilio' => [
-    'sid' => env('TWILIO_SID'),
-    'auth_token' => env('TWILIO_AUTH_TOKEN'),
-    'phone_number' => env('TWILIO_PHONE_NUMBER'),
+        'sid' => env('TWILIO_SID'),
+        'auth_token' => env('TWILIO_AUTH_TOKEN'),
+        'phone_number' => env('TWILIO_PHONE_NUMBER'),
     ],
 
 ];

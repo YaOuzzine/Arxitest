@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EmailRegistrationController;
+use App\Http\Controllers\IntegrationController;
 use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\OAuthController;
 use App\Http\Controllers\PhoneAuthController;
@@ -143,9 +144,6 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
         Route::get('/{test_case}/edit', [TestCaseController::class, 'edit'])->name('edit');
         Route::put('/{test_case}', [TestCaseController::class, 'update'])->name('update');
         Route::delete('/{test_case}', [TestCaseController::class, 'destroy'])->name('destroy');
-
-        // Test script generation API endpoint
-        Route::post('/generate-ai', [TestCaseController::class, 'generateWithAI'])->name('generateAI');
     });
 
     // Test Suite-specific Test Cases
@@ -177,6 +175,18 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
         Route::post('/generate-ai', [TestDataController::class, 'generateWithAI'])->name('generateAI');
     });
 
+    // Integrations Routes
+    Route::get('/dashboard/integrations', [IntegrationController::class, 'index'])->name('dashboard.integrations.index');
+
+    // Jira OAuth Routes
+    Route::get('/integrations/jira/redirect', [IntegrationController::class, 'jiraRedirect'])->name('integrations.jira.redirect');
+    Route::get('/jira/callback', [IntegrationController::class, 'jiraCallback'])->name('integrations.jira.callback');
+    Route::post('/integrations/jira/disconnect', [IntegrationController::class, 'jiraDisconnect'])->name('integrations.jira.disconnect');
+    Route::get('/dashboard/integrations/jira/import', [IntegrationController::class, 'showJiraImportOptions'])->name('integrations.jira.import.options');
+    Route::post('/dashboard/integrations/jira/import', [IntegrationController::class, 'importJiraProject'])->name('integrations.jira.import.project');
+    // Add GitHub routes here later if needed
+    // Route::get('/integrations/github/redirect', [IntegrationController::class, 'githubRedirect'])->name('integrations.github.redirect');
+    // Route::get('/integrations/github/callback', [IntegrationController::class, 'githubCallback'])->name('integrations.github.callback');
 });
 
 Route::middleware(['web', 'auth:web'])->group(function () {
