@@ -98,7 +98,7 @@
                             x-model="aiPrompt"
                             rows="4"
                             class="w-full px-4 py-3 rounded-[7px] border-0 bg-white/70 dark:bg-zinc-800/90 focus:ring-2 focus:ring-purple-500/30 placeholder-zinc-400 dark:placeholder-zinc-500 resize-none"
-                            placeholder="Example: 'Create test cases for user registration flow including email validation, password strength requirements, and OTP verification'"
+                            placeholder="Example: 'Create for me a test suite for Authentication'"
                             :disabled="aiLoading"
                         ></textarea>
                     </div>

@@ -13,7 +13,9 @@ export default defineConfig({
                 'resources/js/auth/email-verification.js',
                 'resources/js/auth/password-strength.js',
                 'resources/js/auth/phone-verification.js',
-                'resources/js/dashboard/dashboard-background.js'],
+                'resources/js/dashboard/dashboard-background.js',
+                'resources/js/test-case-create.js'],
+
             refresh: true,
         }),
     ],

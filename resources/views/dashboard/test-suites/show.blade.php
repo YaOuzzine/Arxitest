@@ -110,28 +110,46 @@
                         </thead>
                         <tbody class="divide-y divide-zinc-200/50 dark:divide-zinc-700/30 bg-white dark:bg-zinc-900/20">
                             @foreach($testCases as $case)
-                            <tr class="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/20 transition-colors duration-150">
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="font-medium text-zinc-900/90 dark:text-white/90">{{ $case->title }}</div>
-                                    <div class="text-xs text-zinc-500/80 dark:text-zinc-400/80">{{ Str::limit($case->expected_results, 50) }}</div>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-zinc-600 dark:text-zinc-400">
-                                    {{ count($case->steps ?? []) }} {{ Str::plural('step', count($case->steps ?? [])) }}
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400">
-                                    {{ $case->updated_at->diffForHumans() }}
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                    <div class="flex justify-end space-x-3">
-                                        <a href="#" class="text-zinc-500 hover:text-blue-600 dark:text-zinc-400 dark:hover:text-blue-400 transition-colors">
-                                            <i data-lucide="edit-3" class="w-5 h-5"></i>
-                                        </a>
-                                        <button class="text-zinc-500 hover:text-red-600 dark:text-zinc-400 dark:hover:text-red-400 transition-colors">
-                                            <i data-lucide="trash-2" class="w-5 h-5"></i>
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
+                                {{-- Add PHP block to process steps for each case --}}
+                                @php
+                                    $stepsArray = $case->steps ?? [];
+                                    if (is_string($stepsArray)) {
+                                        $decoded = json_decode($stepsArray, true);
+                                        $stepsArray = is_array($decoded) ? $decoded : [];
+                                    } elseif (!is_array($stepsArray)) {
+                                        $stepsArray = []; // Ensure it's an array if it's neither string nor array initially
+                                    }
+                                @endphp
+                                <tr class="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/20 transition-colors duration-150">
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="font-medium text-zinc-900/90 dark:text-white/90">{{ $case->title }}</div>
+                                        <div class="text-xs text-zinc-500/80 dark:text-zinc-400/80">{{ Str::limit($case->expected_results, 50) }}</div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-zinc-600 dark:text-zinc-400">
+                                        {{-- Use the processed $stepsArray --}}
+                                        {{ count($stepsArray) }} {{ Str::plural('step', count($stepsArray)) }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400">
+                                        {{-- Display last updated or a placeholder if needed --}}
+                                        {{ $case->updated_at ? $case->updated_at->diffForHumans() : 'N/A' }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                        <div class="flex justify-end space-x-3">
+                                            {{-- Link to Test Case Show View --}}
+                                            <a href="{{ route('dashboard.projects.test-cases.show', [$project->id, $case->id]) }}" class="text-zinc-500 hover:text-blue-600 dark:text-zinc-400 dark:hover:text-blue-400 transition-colors" title="View Test Case">
+                                                <i data-lucide="eye" class="w-5 h-5"></i>
+                                            </a>
+                                            {{-- Link to Test Case Edit View --}}
+                                            <a href="{{ route('dashboard.projects.test-cases.edit', [$project->id, $case->id]) }}" class="text-zinc-500 hover:text-amber-600 dark:text-zinc-400 dark:hover:text-amber-400 transition-colors" title="Edit Test Case">
+                                                <i data-lucide="edit-3" class="w-5 h-5"></i>
+                                            </a>
+                                            {{-- Delete button (needs corresponding JS like in the other view) --}}
+                                            <button @click="$dispatch('open-case-delete-modal', { caseId: '{{ $case->id }}', caseTitle: '{{ addslashes($case->title) }}', projectId: '{{ $project->id }}' })" class="text-zinc-500 hover:text-red-600 dark:text-zinc-400 dark:hover:text-red-400 transition-colors" title="Delete Test Case">
+                                                <i data-lucide="trash-2" class="w-5 h-5"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
                             @endforeach
                         </tbody>
                     </table>

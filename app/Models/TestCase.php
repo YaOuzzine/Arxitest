@@ -14,14 +14,19 @@ class TestCase extends Model
 
     protected $fillable = [
         'title',
+        'description',
+        'expected_results',
         'steps',
-        'expected_results'
+        'suite_id',
+        'priority',
+        'status',
+        'tags'
     ];
 
     protected $casts = [
-        'steps' => 'array'
+        'steps' => 'array',
+        'tags' => 'array'
     ];
-
     /**
      * Get the story this test case is derived from.
      */
@@ -51,9 +56,10 @@ class TestCase extends Model
      */
     public function testData()
     {
-        return $this->belongsToMany(TestData::class, 'test_case_data')
-                    ->withPivot('usage_context')
-                    ->withTimestamps();
+        return $this->belongsToMany(TestData::class, 'test_case_data', 'test_case_id', 'test_data_id')
+            ->withPivot('usage_context', 'created_at') // Specify existing columns
+            ->as('pivot') // Optional: Alias for pivot data access ($data->pivot->usage_context)
+            ->using(TestCaseData::class); // If you use a custom pivot model
     }
 
     /**

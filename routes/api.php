@@ -17,3 +17,4 @@ Route::middleware(['api', 'auth:api'])->group(function () {
     Route::get('user', [ApiLoginController::class, 'user']);
     Route::post('logout', [ApiLoginController::class, 'logout']);
 });
+

@@ -23,6 +23,10 @@ return [
         'chat_url' => env('DEEPSEEK_CHAT_URL', 'https://api.deepseek.com/chat/completions'),
     ],
 
+    'openai' => [
+    'key' => env('OPENAI_API_KEY'),
+    'model' => env('OPENAI_MODEL', 'gpt-4o'),
+    ],
     'ses' => [
         'key' => env('AWS_ACCESS_KEY_ID'),
         'secret' => env('AWS_SECRET_ACCESS_KEY'),

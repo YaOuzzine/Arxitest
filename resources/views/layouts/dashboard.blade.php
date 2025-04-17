@@ -112,7 +112,7 @@
                             <li> <x-nav-link :route="'dashboard.projects'" icon="folder-kanban">Projects</x-nav-link> </li>
                             <li> <x-nav-link :route="'dashboard.test-suites.indexAll'" icon="layers-3">Test Suites</x-nav-link> </li>
                             {{-- Links using query parameters (adjust route if dedicated routes exist) --}}
-                            <li> <x-nav-link :route="'dashboard'" :params="['page' => 'test-cases']" icon="check-check" :checkQueryParam="true">Test Cases</x-nav-link> </li>
+                            <li> <x-nav-link :route="'dashboard.test-cases.indexAll'" :params="['page' => 'test-cases']" icon="check-check" :checkQueryParam="true">Test Cases</x-nav-link> </li>
                             <li> <x-nav-link :route="'dashboard'" :params="['page' => 'executions']" icon="play-circle" :checkQueryParam="true">Executions</x-nav-link> </li>
                         </ul>
                     </div>
@@ -241,7 +241,7 @@
                         <button @click="toggleTheme" aria-label="Toggle theme"
                                 class="flex items-center justify-center w-9 h-9 rounded-full text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-zinc-800 transition-colors">
                             <i data-lucide="sun" class="w-5 h-5 transition-all duration-300 transform" :class="{ 'rotate-90 scale-0': isDarkMode }"></i>
-                            <i data-lucide="moon" class="w-5 h-5 absolute transition-all duration-300 transform" :class="{ 'rotate-0 scale-100': isDarkMode, '-rotate-90 scale-0': !isDarkMode }"></i>
+                            <i data-lucide="moon" class="top-5 w-5 h-5 absolute transition-all duration-300 transform" :class="{ 'rotate-0 scale-100': isDarkMode, '-rotate-90 scale-0': !isDarkMode }"></i>
                         </button>
 
                          {{-- Notifications Dropdown --}}

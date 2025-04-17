@@ -13,16 +13,15 @@ return new class extends Migration
     {
         Schema::create('test_cases', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->uuid('suite_id');
-            $table->uuid('story_id');
-
-            $table->foreign('suite_id')->references('id')->on('test_suites')->onDelete('cascade');
-            $table->foreign('story_id')->references('id')->on('stories')->onDelete('cascade');
-
+            $table->foreignUuid('suite_id')->constrained('test_suites')->onDelete('cascade');
+            $table->foreignUuid('story_id')->nullable()->constrained('stories')->nullOnDelete();
             $table->string('title');
-            $table->jsonb('steps');
-            $table->string('expected_results');
-
+            $table->text('description')->nullable();
+            $table->json('steps');
+            $table->text('expected_results');
+            $table->enum('priority', ['low', 'medium', 'high'])->default('medium');
+            $table->enum('status', ['draft', 'active', 'deprecated', 'archived'])->default('draft');
+            $table->json('tags')->nullable();
             $table->timestamps();
         });
     }

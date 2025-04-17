@@ -7,6 +7,9 @@ use App\Http\Controllers\OAuthController;
 use App\Http\Controllers\PhoneAuthController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\TeamController;
+use App\Http\Controllers\TestCaseController;
+use App\Http\Controllers\TestDataController;
+use App\Http\Controllers\TestScriptController;
 use App\Http\Controllers\TestSuiteController;
 use App\Http\Controllers\WebLoginController;
 use Illuminate\Support\Facades\Route;
@@ -47,7 +50,7 @@ Route::middleware(['guest', 'web'])->group(function () {
     Route::post('/auth/phone/register', [PhoneAuthController::class, 'completeRegistration'])->name('auth.phone.register.post');
 
     // --- EMAIL REGISTRATION & EMAIL VERIFICATION ROUTES ---
-    Route::get('/register', function() {
+    Route::get('/register', function () {
         return view('auth.register');
     })->name('register');
 
@@ -61,7 +64,6 @@ Route::middleware(['guest', 'web'])->group(function () {
     // Team invitation acceptance route (accessible without login)
     Route::get('invitations/accept/{token}', [InvitationController::class, 'accept'])
         ->name('invitations.accept');
-
 });
 
 /*
@@ -126,6 +128,53 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
 
         // AI Generation Route (AJAX)
         Route::post('/generate-ai', [TestSuiteController::class, 'generateWithAI'])->name('generateAI');
+    });
+
+    // Global Test Cases Index (All projects/suites)
+    Route::get('/dashboard/test-cases', [TestCaseController::class, 'indexAll'])
+        ->name('dashboard.test-cases.indexAll');
+
+    // Project-specific Test Cases
+    Route::prefix('/dashboard/projects/{project}/test-cases')->name('dashboard.projects.test-cases.')->group(function () {
+        Route::get('/', [TestCaseController::class, 'index'])->name('index');
+        Route::get('/create', [TestCaseController::class, 'create'])->name('create');
+        Route::post('/', [TestCaseController::class, 'store'])->name('store');
+        Route::get('/{test_case}', [TestCaseController::class, 'show'])->name('show');
+        Route::get('/{test_case}/edit', [TestCaseController::class, 'edit'])->name('edit');
+        Route::put('/{test_case}', [TestCaseController::class, 'update'])->name('update');
+        Route::delete('/{test_case}', [TestCaseController::class, 'destroy'])->name('destroy');
+
+        // Test script generation API endpoint
+        Route::post('/generate-ai', [TestCaseController::class, 'generateWithAI'])->name('generateAI');
+    });
+
+    // Test Suite-specific Test Cases
+    Route::prefix('/dashboard/projects/{project}/test-suites/{test_suite}/test-cases')->name('dashboard.projects.test-suites.test-cases.')->group(function () {
+        Route::get('/', [TestCaseController::class, 'indexBySuite'])->name('index');
+        Route::get('/create', [TestCaseController::class, 'createForSuite'])->name('create');
+        Route::post('/', [TestCaseController::class, 'storeForSuite'])->name('store');
+        Route::get('/{test_case}', [TestCaseController::class, 'showForSuite'])->name('show');
+        Route::get('/{test_case}/edit', [TestCaseController::class, 'editForSuite'])->name('edit');
+        Route::put('/{test_case}', [TestCaseController::class, 'updateForSuite'])->name('update');
+        Route::delete('/{test_case}', [TestCaseController::class, 'destroyForSuite'])->name('destroy');
+    });
+
+    // Test Scripts Routes
+    Route::prefix('/dashboard/projects/{project}/test-cases/{test_case}/scripts')->name('dashboard.projects.test-cases.scripts.')->group(function () {
+        Route::get('/', [TestScriptController::class, 'index'])->name('index');
+        Route::post('/', [TestScriptController::class, 'store'])->name('store');
+        Route::get('/{test_script}', [TestScriptController::class, 'show'])->name('show');
+        Route::delete('/{test_script}', [TestScriptController::class, 'destroy'])->name('destroy');
+        Route::post('/generate-ai', [TestScriptController::class, 'generateWithAI'])->name('generateAI');
+    });
+
+    // Test Data Routes
+    Route::prefix('/dashboard/projects/{project}/test-cases/{test_case}/data')->name('dashboard.projects.test-cases.data.')->group(function () {
+        Route::get('/', [TestDataController::class, 'index'])->name('index');
+        Route::post('/', [TestDataController::class, 'store'])->name('store');
+        Route::get('/{test_data}', [TestDataController::class, 'show'])->name('show');
+        Route::delete('/{test_data}', [TestDataController::class, 'detach'])->name('detach');
+        Route::post('/generate-ai', [TestDataController::class, 'generateWithAI'])->name('generateAI');
     });
 
 });
