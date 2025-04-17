@@ -17,172 +17,178 @@ document.addEventListener('DOMContentLoaded', function() {
  * Initialize all event listeners and page state
  */
 function initializeTestCaseCreation() {
+    // Mode toggle buttons
+    const manualModeBtn = document.getElementById('manual-mode-btn');
+    const aiModeBtn = document.getElementById('ai-mode-btn');
+
+    // AI section elements
+    const aiGenerationSection = document.getElementById('ai-generation-section');
+    const aiPrompt = document.getElementById('ai-prompt');
+    const generateAiBtn = document.getElementById('generate-ai-btn');
+    const generateAiBtnText = document.getElementById('generate-ai-btn-text');
+    const aiErrorContainer = document.getElementById('ai-error-container');
+    const aiErrorMessage = document.getElementById('ai-error-message');
+
+    // Form elements
+    const testCaseForm = document.getElementById('test-case-form');
+    const formSectionTitle = document.getElementById('form-section-title');
+    const formSectionDescription = document.getElementById('form-section-description');
+    const suiteIdInput = document.getElementById('suite-id-input');
+    const titleInput = document.getElementById('title');
+    const descriptionInput = document.getElementById('description');
+    const priorityInput = document.getElementById('priority-input');
+    const priorityOptions = document.querySelectorAll('.priority-option');
+    const expectedResultsInput = document.getElementById('expected_results');
+
+    // Steps
+    const stepsList = document.getElementById('steps-list');
+    const addStepBtn = document.getElementById('add-step-btn');
+
+    // Tags
+    const tagsContainer = document.getElementById('tags-container');
+    const tagInput = document.getElementById('tag-input');
+    const addTagBtn = document.getElementById('add-tag-btn');
+
+    // Buttons
+    const submitBtn = document.getElementById('submit-btn');
+    const cancelBtn = document.getElementById('cancel-btn');
+
+    // Project ID for API calls
+    const projectId = document.getElementById('test-case-create-container')?.dataset.projectId;
+
     // State variables
-    let state = {
-        creationMode: 'manual', // 'manual' or 'ai'
-        steps: [{ id: 1, text: '' }],
-        tags: [],
-        tagInput: '',
-        priority: 'medium',
-        isSubmitting: false,
-        aiLoading: false,
-        aiPrompt: '',
-        aiError: '',
-        aiResult: null,
-        hasPopulatedFromAI: false
-    };
+    let hasPopulatedFromAI = false;
 
-    // Initialize DOM element references
-    const elements = {
-        // Mode toggle buttons
-        manualModeBtn: document.getElementById('manual-mode-btn'),
-        aiModeBtn: document.getElementById('ai-mode-btn'),
-
-        // AI section
-        aiGenerationSection: document.getElementById('ai-generation-section'),
-        aiSparklesIcon: document.querySelector('#ai-generation-section i[data-lucide="sparkles"]'),
-        aiSuiteSelect: document.getElementById('ai-suite-select'),
-        aiPrompt: document.getElementById('ai-prompt'),
-        generateAiBtn: document.getElementById('generate-ai-btn'),
-        generateAiBtnText: document.getElementById('generate-ai-btn-text'),
-        aiErrorContainer: document.getElementById('ai-error-container'),
-        aiErrorMessage: document.getElementById('ai-error-message'),
-
-        // Form section
-        testCaseForm: document.getElementById('test-case-form'),
-        formSectionTitle: document.getElementById('form-section-title'),
-        formSectionDescription: document.getElementById('form-section-description'),
-
-        // Form fields
-        suiteIdInput: document.getElementById('suite-id-input'),
-        manualSuiteSelectionContainer: document.getElementById('manual-suite-selection-container'),
-        suiteSelect: document.getElementById('suite-select'),
-        titleInput: document.getElementById('title'),
-        descriptionInput: document.getElementById('description'),
-        priorityInput: document.getElementById('priority-input'),
-        priorityOptions: document.querySelectorAll('.priority-option'),
-        expectedResultsInput: document.getElementById('expected_results'),
-        statusInput: document.getElementById('status-input'),
-
-        // Steps
-        testStepsContainer: document.getElementById('test-steps-container'),
-        stepsList: document.getElementById('steps-list'),
-        addStepBtn: document.getElementById('add-step-btn'),
-
-        // Tags
-        tagsContainer: document.getElementById('tags-container'),
-        tagInput: document.getElementById('tag-input'),
-        tagInputContainer: document.getElementById('tag-input-container'),
-        addTagBtn: document.getElementById('add-tag-btn'),
-
-        // Buttons
-        submitBtn: document.getElementById('submit-btn'),
-        submitBtnText: document.getElementById('submit-btn-text'),
-        cancelBtn: document.getElementById('cancel-btn'),
-
-        // Notification
-        createContainer: document.getElementById('test-case-create-container'),
-        notificationContainer: document.getElementById('notification-container'),
-        notificationIcon: document.getElementById('notification-icon'),
-        notificationTitle: document.getElementById('notification-title'),
-        notificationMessage: document.getElementById('notification-message')
-    };
-    const projectId = elements.createContainer.dataset.projectId;
-    // Set event listeners
+    // Event Listeners
 
     // Mode toggle
-    elements.manualModeBtn.addEventListener('click', () => setCreationMode('manual'));
-    elements.aiModeBtn.addEventListener('click', () => setCreationMode('ai'));
+    if (manualModeBtn) {
+        manualModeBtn.addEventListener('click', () => setCreationMode('manual'));
+    }
+
+    if (aiModeBtn) {
+        aiModeBtn.addEventListener('click', () => setCreationMode('ai'));
+    }
 
     // AI generation
-    elements.aiSuiteSelect.addEventListener('change', (e) => {
-        elements.suiteIdInput.value = e.target.value;
-    });
-
-    elements.generateAiBtn.addEventListener('click', generateWithAI);
+    if (generateAiBtn) {
+        generateAiBtn.addEventListener('click', generateWithAI);
+    }
 
     // Priority selection
-    elements.priorityOptions.forEach(option => {
+    priorityOptions.forEach(option => {
         option.addEventListener('click', () => {
             setPriority(option.getAttribute('data-value'));
         });
     });
 
     // Steps
-    elements.addStepBtn.addEventListener('click', addStep);
+    if (addStepBtn) {
+        addStepBtn.addEventListener('click', addStep);
+    }
 
     // Handle remove step button clicks using event delegation
-    elements.stepsList.addEventListener('click', (e) => {
-        if (e.target.closest('.remove-step-btn')) {
-            const stepItem = e.target.closest('.step-item');
-            if (stepItem) {
-                removeStep(stepItem);
+    if (stepsList) {
+        stepsList.addEventListener('click', (e) => {
+            if (e.target.closest('.remove-step-btn')) {
+                const stepItem = e.target.closest('.step-item');
+                if (stepItem) {
+                    removeStep(stepItem);
+                }
             }
-        }
-    });
+        });
+    }
 
     // Tags
-    elements.addTagBtn.addEventListener('click', addTag);
-    elements.tagInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            addTag();
-        }
-    });
+    if (addTagBtn) {
+        addTagBtn.addEventListener('click', addTag);
+    }
+
+    if (tagInput) {
+        tagInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                addTag();
+            }
+        });
+    }
+
+    // Handle tag removal using event delegation
+    if (tagsContainer) {
+        tagsContainer.addEventListener('click', (e) => {
+            const removeBtn = e.target.closest('.remove-tag-btn');
+            if (removeBtn) {
+                const tagItem = removeBtn.closest('.tag-item');
+                if (tagItem) {
+                    tagsContainer.removeChild(tagItem);
+                }
+            }
+        });
+    }
 
     // Form submission
-    elements.testCaseForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        submitForm();
-    });
+    if (testCaseForm) {
+        testCaseForm.addEventListener('submit', (e) => {
+            if (!validateForm()) {
+                e.preventDefault();
+            }
+        });
+    }
 
-    elements.cancelBtn.addEventListener('click', () => {
-        window.history.back();
-    });
-
-    // Initialize the suite selection if a selected suite exists
-    if (elements.suiteIdInput.value) {
-        if (elements.suiteSelect) {
-            elements.suiteSelect.value = elements.suiteIdInput.value;
-        }
-        if (elements.aiSuiteSelect) {
-            elements.aiSuiteSelect.value = elements.suiteIdInput.value;
-        }
+    // Cancel button
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', () => {
+            window.history.back();
+        });
     }
 
     /**
      * Set the creation mode (manual or AI)
      */
     function setCreationMode(mode) {
-        state.creationMode = mode;
-
-        // Update UI based on mode
         if (mode === 'manual') {
-            elements.manualModeBtn.classList.add('bg-white', 'dark:bg-zinc-700', 'text-zinc-900', 'dark:text-white', 'shadow-sm', 'border-b-2', 'border-blue-500');
-            elements.manualModeBtn.classList.remove('text-zinc-600', 'dark:text-zinc-400');
+            manualModeBtn.classList.add('bg-white', 'dark:bg-zinc-700', 'text-zinc-900', 'dark:text-white', 'shadow-sm', 'border-b-2', 'border-blue-500');
+            manualModeBtn.classList.remove('text-zinc-600', 'dark:text-zinc-400');
 
-            elements.aiModeBtn.classList.remove('bg-white', 'dark:bg-zinc-700', 'text-zinc-900', 'dark:text-white', 'shadow-sm', 'border-b-2', 'border-purple-500');
-            elements.aiModeBtn.classList.add('text-zinc-600', 'dark:text-zinc-400');
+            aiModeBtn.classList.remove('bg-white', 'dark:bg-zinc-700', 'text-zinc-900', 'dark:text-white', 'shadow-sm', 'border-b-2', 'border-purple-500');
+            aiModeBtn.classList.add('text-zinc-600', 'dark:text-zinc-400');
 
-            elements.aiGenerationSection.classList.add('hidden');
+            if (aiGenerationSection) {
+                aiGenerationSection.classList.add('hidden');
+            }
 
-            elements.formSectionTitle.textContent = 'Test Case Details';
-            elements.formSectionDescription.textContent = 'Define your test case details, including steps and expected results';
+            if (formSectionTitle) {
+                formSectionTitle.textContent = 'Test Case Details';
+            }
+
+            if (formSectionDescription) {
+                formSectionDescription.textContent = 'Define your test case details, including steps and expected results';
+            }
         } else {
-            elements.aiModeBtn.classList.add('bg-white', 'dark:bg-zinc-700', 'text-zinc-900', 'dark:text-white', 'shadow-sm', 'border-b-2', 'border-purple-500');
-            elements.aiModeBtn.classList.remove('text-zinc-600', 'dark:text-zinc-400');
+            aiModeBtn.classList.add('bg-white', 'dark:bg-zinc-700', 'text-zinc-900', 'dark:text-white', 'shadow-sm', 'border-b-2', 'border-purple-500');
+            aiModeBtn.classList.remove('text-zinc-600', 'dark:text-zinc-400');
 
-            elements.manualModeBtn.classList.remove('bg-white', 'dark:bg-zinc-700', 'text-zinc-900', 'dark:text-white', 'shadow-sm', 'border-b-2', 'border-blue-500');
-            elements.manualModeBtn.classList.add('text-zinc-600', 'dark:text-zinc-400');
+            manualModeBtn.classList.remove('bg-white', 'dark:bg-zinc-700', 'text-zinc-900', 'dark:text-white', 'shadow-sm', 'border-b-2', 'border-blue-500');
+            manualModeBtn.classList.add('text-zinc-600', 'dark:text-zinc-400');
 
-            elements.aiGenerationSection.classList.remove('hidden');
+            if (aiGenerationSection) {
+                aiGenerationSection.classList.remove('hidden');
+            }
 
-            if (state.hasPopulatedFromAI) {
-                elements.formSectionTitle.textContent = 'Review & Customize Generated Test Case';
-                elements.formSectionDescription.textContent = 'Review the AI-generated test case and make any necessary adjustments';
-            } else {
-                elements.formSectionTitle.textContent = 'AI Generated Test Case';
-                elements.formSectionDescription.textContent = 'The AI will generate a complete test case based on your description';
+            if (formSectionTitle) {
+                if (hasPopulatedFromAI) {
+                    formSectionTitle.textContent = 'Review & Customize Generated Test Case';
+                } else {
+                    formSectionTitle.textContent = 'AI Generated Test Case';
+                }
+            }
+
+            if (formSectionDescription) {
+                if (hasPopulatedFromAI) {
+                    formSectionDescription.textContent = 'Review the AI-generated test case and make any necessary adjustments';
+                } else {
+                    formSectionDescription.textContent = 'The AI will generate a complete test case based on your description';
+                }
             }
         }
     }
@@ -191,11 +197,12 @@ function initializeTestCaseCreation() {
      * Set the priority for the test case
      */
     function setPriority(value) {
-        state.priority = value;
-        elements.priorityInput.value = value;
+        if (priorityInput) {
+            priorityInput.value = value;
+        }
 
         // Update UI
-        elements.priorityOptions.forEach(option => {
+        priorityOptions.forEach(option => {
             const optionValue = option.getAttribute('data-value');
             const radioElement = option.querySelector('.priority-radio');
 
@@ -235,7 +242,7 @@ function initializeTestCaseCreation() {
      * Add a new test step
      */
     function addStep() {
-        const stepCount = elements.stepsList.querySelectorAll('.step-item').length;
+        const stepCount = stepsList.querySelectorAll('.step-item').length;
         const newStepId = stepCount + 1;
 
         // Create new step item
@@ -253,20 +260,17 @@ function initializeTestCaseCreation() {
             </button>
         `;
 
-        elements.stepsList.appendChild(stepItem);
+        stepsList.appendChild(stepItem);
 
         // Enable all remove buttons if we have more than one step
         if (newStepId > 1) {
-            const removeButtons = elements.stepsList.querySelectorAll('.remove-step-btn');
+            const removeButtons = stepsList.querySelectorAll('.remove-step-btn');
             removeButtons.forEach(btn => btn.removeAttribute('disabled'));
         }
 
         // Re-render Lucide icons for the new elements
         if (typeof lucide !== 'undefined') {
             lucide.createIcons({
-                attrs: {
-                    class: ['step-icon']
-                },
                 elements: [stepItem]
             });
         }
@@ -276,7 +280,7 @@ function initializeTestCaseCreation() {
      * Remove a test step
      */
     function removeStep(stepItem) {
-        const steps = elements.stepsList.querySelectorAll('.step-item');
+        const steps = stepsList.querySelectorAll('.step-item');
 
         // Only allow removal if we have more than one step
         if (steps.length <= 1) {
@@ -284,10 +288,10 @@ function initializeTestCaseCreation() {
         }
 
         // Remove the step
-        elements.stepsList.removeChild(stepItem);
+        stepsList.removeChild(stepItem);
 
         // Renumber the remaining steps
-        const remainingSteps = elements.stepsList.querySelectorAll('.step-item');
+        const remainingSteps = stepsList.querySelectorAll('.step-item');
         remainingSteps.forEach((step, index) => {
             const numberElement = step.querySelector('.step-number');
             const inputElement = step.querySelector('input');
@@ -314,111 +318,109 @@ function initializeTestCaseCreation() {
      * Add a tag to the test case
      */
     function addTag() {
-        const tagValue = elements.tagInput.value.trim();
+        if (!tagInput) return;
 
-        if (!tagValue || state.tags.includes(tagValue)) {
-            elements.tagInput.value = '';
+        const tagValue = tagInput.value.trim();
+
+        if (!tagValue) {
+            tagInput.value = '';
             return;
         }
 
-        // Add to state
-        state.tags.push(tagValue);
+        // Check if tag already exists
+        const existingTags = Array.from(tagsContainer.querySelectorAll('.tag-item'))
+            .map(el => el.querySelector('span')?.textContent);
+
+        if (existingTags.includes(tagValue)) {
+            tagInput.value = '';
+            return;
+        }
 
         // Create tag element
-        const tagElement = document.createElement('div');
-        tagElement.className = 'inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 space-x-1';
+        const tagElement = document.createElement('span');
+        tagElement.className = 'tag-item inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-200 border border-indigo-200/50 dark:border-indigo-800/50';
         tagElement.innerHTML = `
-            <span>${tagValue}</span>
-            <button type="button" class="text-zinc-500 hover:text-red-500 dark:text-zinc-400 dark:hover:text-red-400" data-tag="${tagValue}">
-                <i data-lucide="x" class="w-3 h-3"></i>
+            ${escapeHtml(tagValue)}
+            <input type="hidden" name="tags[]" value="${escapeHtml(tagValue)}">
+            <button type="button" class="remove-tag-btn ml-1.5 -mr-1 flex-shrink-0 text-indigo-400 hover:text-indigo-600 dark:text-indigo-500 dark:hover:text-indigo-300">
+                <i data-lucide="x" class="w-3.5 h-3.5"></i>
             </button>
-            <input type="hidden" name="tags[]" value="${tagValue}">
         `;
 
-        // Add remove button event listener
-        const removeButton = tagElement.querySelector('button');
-        removeButton.addEventListener('click', (e) => {
-            removeTag(e.currentTarget.getAttribute('data-tag'));
-        });
-
         // Insert the tag before the input container
-        elements.tagsContainer.insertBefore(tagElement, elements.tagInputContainer);
+        const tagInputContainer = document.getElementById('tag-input-container');
+        if (tagInputContainer) {
+            tagsContainer.insertBefore(tagElement, tagInputContainer);
+        } else {
+            tagsContainer.appendChild(tagElement);
+        }
 
         // Clear the input
-        elements.tagInput.value = '';
+        tagInput.value = '';
 
         // Re-render Lucide icons
         if (typeof lucide !== 'undefined') {
             lucide.createIcons({
-                attrs: {
-                    class: ['tag-icon']
-                },
                 elements: [tagElement]
             });
         }
     }
 
     /**
-     * Remove a tag from the test case
-     */
-    function removeTag(tag) {
-        // Remove from state
-        state.tags = state.tags.filter(t => t !== tag);
-
-        // Remove from DOM
-        const tagElements = elements.tagsContainer.querySelectorAll('div');
-        tagElements.forEach(el => {
-            const tagSpan = el.querySelector('span');
-            if (tagSpan && tagSpan.textContent === tag) {
-                elements.tagsContainer.removeChild(el);
-            }
-        });
-    }
-
-    /**
      * Generate a test case using AI
      */
     async function generateWithAI() {
-        const suiteId = elements.aiSuiteSelect.value;
-        const prompt = elements.aiPrompt.value.trim();
+        // Make sure the project ID is available
+        if (!projectId) {
+            showNotification('error', 'Error', 'Project ID not found');
+            return;
+        }
+
+        // Get suite ID from the Alpine.js data model
+        const suiteId = suiteIdInput ? suiteIdInput.value : null;
+        const prompt = aiPrompt ? aiPrompt.value.trim() : '';
 
         if (!prompt) {
-            showError('Please provide a description of the test scenario');
+            showNotification('error', 'Error', 'Please provide a description of the test scenario');
             return;
         }
 
         if (!suiteId) {
-            showError('Please select a test suite');
+            showNotification('error', 'Error', 'Please select a test suite');
             return;
         }
 
         try {
             // Update UI to loading state
-            state.aiLoading = true;
-            state.aiError = '';
-            elements.generateAiBtn.disabled = true;
-            elements.generateAiBtnText.textContent = 'Generating Test Case...';
-            if (elements.aiSparklesIcon) {
-                elements.aiSparklesIcon.style.display = 'none';
+            if (generateAiBtn) {
+                generateAiBtn.disabled = true;
             }
 
-            // Create a new loading icon
+            if (generateAiBtnText) {
+                generateAiBtnText.textContent = 'Generating Test Case...';
+            }
+
+            // Create a loading icon
             const loadingIcon = document.createElement('i');
             loadingIcon.setAttribute('data-lucide', 'loader');
             loadingIcon.className = 'animate-spin w-5 h-5 mr-2';
-            elements.generateAiBtn.insertBefore(loadingIcon, elements.generateAiBtnText);
 
-            if (typeof lucide !== 'undefined') {
-                lucide.createIcons({
-                    attrs: {
-                        class: ['loading-icon']
-                    },
-                    elements: [loadingIcon]
-                });
+            // Add the loading icon before the text
+            if (generateAiBtnText && generateAiBtnText.parentNode) {
+                generateAiBtnText.parentNode.insertBefore(loadingIcon, generateAiBtnText);
+
+                // Render the new icon
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons({
+                        elements: [loadingIcon]
+                    });
+                }
             }
 
             // Hide previous error if any
-            elements.aiErrorContainer.classList.add('hidden');
+            if (aiErrorContainer) {
+                aiErrorContainer.classList.add('hidden');
+            }
 
             // Make API request
             const response = await fetch(`/dashboard/projects/${projectId}/test-cases/generate-ai`, {
@@ -448,38 +450,45 @@ function initializeTestCaseCreation() {
             }
 
             if (result.success && result.data) {
-                state.aiResult = result.data;
                 populateFormFromAI(result.data);
-                state.hasPopulatedFromAI = true;
-                showSuccess('AI-generated test case created! Review and edit as needed.');
+                hasPopulatedFromAI = true;
+                showNotification('success', 'Success', 'AI-generated test case created! Review and edit as needed.');
 
                 // Update form section title/description
-                elements.formSectionTitle.textContent = 'Review & Customize Generated Test Case';
-                elements.formSectionDescription.textContent = 'Review the AI-generated test case and make any necessary adjustments';
+                if (formSectionTitle) {
+                    formSectionTitle.textContent = 'Review & Customize Generated Test Case';
+                }
+
+                if (formSectionDescription) {
+                    formSectionDescription.textContent = 'Review the AI-generated test case and make any necessary adjustments';
+                }
             } else {
                 throw new Error(result.message || 'AI generation returned no data.');
             }
         } catch (error) {
             console.error('AI Generation Error:', error);
-            state.aiError = error.message || 'An unexpected error occurred.';
 
             // Show error in UI
-            elements.aiErrorContainer.classList.remove('hidden');
-            elements.aiErrorMessage.textContent = state.aiError;
+            if (aiErrorContainer && aiErrorMessage) {
+                aiErrorContainer.classList.remove('hidden');
+                aiErrorMessage.textContent = error.message || 'An unexpected error occurred.';
+            } else {
+                showNotification('error', 'Error', error.message || 'An unexpected error occurred.');
+            }
         } finally {
             // Reset UI
-            state.aiLoading = false;
-            elements.generateAiBtn.disabled = false;
-            elements.generateAiBtnText.textContent = 'Generate Test Case';
-
-            // Remove loading icon and restore sparkles icon
-            const loadingIcon = elements.generateAiBtn.querySelector('i.loading-icon, i[data-lucide="loader"]');
-            if (loadingIcon) {
-                elements.generateAiBtn.removeChild(loadingIcon);
+            if (generateAiBtn) {
+                generateAiBtn.disabled = false;
             }
 
-            if (elements.aiSparklesIcon) {
-                elements.aiSparklesIcon.style.display = '';
+            if (generateAiBtnText) {
+                generateAiBtnText.textContent = 'Generate Test Case';
+            }
+
+            // Remove loading icon
+            const loadingIcon = document.querySelector('#generate-ai-btn i.animate-spin');
+            if (loadingIcon && loadingIcon.parentNode) {
+                loadingIcon.parentNode.removeChild(loadingIcon);
             }
         }
     }
@@ -488,17 +497,16 @@ function initializeTestCaseCreation() {
      * Populate the form fields with AI-generated data
      */
     function populateFormFromAI(data) {
-        // Update hidden suite input
-        elements.suiteIdInput.value = elements.aiSuiteSelect.value;
+        console.log('Populating form with AI data:', data);
 
         // Title
-        if (data.title) {
-            elements.titleInput.value = data.title;
+        if (data.title && titleInput) {
+            titleInput.value = data.title;
         }
 
         // Description
-        if (data.description) {
-            elements.descriptionInput.value = data.description;
+        if (data.description && descriptionInput) {
+            descriptionInput.value = data.description;
         }
 
         // Priority
@@ -506,178 +514,126 @@ function initializeTestCaseCreation() {
             setPriority(data.priority);
         }
 
-        // Status
-        if (data.status) {
-            elements.statusInput.value = data.status;
-        }
-
         // Steps
         if (Array.isArray(data.steps) && data.steps.length > 0) {
             // Clear existing steps
-            elements.stepsList.innerHTML = '';
+            if (stepsList) {
+                stepsList.innerHTML = '';
 
-            // Add new steps
-            data.steps.forEach((step, index) => {
-                const stepItem = document.createElement('div');
-                stepItem.className = 'step-item flex items-start space-x-3';
-                stepItem.innerHTML = `
-                    <div class="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 font-semibold text-sm">
-                        <span class="step-number">${index + 1}</span>
-                    </div>
-                    <div class="flex-1 relative">
-                        <input name="steps[${index}]" type="text" value="${escapeHtml(step)}" class="step-input w-full border-0 bg-zinc-100/50 dark:bg-zinc-700/30 rounded-lg shadow-inner shadow-zinc-300/50 dark:shadow-zinc-800/50 p-3 text-zinc-700 dark:text-zinc-200 focus:ring-2 focus:ring-zinc-500/50 dark:focus:ring-zinc-400/50 transition-all duration-300" placeholder="Describe the step to perform">
-                    </div>
-                    <button type="button" class="remove-step-btn flex-shrink-0 p-1.5 rounded-lg text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 hover:text-red-500 dark:hover:text-red-400 transition-colors">
-                        <i data-lucide="trash-2" class="w-4 h-4"></i>
-                    </button>
-                `;
+                // Add new steps
+                data.steps.forEach((step, index) => {
+                    const stepItem = document.createElement('div');
+                    stepItem.className = 'step-item flex items-start space-x-3';
+                    stepItem.innerHTML = `
+                        <div class="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 font-semibold text-sm">
+                            <span class="step-number">${index + 1}</span>
+                        </div>
+                        <div class="flex-1 relative">
+                            <input name="steps[${index}]" type="text" value="${escapeHtml(step)}" class="step-input w-full border-0 bg-zinc-100/50 dark:bg-zinc-700/30 rounded-lg shadow-inner shadow-zinc-300/50 dark:shadow-zinc-800/50 p-3 text-zinc-700 dark:text-zinc-200 focus:ring-2 focus:ring-zinc-500/50 dark:focus:ring-zinc-400/50 transition-all duration-300" placeholder="Describe the step to perform">
+                        </div>
+                        <button type="button" class="remove-step-btn flex-shrink-0 p-1.5 rounded-lg text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 hover:text-red-500 dark:hover:text-red-400 transition-colors">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    `;
 
-                elements.stepsList.appendChild(stepItem);
-            });
-
-            // If only one step, disable its remove button
-            if (data.steps.length === 1) {
-                const removeButton = elements.stepsList.querySelector('.remove-step-btn');
-                if (removeButton) {
-                    removeButton.setAttribute('disabled', 'disabled');
-                }
-            }
-
-            // Re-render Lucide icons
-            if (typeof lucide !== 'undefined') {
-                lucide.createIcons({
-                    attrs: {
-                        class: ['step-icon']
-                    },
-                    elements: [elements.stepsList]
+                    stepsList.appendChild(stepItem);
                 });
+
+                // If only one step, disable its remove button
+                if (data.steps.length === 1) {
+                    const removeButton = stepsList.querySelector('.remove-step-btn');
+                    if (removeButton) {
+                        removeButton.setAttribute('disabled', 'disabled');
+                    }
+                }
+
+                // Re-render Lucide icons
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons({
+                        elements: [stepsList]
+                    });
+                }
             }
         }
 
         // Expected Results
-        if (data.expected_results) {
-            elements.expectedResultsInput.value = data.expected_results;
+        if (data.expected_results && expectedResultsInput) {
+            expectedResultsInput.value = data.expected_results;
         }
 
         // Tags
-        if (Array.isArray(data.tags) && data.tags.length > 0) {
-            // Clear existing tags (except the input)
-            const tagElements = elements.tagsContainer.querySelectorAll('div.inline-flex');
+        if (Array.isArray(data.tags) && data.tags.length > 0 && tagsContainer) {
+            // Clear existing tags (except the input container)
+            const tagElements = tagsContainer.querySelectorAll('.tag-item');
             tagElements.forEach(el => {
-                elements.tagsContainer.removeChild(el);
+                tagsContainer.removeChild(el);
             });
 
-            // Reset state
-            state.tags = [];
+            // Find the tag input container if it exists
+            const tagInputContainer = document.getElementById('tag-input-container');
 
             // Add new tags
             data.tags.forEach(tag => {
                 if (tag && typeof tag === 'string') {
-                    // Update state
-                    state.tags.push(tag);
-
                     // Create tag element
-                    const tagElement = document.createElement('div');
-                    tagElement.className = 'inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 space-x-1';
+                    const tagElement = document.createElement('span');
+                    tagElement.className = 'tag-item inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-200 border border-indigo-200/50 dark:border-indigo-800/50';
                     tagElement.innerHTML = `
-                        <span>${escapeHtml(tag)}</span>
-                        <button type="button" class="text-zinc-500 hover:text-red-500 dark:text-zinc-400 dark:hover:text-red-400" data-tag="${escapeHtml(tag)}">
-                            <i data-lucide="x" class="w-3 h-3"></i>
-                        </button>
+                        ${escapeHtml(tag)}
                         <input type="hidden" name="tags[]" value="${escapeHtml(tag)}">
+                        <button type="button" class="remove-tag-btn ml-1.5 -mr-1 flex-shrink-0 text-indigo-400 hover:text-indigo-600 dark:text-indigo-500 dark:hover:text-indigo-300">
+                            <i data-lucide="x" class="w-3.5 h-3.5"></i>
+                        </button>
                     `;
 
-                    // Add remove button event listener
-                    const removeButton = tagElement.querySelector('button');
-                    removeButton.addEventListener('click', (e) => {
-                        removeTag(e.currentTarget.getAttribute('data-tag'));
-                    });
-
-                    // Insert the tag before the input container
-                    elements.tagsContainer.insertBefore(tagElement, elements.tagInputContainer);
+                    // Insert the tag before the input container if it exists
+                    if (tagInputContainer) {
+                        tagsContainer.insertBefore(tagElement, tagInputContainer);
+                    } else {
+                        tagsContainer.appendChild(tagElement);
+                    }
                 }
             });
 
             // Re-render Lucide icons
             if (typeof lucide !== 'undefined') {
                 lucide.createIcons({
-                    attrs: {
-                        class: ['tag-icon']
-                    },
-                    elements: [elements.tagsContainer]
+                    elements: [tagsContainer]
                 });
             }
         }
-    }
-
-    /**
-     * Submit the form
-     */
-    function submitForm() {
-        // Validation
-        if (!validateForm()) {
-            return;
-        }
-
-        // Update UI to submitting state
-        state.isSubmitting = true;
-        elements.submitBtn.disabled = true;
-        elements.submitBtnText.textContent = 'Creating...';
-
-        // Add a loading icon
-        const loadingIcon = document.createElement('svg');
-        loadingIcon.className = 'animate-spin -ml-1 mr-2 h-4 w-4 text-white';
-        loadingIcon.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-        loadingIcon.setAttribute('fill', 'none');
-        loadingIcon.setAttribute('viewBox', '0 0 24 24');
-        loadingIcon.innerHTML = `
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        `;
-
-        elements.submitBtnText.parentNode.insertBefore(loadingIcon, elements.submitBtnText);
-
-        // Submit the form
-        elements.testCaseForm.submit();
     }
 
     /**
      * Validate the form before submission
      */
     function validateForm() {
-        const title = elements.titleInput.value.trim();
-        const suiteId = elements.suiteIdInput.value;
-        const steps = Array.from(elements.stepsList.querySelectorAll('.step-input')).map(input => input.value.trim());
-        const expectedResults = elements.expectedResultsInput.value.trim();
+        const title = titleInput ? titleInput.value.trim() : '';
+        const suiteId = suiteIdInput ? suiteIdInput.value : '';
+        const steps = stepsList ? Array.from(stepsList.querySelectorAll('.step-input')).map(input => input.value.trim()) : [];
+        const expectedResults = expectedResultsInput ? expectedResultsInput.value.trim() : '';
 
         if (!title) {
-            showError('Test case title is required');
-            elements.titleInput.focus();
+            showNotification('error', 'Error', 'Test case title is required');
+            if (titleInput) titleInput.focus();
             return false;
         }
 
         if (!suiteId) {
-            showError('Please select a test suite');
-            if (state.creationMode === 'manual' && elements.suiteSelect) {
-                elements.suiteSelect.focus();
-            } else if (state.creationMode === 'ai' && elements.aiSuiteSelect) {
-                elements.aiSuiteSelect.focus();
-            }
+            showNotification('error', 'Error', 'Please select a test suite');
             return false;
         }
 
         if (steps.length === 0 || steps.some(step => !step)) {
-            showError('All test steps must be filled in');
-            const emptyStep = elements.stepsList.querySelector('.step-input[value=""]');
-            if (emptyStep) {
-                emptyStep.focus();
-            }
+            showNotification('error', 'Error', 'All test steps must be filled in');
+            const emptyStep = stepsList ? stepsList.querySelector('.step-input[value=""]') : null;
+            if (emptyStep) emptyStep.focus();
             return false;
         }
 
         if (!expectedResults) {
-            showError('Expected results are required');
-            elements.expectedResultsInput.focus();
+            showNotification('error', 'Error', 'Expected results are required');
+            if (expectedResultsInput) expectedResultsInput.focus();
             return false;
         }
 
@@ -685,62 +641,79 @@ function initializeTestCaseCreation() {
     }
 
     /**
-     * Show a success notification
-     */
-    function showSuccess(message) {
-        showNotification('success', 'Success', message);
-    }
-
-    /**
-     * Show an error notification
-     */
-    function showError(message) {
-        showNotification('error', 'Error', message);
-    }
-
-    /**
      * Show a notification
+     * This function will try to use the native notification component if available,
+     * or create a simple notification if not
      */
     function showNotification(type, title, message) {
-        // Set notification content
-        elements.notificationTitle.textContent = title;
-        elements.notificationMessage.textContent = message;
+        // Try to use notification component via custom event if available
+        try {
+            window.dispatchEvent(new CustomEvent('notify', {
+                detail: {
+                    type: type,
+                    title: title,
+                    message: message
+                }
+            }));
+            return;
+        } catch (e) {
+            console.warn('Native notification component not available, using fallback');
+        }
 
-        // Set notification styling based on type
-        if (type === 'success') {
-            elements.notificationContainer.className = 'fixed bottom-6 right-6 z-50 max-w-sm w-full shadow-lg border rounded-xl p-4 bg-green-50/80 border-green-200/50 dark:bg-green-900/30 dark:border-green-800/30';
-            elements.notificationTitle.className = 'font-medium mb-1 text-green-800 dark:text-green-200';
-            elements.notificationMessage.className = 'text-sm text-green-700/90 dark:text-green-300/90';
-            elements.notificationIcon.innerHTML = '<i data-lucide="check-circle" class="w-5 h-5 text-green-600 dark:text-green-400"></i>';
+        // Fallback: Create a simple notification
+        const notificationContainer = document.getElementById('notification-container');
+        const notificationTitle = document.getElementById('notification-title');
+        const notificationMessage = document.getElementById('notification-message');
+        const notificationIcon = document.getElementById('notification-icon');
+
+        if (notificationContainer && notificationTitle && notificationMessage) {
+            // Set notification content
+            notificationTitle.textContent = title;
+            notificationMessage.textContent = message;
+
+            // Set notification styling based on type
+            if (type === 'success') {
+                notificationContainer.className = 'fixed bottom-6 right-6 z-50 max-w-sm w-full shadow-lg border rounded-xl p-4 bg-green-50/80 border-green-200/50 dark:bg-green-900/30 dark:border-green-800/30';
+                notificationTitle.className = 'font-medium mb-1 text-green-800 dark:text-green-200';
+                notificationMessage.className = 'text-sm text-green-700/90 dark:text-green-300/90';
+                if (notificationIcon) {
+                    notificationIcon.innerHTML = '<i data-lucide="check-circle" class="w-5 h-5 text-green-600 dark:text-green-400"></i>';
+                }
+            } else {
+                notificationContainer.className = 'fixed bottom-6 right-6 z-50 max-w-sm w-full shadow-lg border rounded-xl p-4 bg-red-50/80 border-red-200/50 dark:bg-red-900/30 dark:border-red-800/30';
+                notificationTitle.className = 'font-medium mb-1 text-red-800 dark:text-red-200';
+                notificationMessage.className = 'text-sm text-red-700/90 dark:text-red-300/90';
+                if (notificationIcon) {
+                    notificationIcon.innerHTML = '<i data-lucide="alert-circle" class="w-5 h-5 text-red-600 dark:text-red-400"></i>';
+                }
+            }
+
+            // Render icon
+            if (typeof lucide !== 'undefined' && notificationIcon) {
+                lucide.createIcons({
+                    elements: [notificationIcon]
+                });
+            }
+
+            // Show notification
+            notificationContainer.classList.remove('hidden');
+
+            // Auto-hide after delay
+            setTimeout(hideNotification, 5000);
         } else {
-            elements.notificationContainer.className = 'fixed bottom-6 right-6 z-50 max-w-sm w-full shadow-lg border rounded-xl p-4 bg-red-50/80 border-red-200/50 dark:bg-red-900/30 dark:border-red-800/30';
-            elements.notificationTitle.className = 'font-medium mb-1 text-red-800 dark:text-red-200';
-            elements.notificationMessage.className = 'text-sm text-red-700/90 dark:text-red-300/90';
-            elements.notificationIcon.innerHTML = '<i data-lucide="alert-circle" class="w-5 h-5 text-red-600 dark:text-red-400"></i>';
+            // If notification container not found, use console
+            console.log(`${type.toUpperCase()}: ${title} - ${message}`);
         }
-
-        // Render icon
-        if (typeof lucide !== 'undefined') {
-            lucide.createIcons({
-                attrs: {
-                    class: ['notification-icon']
-                },
-                elements: [elements.notificationIcon]
-            });
-        }
-
-        // Show notification
-        elements.notificationContainer.classList.remove('hidden');
-
-        // Auto-hide after delay
-        setTimeout(hideNotification, type === 'success' ? 5000 : 7000);
     }
 
     /**
      * Hide the notification
      */
     function hideNotification() {
-        elements.notificationContainer.classList.add('hidden');
+        const notificationContainer = document.getElementById('notification-container');
+        if (notificationContainer) {
+            notificationContainer.classList.add('hidden');
+        }
     }
 
     /**
@@ -755,24 +728,25 @@ function initializeTestCaseCreation() {
             "'": '&#039;'
         };
 
-        return text.replace(/[&<>"']/g, m => map[m]);
+        return String(text).replace(/[&<>"']/g, m => map[m]);
     }
 
+    // Check for flash messages and validation errors
     const flashMessages = document.getElementById('flash-messages');
     const flashSuccess = flashMessages ? flashMessages.getAttribute('data-success') : '';
     const flashError = flashMessages ? flashMessages.getAttribute('data-error') : '';
 
     if (flashSuccess) {
-        showSuccess(flashSuccess);
+        showNotification('success', 'Success', flashSuccess);
     }
 
     if (flashError) {
-        showError(flashError);
+        showNotification('error', 'Error', flashError);
     }
 
     // Check for validation errors
     const hasErrors = document.querySelectorAll('.text-red-500').length > 0;
     if (hasErrors) {
-        showError('There were errors in your submission. Please check the form.');
+        showNotification('error', 'Error', 'There were errors in your submission. Please check the form.');
     }
 }

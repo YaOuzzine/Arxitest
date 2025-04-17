@@ -8,12 +8,46 @@ document.addEventListener('alpine:init', () => {
         showNotification: false,
         notificationMessage: '',
         notificationType: 'success', // 'success' or 'error'
+        selectedProjectId: '',
+        selectedProjectName: '',
+        searchQuery: '',
+        isOpen: false,
+        projects: [],
 
         init() {
-            // Submit form when selection changes
+            // Get initial selection from URL params if any
+            const urlParams = new URLSearchParams(window.location.search);
+            this.selectedProjectId = urlParams.get('project_id') || '';
+
+            // Watch for changes to selectedProjectId
             this.$watch('selectedProjectId', (value) => {
-                this.$el.closest('form').submit()
-            })
+                // Update button text when a project is selected
+                const addButton = document.querySelector('#add-suite-button');
+                if (addButton) {
+                    if (value) {
+                        addButton.textContent = 'Add Test Suite';
+                        addButton.href = `/dashboard/projects/${value}/test-suites/create`;
+                        addButton.classList.remove('opacity-50', 'cursor-not-allowed');
+                        addButton.removeAttribute('disabled');
+                    } else {
+                        addButton.textContent = 'Select Project to Add Suite';
+                        addButton.href = '#';
+                        addButton.classList.add('opacity-50', 'cursor-not-allowed');
+                        addButton.setAttribute('disabled', 'disabled');
+                    }
+                }
+
+                // Submit the form to refresh the list
+                if (value !== '') {
+                    this.$el.closest('form').submit();
+                }
+            });
+        },
+
+        selectProject(project) {
+            this.selectedProjectId = project.id;
+            this.selectedProjectName = project.name;
+            this.isOpen = false;
         },
 
         toggleDropdown() {

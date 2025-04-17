@@ -72,11 +72,11 @@
             <div class="flex-shrink-0">
                 {{-- Link to create route only if project context exists, otherwise suggest selecting a project --}}
                 @if (!$isGenericIndex)
-                    <a href="{{ route('dashboard.projects.test-suites.create', $project->id) }}"
-                        class="btn-primary inline-flex items-center px-5 py-2.5 group">
-                        <i data-lucide="plus-circle"
-                            class="w-5 h-5 mr-2 transition-transform duration-200 group-hover:rotate-90"></i>
-                        New Test Suite
+                    <a id="add-suite-button"
+                        href="{{ $selectedProjectId ? route('dashboard.projects.test-suites.create', $selectedProjectId) : '#' }}"
+                        class="btn-primary {{ !$selectedProjectId ? 'opacity-50 cursor-not-allowed' : '' }}"
+                        {{ !$selectedProjectId ? 'disabled' : '' }}>
+                        {{ $selectedProjectId ? 'Add Test Suite' : 'Select Project to Add Suite' }}
                     </a>
                 @else
                     <span
@@ -92,7 +92,7 @@
         <!-- Project Filter (Only for Generic Index View) -->
         @if ($isGenericIndex && isset($projects))
             {{-- Ensure $projects is passed for generic view --}}
-            <div class="animate-fade-in-down dropdown-container" style="z-index: 50;" x-data="projectFilterDropdown({ currentProjectId: '{{ $currentProjectId }}', projects: {{ json_encode($projects->toArray()) }} })">
+            <div class="animate-fade-in-down dropdown-container" style="z-index: 10;" x-data="projectFilterDropdown({ currentProjectId: '{{ $currentProjectId }}', projects: {{ json_encode($projects->toArray()) }} })">
                 <form method="GET" action="{{ route('dashboard.test-suites.indexAll') }}" id="project-filter-form">
                     <input type="hidden" name="project_id" x-model="selectedProjectId">
                     <label for="project-select-trigger" class="sr-only">Filter by Project</label>
@@ -116,9 +116,8 @@
                             x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
                             x-transition:leave="transition ease-in duration-75"
                             x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95"
-                            class="dropdown-menu"
-                            style="z-index: 100;" role="listbox" aria-labelledby="project-select-trigger"
-                            x-trap.inert.noscroll="isOpen">
+                            class="dropdown-menu w-full" style="z-index: 100;" role="listbox"
+                            aria-labelledby="project-select-trigger" x-trap.inert.noscroll="isOpen">
                             {{-- Search Input --}}
                             <div class="p-2 border-b border-zinc-100 dark:border-zinc-700">
                                 <div class="relative">

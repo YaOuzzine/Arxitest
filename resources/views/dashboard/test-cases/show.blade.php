@@ -902,15 +902,13 @@
                             </div>
 
                             <div>
-                                <label for="usage_context"
-                                    class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Usage Context
-                                    (Optional)</label>
-                                <input type="text" id="usage_context" name="usage_context"
-                                    class="form-input w-full rounded-lg border-zinc-300 dark:border-zinc-600 dark:bg-zinc-700/50 shadow-sm"
-                                    placeholder="e.g., 'Positive test case inputs' or 'Edge case scenario'">
-                                @error('usage_context')
-                                    <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                                @enderror
+                                <label for="usage_context" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">
+                                    Usage Context <span class="text-red-500">*</span> {{-- Added asterisk --}}
+                                </label>
+                                <input type="text" id="usage_context" name="usage_context" required {{-- Added required attribute --}}
+                                       class="form-input w-full rounded-lg border-zinc-300 dark:border-zinc-600 dark:bg-zinc-700/50 shadow-sm"
+                                       placeholder="e.g., 'Positive test case inputs' or 'Edge case scenario'">
+                                @error('usage_context') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
                             </div>
                         </div>
 
