@@ -627,90 +627,132 @@ class JiraService
     }
 
     /**
- * Get available issue types in a project
- */
-public function getIssueTypes(string $projectKey): array
-{
-    $response = $this->makeRequest('get', '/rest/api/3/issuetype');
-    return $response->json() ?? [];
-}
-
-/**
- * Get available fields for issues
- */
-public function getFields(): array
-{
-    $response = $this->makeRequest('get', '/rest/api/3/field');
-    return $response->json() ?? [];
-}
-
-/**
- * Get issues with flexible filtering options
- */
-public function getFilteredIssues(array $options = []): array
-{
-    // Extract options with defaults
-    $projectKey = $options['projectKey'] ?? '';
-    $issueTypes = $options['issueTypes'] ?? ['Epic', 'Story'];
-    $statuses = $options['statuses'] ?? [];
-    $labels = $options['labels'] ?? [];
-    $customJql = $options['customJql'] ?? '';
-    $fields = $options['fields'] ?? ['summary', 'description', 'issuetype', 'parent', 'status', 'labels'];
-    $maxResults = $options['maxResults'] ?? 50;
-
-    // Build JQL query
-    $jqlParts = [];
-
-    if (!empty($projectKey)) {
-        $jqlParts[] = sprintf('project = "%s"', str_replace('"', '\"', $projectKey));
+     * Get available issue types in a project
+     */
+    public function getIssueTypes(string $projectKey): array
+    {
+        $response = $this->makeRequest('get', '/rest/api/3/issuetype');
+        return $response->json() ?? [];
     }
 
-    if (!empty($issueTypes)) {
-        $escapedTypes = implode('", "', array_map(fn($t) => str_replace('"', '\"', $t), $issueTypes));
-        $jqlParts[] = sprintf('issuetype IN ("%s")', $escapedTypes);
+    /**
+     * Get available fields for issues
+     */
+    public function getFields(): array
+    {
+        $response = $this->makeRequest('get', '/rest/api/3/field');
+        return $response->json() ?? [];
     }
 
-    if (!empty($statuses)) {
-        $escapedStatuses = implode('", "', array_map(fn($s) => str_replace('"', '\"', $s), $statuses));
-        $jqlParts[] = sprintf('status IN ("%s")', $escapedStatuses);
+    /**
+     * Get issues with flexible filtering options
+     */
+    public function getFilteredIssues(array $options = []): array
+    {
+        // Extract options with defaults
+        $projectKey = $options['projectKey'] ?? '';
+        $issueTypes = $options['issueTypes'] ?? ['Epic', 'Story'];
+        $statuses = $options['statuses'] ?? [];
+        $labels = $options['labels'] ?? [];
+        $customJql = $options['customJql'] ?? '';
+        $fields = $options['fields'] ?? ['summary', 'description', 'issuetype', 'parent', 'status', 'labels'];
+        $maxResults = $options['maxResults'] ?? 50;
+
+        // Build JQL query
+        $jqlParts = [];
+
+        if (!empty($projectKey)) {
+            $jqlParts[] = sprintf('project = "%s"', str_replace('"', '\"', $projectKey));
+        }
+
+        if (!empty($issueTypes)) {
+            $escapedTypes = implode('", "', array_map(fn($t) => str_replace('"', '\"', $t), $issueTypes));
+            $jqlParts[] = sprintf('issuetype IN ("%s")', $escapedTypes);
+        }
+
+        if (!empty($statuses)) {
+            $escapedStatuses = implode('", "', array_map(fn($s) => str_replace('"', '\"', $s), $statuses));
+            $jqlParts[] = sprintf('status IN ("%s")', $escapedStatuses);
+        }
+
+        if (!empty($labels)) {
+            $labelConditions = array_map(fn($l) => sprintf('labels = "%s"', str_replace('"', '\"', $l)), $labels);
+            $jqlParts[] = '(' . implode(' OR ', $labelConditions) . ')';
+        }
+
+        // Add custom JQL if provided
+        if (!empty($customJql)) {
+            $jqlParts[] = '(' . $customJql . ')';
+        }
+
+        $jql = implode(' AND ', $jqlParts) . ' ORDER BY created DESC';
+
+        // Same pagination logic as before
+        $allIssues = [];
+        $startAt = 0;
+        $pagesRetrieved = 0;
+
+        do {
+            $response = $this->makeRequest('get', '/rest/api/3/search', [
+                'jql' => $jql,
+                'fields' => implode(',', $fields),
+                'maxResults' => $maxResults,
+                'startAt' => $startAt,
+            ]);
+
+            $data = $response->json();
+            $issues = $data['issues'] ?? [];
+            $allIssues = array_merge($allIssues, $issues);
+
+            $total = $data['total'] ?? 0;
+            $countCurrentPage = count($issues);
+            $startAt += $countCurrentPage;
+            $pagesRetrieved++;
+        } while ($startAt < $total && $countCurrentPage > 0 && $pagesRetrieved < 10);
+
+        return $allIssues;
     }
 
-    if (!empty($labels)) {
-        $labelConditions = array_map(fn($l) => sprintf('labels = "%s"', str_replace('"', '\"', $l)), $labels);
-        $jqlParts[] = '(' . implode(' OR ', $labelConditions) . ')';
+     /**
+     * *** NEW METHOD ***
+     * Get the *count* of issues matching the filter options.
+     * This is more efficient than fetching all issues just for a count.
+     */
+    public function getFilteredIssuesCount(array $options = []): int
+    {
+        // Build JQL from options (same logic as getFilteredIssues)
+        $jqlParts = [];
+        if (!empty($options['projectKey'])) { $jqlParts[] = sprintf('project = "%s"', str_replace('"', '\"', $options['projectKey'])); }
+        if (!empty($options['issueTypes'])) { $escapedTypes = implode('", "', array_map(fn($t) => str_replace('"', '\"', $t), $options['issueTypes'])); $jqlParts[] = sprintf('issuetype IN ("%s")', $escapedTypes); }
+        if (!empty($options['statuses'])) { $escapedStatuses = implode('", "', array_map(fn($s) => str_replace('"', '\"', $s), $options['statuses'])); $jqlParts[] = sprintf('status IN ("%s")', $escapedStatuses); }
+        if (!empty($options['labels'])) { $labelConditions = array_map(fn($l) => sprintf('labels = "%s"', str_replace('"', '\"', $l)), $options['labels']); $jqlParts[] = '(' . implode(' OR ', $labelConditions) . ')'; }
+        if (!empty($options['customJql'])) { $jqlParts[] = '(' . $options['customJql'] . ')'; }
+
+        if (empty($jqlParts)) {
+            throw new \InvalidArgumentException("Cannot get issue count without filters (at least project key).");
+        }
+        $jql = implode(' AND ', $jqlParts);
+
+        Log::info('Fetching issue count via JQL', ['jql' => $jql]);
+
+        try {
+            // Request only the total count, no actual issues needed
+            $response = $this->makeRequest('get', 'rest/api/3/search', [
+                'jql' => $jql,
+                'maxResults' => 0, // Setting maxResults to 0 tells Jira to only return the total
+                'fields' => 'id', // Request minimal fields
+                'validateQuery' => 'strict'
+            ]);
+
+            $data = $response->json();
+            return $data['total'] ?? 0; // Return the total count
+
+        } catch (\Exception $e) {
+            Log::error('Failed to fetch Jira issue count', ['jql' => $jql, 'error' => $e->getMessage()]);
+            // Decide how to handle errors: rethrow, return 0, or return null
+            // Returning 0 might be misleading, rethrowing might be better for previews.
+            // Let's return -1 to indicate an error occurred during count fetch.
+            return -1;
+        }
     }
-
-    // Add custom JQL if provided
-    if (!empty($customJql)) {
-        $jqlParts[] = '(' . $customJql . ')';
-    }
-
-    $jql = implode(' AND ', $jqlParts) . ' ORDER BY created DESC';
-
-    // Same pagination logic as before
-    $allIssues = [];
-    $startAt = 0;
-    $pagesRetrieved = 0;
-
-    do {
-        $response = $this->makeRequest('get', '/rest/api/3/search', [
-            'jql' => $jql,
-            'fields' => implode(',', $fields),
-            'maxResults' => $maxResults,
-            'startAt' => $startAt,
-        ]);
-
-        $data = $response->json();
-        $issues = $data['issues'] ?? [];
-        $allIssues = array_merge($allIssues, $issues);
-
-        $total = $data['total'] ?? 0;
-        $countCurrentPage = count($issues);
-        $startAt += $countCurrentPage;
-        $pagesRetrieved++;
-
-    } while ($startAt < $total && $countCurrentPage > 0 && $pagesRetrieved < 10);
-
-    return $allIssues;
-}
 }

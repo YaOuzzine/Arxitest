@@ -12,7 +12,7 @@ class TestSuite extends Model
     protected $keyType = 'string';
     public $incrementing = false;
 
-    protected $fillable = ['name', 'description', 'settings'];
+    protected $fillable = ['name', 'description', 'settings', 'project_id'];
 
     protected $casts = [
         'settings' => 'array',

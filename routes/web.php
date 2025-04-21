@@ -195,6 +195,9 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
     Route::post('/dashboard/integrations/jira/preview-import', [IntegrationController::class, 'previewJiraImport'])
         ->name('integrations.jira.preview-import');
 
+    Route::get('/integrations/jira/import/progress/{project_id}', [JiraImportController::class, 'getImportProgress'])
+        ->name('integrations.jira.import.progress');
+
     Route::prefix('dashboard/integrations/jira')->name('integrations.jira.')->group(function () {
         Route::get('/redirect', [IntegrationController::class, 'jiraRedirect'])
             ->name('redirect');
@@ -206,6 +209,7 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
             ->name('import.options');
         Route::post('/import', [JiraImportController::class, 'importProject'])
             ->name('import.project');
+
 
         // Progress tracking endpoint
         Route::get('/import/progress/{project_id}', [JiraImportController::class, 'getImportProgress'])
