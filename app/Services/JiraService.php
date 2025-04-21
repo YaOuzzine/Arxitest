@@ -105,7 +105,6 @@ class JiraService
                 'token_expired' => (Arr::get($this->credentials, 'expires_at', 0) < time()) ? 'YES' : 'NO',
                 'has_refresh_token' => !empty($this->credentials['refresh_token'])
             ]);
-
         } catch (\Exception $e) {
             Log::error('Failed to decrypt or parse Jira credentials', [
                 'project_integration_id' => $this->projectIntegration->id,
@@ -441,7 +440,7 @@ class JiraService
         $maxResults = 50; // Jira's common page size
 
         // Sanitize issue types for JQL query
-        $sanitizedIssueTypes = array_map(function($type) {
+        $sanitizedIssueTypes = array_map(function ($type) {
             // Basic sanitization: remove quotes and escape existing quotes
             return str_replace('"', '\"', trim($type, '"'));
         }, $issueTypes);
@@ -485,7 +484,6 @@ class JiraService
                     'count' => $countCurrentPage,
                     'total' => $total
                 ]);
-
             } catch (\Exception $e) {
                 Log::error('Failed to fetch a page of Jira issues', [
                     'projectKey' => $projectKey,
@@ -495,7 +493,7 @@ class JiraService
                 throw $e; // Re-throw for now
             }
 
-        // Ensure we don't loop infinitely if the API returns unexpected data
+            // Ensure we don't loop infinitely if the API returns unexpected data
         } while ($startAt < $total && $countCurrentPage > 0 && $pagesRetrieved < 10); // Added max pages safety limit
 
         Log::info('Finished fetching Jira issues', [
@@ -506,4 +504,213 @@ class JiraService
 
         return $allIssues;
     }
+
+    /**
+     * Enhanced method to get issues from Jira using a custom JQL query.
+     * Handles pagination and additional options.
+     *
+     * @param string $jql The Jira Query Language string
+     * @param array $fields Array of fields to retrieve for each issue
+     * @param int $maxIssues Maximum number of issues to retrieve (0 = unlimited)
+     * @return array List of issues
+     * @throws \Exception
+     */
+    public function getIssuesWithJql(string $jql, array $fields = [], int $maxIssues = 0): array
+    {
+        $allIssues = [];
+        $startAt = 0;
+        $maxResults = min($maxIssues > 0 ? $maxIssues : 50, 100); // Cap at 100 per request, Jira limit
+
+        Log::info('Fetching issues from Jira using JQL', [
+            'jql' => $jql,
+            'max_issues' => $maxIssues > 0 ? $maxIssues : 'unlimited'
+        ]);
+
+        // Default fields if not specified
+        if (empty($fields)) {
+            $fields = [
+                'summary',
+                'description',
+                'issuetype',
+                'parent',
+                'status',
+                'created',
+                'updated',
+                'priority',
+                'labels'
+            ];
+        }
+
+        $pagesRetrieved = 0;
+        $totalFetched = 0;
+        $hasMore = true;
+
+        try {
+            while ($hasMore) {
+                // Break if we've reached the maxIssues limit
+                if ($maxIssues > 0 && $totalFetched >= $maxIssues) {
+                    break;
+                }
+
+                // Calculate how many results to request in this batch
+                $currentBatchSize = $maxIssues > 0 ?
+                    min($maxResults, $maxIssues - $totalFetched) :
+                    $maxResults;
+
+                $response = $this->makeRequest('get', '/rest/api/3/search', [
+                    'jql' => $jql,
+                    'fields' => implode(',', $fields),
+                    'maxResults' => $currentBatchSize,
+                    'startAt' => $startAt,
+                    'validateQuery' => 'strict' // Fail on invalid JQL
+                ]);
+
+                $data = $response->json();
+                $issues = $data['issues'] ?? [];
+                $allIssues = array_merge($allIssues, $issues);
+
+                $total = $data['total'] ?? 0;
+                $countCurrentPage = count($issues);
+                $startAt += $countCurrentPage;
+                $totalFetched += $countCurrentPage;
+                $pagesRetrieved++;
+
+                // Check if we need to fetch more
+                $hasMore = $countCurrentPage > 0 && $startAt < $total;
+
+                // Safety check - don't fetch too many pages
+                if ($pagesRetrieved >= 20) {
+                    Log::warning('Jira issue fetch exceeded 20 pages, limiting results', [
+                        'jql' => $jql,
+                        'total_expected' => $total,
+                        'total_fetched' => $totalFetched
+                    ]);
+                    break;
+                }
+
+                Log::debug('Fetched page of Jira issues', [
+                    'page' => $pagesRetrieved,
+                    'batch_size' => $currentBatchSize,
+                    'count' => $countCurrentPage,
+                    'total_fetched' => $totalFetched,
+                    'total_available' => $total
+                ]);
+            }
+        } catch (\Exception $e) {
+            // Enhance error logging with JQL details
+            Log::error('Failed to fetch Jira issues with JQL', [
+                'jql' => $jql,
+                'startAt' => $startAt,
+                'error' => $e->getMessage(),
+                'pages_retrieved' => $pagesRetrieved,
+                'issues_retrieved' => count($allIssues)
+            ]);
+
+            // Add useful context to the error message
+            $errorMessage = "Error fetching Jira issues: " . $e->getMessage();
+
+            // Check for specific errors like invalid JQL syntax
+            if (strpos($e->getMessage(), 'JQL') !== false) {
+                $errorMessage = "Invalid JQL query: " . $e->getMessage();
+            }
+
+            throw new \Exception($errorMessage);
+        }
+
+        Log::info('Finished fetching Jira issues with JQL', [
+            'total_fetched' => count($allIssues),
+            'pages' => $pagesRetrieved,
+            'max_requested' => $maxIssues
+        ]);
+
+        return $allIssues;
+    }
+
+    /**
+ * Get available issue types in a project
+ */
+public function getIssueTypes(string $projectKey): array
+{
+    $response = $this->makeRequest('get', '/rest/api/3/issuetype');
+    return $response->json() ?? [];
+}
+
+/**
+ * Get available fields for issues
+ */
+public function getFields(): array
+{
+    $response = $this->makeRequest('get', '/rest/api/3/field');
+    return $response->json() ?? [];
+}
+
+/**
+ * Get issues with flexible filtering options
+ */
+public function getFilteredIssues(array $options = []): array
+{
+    // Extract options with defaults
+    $projectKey = $options['projectKey'] ?? '';
+    $issueTypes = $options['issueTypes'] ?? ['Epic', 'Story'];
+    $statuses = $options['statuses'] ?? [];
+    $labels = $options['labels'] ?? [];
+    $customJql = $options['customJql'] ?? '';
+    $fields = $options['fields'] ?? ['summary', 'description', 'issuetype', 'parent', 'status', 'labels'];
+    $maxResults = $options['maxResults'] ?? 50;
+
+    // Build JQL query
+    $jqlParts = [];
+
+    if (!empty($projectKey)) {
+        $jqlParts[] = sprintf('project = "%s"', str_replace('"', '\"', $projectKey));
+    }
+
+    if (!empty($issueTypes)) {
+        $escapedTypes = implode('", "', array_map(fn($t) => str_replace('"', '\"', $t), $issueTypes));
+        $jqlParts[] = sprintf('issuetype IN ("%s")', $escapedTypes);
+    }
+
+    if (!empty($statuses)) {
+        $escapedStatuses = implode('", "', array_map(fn($s) => str_replace('"', '\"', $s), $statuses));
+        $jqlParts[] = sprintf('status IN ("%s")', $escapedStatuses);
+    }
+
+    if (!empty($labels)) {
+        $labelConditions = array_map(fn($l) => sprintf('labels = "%s"', str_replace('"', '\"', $l)), $labels);
+        $jqlParts[] = '(' . implode(' OR ', $labelConditions) . ')';
+    }
+
+    // Add custom JQL if provided
+    if (!empty($customJql)) {
+        $jqlParts[] = '(' . $customJql . ')';
+    }
+
+    $jql = implode(' AND ', $jqlParts) . ' ORDER BY created DESC';
+
+    // Same pagination logic as before
+    $allIssues = [];
+    $startAt = 0;
+    $pagesRetrieved = 0;
+
+    do {
+        $response = $this->makeRequest('get', '/rest/api/3/search', [
+            'jql' => $jql,
+            'fields' => implode(',', $fields),
+            'maxResults' => $maxResults,
+            'startAt' => $startAt,
+        ]);
+
+        $data = $response->json();
+        $issues = $data['issues'] ?? [];
+        $allIssues = array_merge($allIssues, $issues);
+
+        $total = $data['total'] ?? 0;
+        $countCurrentPage = count($issues);
+        $startAt += $countCurrentPage;
+        $pagesRetrieved++;
+
+    } while ($startAt < $total && $countCurrentPage > 0 && $pagesRetrieved < 10);
+
+    return $allIssues;
+}
 }

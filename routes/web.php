@@ -4,6 +4,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EmailRegistrationController;
 use App\Http\Controllers\IntegrationController;
 use App\Http\Controllers\InvitationController;
+use App\Http\Controllers\JiraImportController;
 use App\Http\Controllers\OAuthController;
 use App\Http\Controllers\PhoneAuthController;
 use App\Http\Controllers\ProjectController;
@@ -187,6 +188,30 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
         ->name('integrations.jira.import.options');
     Route::post('/dashboard/integrations/jira/import', [IntegrationController::class, 'importJiraProject'])
         ->name('integrations.jira.import.project');
+
+    Route::post('/dashboard/integrations/jira/project-metadata', [IntegrationController::class, 'getJiraProjectMetadata'])
+        ->name('integrations.jira.project-metadata');
+
+    Route::post('/dashboard/integrations/jira/preview-import', [IntegrationController::class, 'previewJiraImport'])
+        ->name('integrations.jira.preview-import');
+
+    Route::prefix('dashboard/integrations/jira')->name('integrations.jira.')->group(function () {
+        Route::get('/redirect', [IntegrationController::class, 'jiraRedirect'])
+            ->name('redirect');
+        Route::post('/disconnect', [IntegrationController::class, 'jiraDisconnect'])
+            ->name('disconnect');
+
+        // Enhanced import routes
+        Route::get('/import', [JiraImportController::class, 'showImportOptions'])
+            ->name('import.options');
+        Route::post('/import', [JiraImportController::class, 'importProject'])
+            ->name('import.project');
+
+        // Progress tracking endpoint
+        Route::get('/import/progress/{project_id}', [JiraImportController::class, 'getImportProgress'])
+            ->name('import.progress');
+    });
+
 });
 
 Route::middleware(['web'])->group(function () {

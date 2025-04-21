@@ -46,20 +46,20 @@ class IntegrationController extends Controller
         $currentProjectId = $request->query('project_id', $team->projects()->value('id'));
 
         // Check for active Jira integration
-        $jiraConnected = ProjectIntegration::whereHas('project', function($q) use ($currentTeamId) {
-                $q->where('team_id', $currentTeamId);
-            })
-            ->whereHas('integration', function($q) {
+        $jiraConnected = ProjectIntegration::whereHas('project', function ($q) use ($currentTeamId) {
+            $q->where('team_id', $currentTeamId);
+        })
+            ->whereHas('integration', function ($q) {
                 $q->where('type', Integration::TYPE_JIRA);
             })
             ->where('is_active', true)
             ->exists();
 
         // Check for GitHub integration (placeholder)
-        $githubConnected = ProjectIntegration::whereHas('project', function($q) use ($currentTeamId) {
-                $q->where('team_id', $currentTeamId);
-            })
-            ->whereHas('integration', function($q) {
+        $githubConnected = ProjectIntegration::whereHas('project', function ($q) use ($currentTeamId) {
+            $q->where('team_id', $currentTeamId);
+        })
+            ->whereHas('integration', function ($q) {
                 $q->where('type', Integration::TYPE_GITHUB);
             })
             ->where('is_active', true)
@@ -72,64 +72,64 @@ class IntegrationController extends Controller
      * Initiate Jira OAuth flow by redirecting to Atlassian.
      */
     public function jiraRedirect(Request $request)
-{
-    // Authentication check
-    $userId = Auth::id();
-    if (!$userId) {
-        Log::error('Jira redirect attempted without authentication');
-        return redirect()->route('login')
-            ->with('error', 'You must be logged in to connect to Jira.');
-    }
+    {
+        // Authentication check
+        $userId = Auth::id();
+        if (!$userId) {
+            Log::error('Jira redirect attempted without authentication');
+            return redirect()->route('login')
+                ->with('error', 'You must be logged in to connect to Jira.');
+        }
 
-    // Get project context
-    $targetProjectId = $request->query('target_project_id') ?? session('current_project_id');
-    $currentTeamId = session('current_team');
+        // Get project context
+        $targetProjectId = $request->query('target_project_id') ?? session('current_project_id');
+        $currentTeamId = session('current_team');
 
-    if (!$targetProjectId) {
-        $team = Team::find($currentTeamId);
-        $targetProjectId = $team?->projects()->value('id');
-    }
+        if (!$targetProjectId) {
+            $team = Team::find($currentTeamId);
+            $targetProjectId = $team?->projects()->value('id');
+        }
 
-    // Validation
-    if (!$targetProjectId || !Project::where('id', $targetProjectId)
+        // Validation
+        if (!$targetProjectId || !Project::where('id', $targetProjectId)
             ->where('team_id', $currentTeamId)
             ->exists()) {
-        Log::warning('Invalid project for Jira integration', [
+            Log::warning('Invalid project for Jira integration', [
+                'user_id' => $userId,
+                'team_id' => $currentTeamId,
+                'target_project_id' => $targetProjectId
+            ]);
+            return redirect()->route('dashboard.integrations.index')
+                ->with('error', 'Please select a valid project for this integration.');
+        }
+
+        // Generate state using database storage - no session required
+        $state = OAuthState::generateState($userId, $targetProjectId);
+
+        Log::debug('Generating OAuth state in database', [
+            'state' => $state,
             'user_id' => $userId,
-            'team_id' => $currentTeamId,
+            'project_id' => $targetProjectId
+        ]);
+
+        // Build OAuth URL
+        $query = http_build_query([
+            'audience' => 'api.atlassian.com',
+            'client_id' => config('services.atlassian.client_id'),
+            'scope' => 'read:jira-user read:jira-work write:jira-work offline_access',
+            'redirect_uri' => config('services.atlassian.redirect'),
+            'state' => $state,
+            'response_type' => 'code',
+            'prompt' => 'consent',
+        ]);
+
+        Log::info('Redirecting to Atlassian for Jira OAuth', [
+            'user_id' => $userId,
             'target_project_id' => $targetProjectId
         ]);
-        return redirect()->route('dashboard.integrations.index')
-            ->with('error', 'Please select a valid project for this integration.');
+
+        return redirect('https://auth.atlassian.com/authorize?' . $query);
     }
-
-    // Generate state using database storage - no session required
-    $state = OAuthState::generateState($userId, $targetProjectId);
-
-    Log::debug('Generating OAuth state in database', [
-        'state' => $state,
-        'user_id' => $userId,
-        'project_id' => $targetProjectId
-    ]);
-
-    // Build OAuth URL
-    $query = http_build_query([
-        'audience' => 'api.atlassian.com',
-        'client_id' => config('services.atlassian.client_id'),
-        'scope' => 'read:jira-user read:jira-work write:jira-work offline_access',
-        'redirect_uri' => config('services.atlassian.redirect'),
-        'state' => $state,
-        'response_type' => 'code',
-        'prompt' => 'consent',
-    ]);
-
-    Log::info('Redirecting to Atlassian for Jira OAuth', [
-        'user_id' => $userId,
-        'target_project_id' => $targetProjectId
-    ]);
-
-    return redirect('https://auth.atlassian.com/authorize?' . $query);
-}
 
     /**
      * Handle the callback from Atlassian after OAuth authorization.
@@ -138,56 +138,56 @@ class IntegrationController extends Controller
     {
         Log::info('Jira OAuth callback received');
 
-    // Debug incoming request
-    Log::debug('Callback received session state', [
-        'session_id' => session()->getId(),
-        'all_session_data' => session()->all(),
-        'cookies' => $request->cookies->all(),
-        'request_state' => $request->state
-    ]);
-
-    // Verify state parameter using database lookup
-    $stateParam = $request->state;
-    if (empty($stateParam)) {
-        Log::error('Jira OAuth callback missing state parameter');
-        return redirect()->route('login')
-            ->with('error', 'Invalid OAuth callback. Missing state parameter.');
-    }
-
-    $oauthState = OAuthState::findValidState($stateParam);
-
-    if (!$oauthState) {
-        Log::error('Jira OAuth invalid or expired state token', [
-            'state' => $stateParam
-        ]);
-        return redirect()->route('login')
-            ->with('error', 'OAuth verification failed. Invalid or expired state token.');
-    }
-
-    // Get the stored user and project IDs
-    $userId = $oauthState->user_id;
-    $targetProjectId = $oauthState->project_id;
-
-    Log::debug('Found valid OAuth state record', [
-        'state_id' => $oauthState->id,
-        'user_id' => $userId,
-        'project_id' => $targetProjectId
-    ]);
-
-    // Check for errors from OAuth provider
-    if ($request->has('error')) {
-        Log::error('Jira OAuth returned an error', [
-            'error' => $request->error,
-            'description' => $request->error_description
+        // Debug incoming request
+        Log::debug('Callback received session state', [
+            'session_id' => session()->getId(),
+            'all_session_data' => session()->all(),
+            'cookies' => $request->cookies->all(),
+            'request_state' => $request->state
         ]);
 
-        // Clean up the state record
-        $oauthState->delete();
+        // Verify state parameter using database lookup
+        $stateParam = $request->state;
+        if (empty($stateParam)) {
+            Log::error('Jira OAuth callback missing state parameter');
+            return redirect()->route('login')
+                ->with('error', 'Invalid OAuth callback. Missing state parameter.');
+        }
 
-        return redirect()->route('dashboard.integrations.index')
-            ->with('error', 'Jira authorization failed: ' .
-                $request->input('error_description', $request->input('error', 'Unknown error')));
-    }
+        $oauthState = OAuthState::findValidState($stateParam);
+
+        if (!$oauthState) {
+            Log::error('Jira OAuth invalid or expired state token', [
+                'state' => $stateParam
+            ]);
+            return redirect()->route('login')
+                ->with('error', 'OAuth verification failed. Invalid or expired state token.');
+        }
+
+        // Get the stored user and project IDs
+        $userId = $oauthState->user_id;
+        $targetProjectId = $oauthState->project_id;
+
+        Log::debug('Found valid OAuth state record', [
+            'state_id' => $oauthState->id,
+            'user_id' => $userId,
+            'project_id' => $targetProjectId
+        ]);
+
+        // Check for errors from OAuth provider
+        if ($request->has('error')) {
+            Log::error('Jira OAuth returned an error', [
+                'error' => $request->error,
+                'description' => $request->error_description
+            ]);
+
+            // Clean up the state record
+            $oauthState->delete();
+
+            return redirect()->route('dashboard.integrations.index')
+                ->with('error', 'Jira authorization failed: ' .
+                    $request->input('error_description', $request->input('error', 'Unknown error')));
+        }
 
         // Ensure we have stored context from the initial request
         if (!$targetProjectId || !$userId) {
@@ -223,7 +223,6 @@ class IntegrationController extends Controller
 
             $tokenData = $tokenResponse->json();
             Log::info('Jira token obtained successfully');
-
         } catch (\Exception $e) {
             Log::error('Error exchanging code for token', [
                 'error' => $e->getMessage()
@@ -338,7 +337,6 @@ class IntegrationController extends Controller
                 'project_id' => $project->id,
                 'jira_site' => $jiraSite['name']
             ]);
-
         } catch (DecryptException $e) {
             Log::error('Encryption error storing Jira credentials', [
                 'error' => $e->getMessage()
@@ -355,9 +353,84 @@ class IntegrationController extends Controller
 
         $oauthState->delete();
 
-    // Success - redirect to integrations page
-    return redirect()->route('dashboard.integrations.index')
-        ->with('success', 'Jira connected successfully to project: ' . $project->name);
+        // Success - redirect to integrations page
+        return redirect()->route('dashboard.integrations.index')
+            ->with('success', 'Jira connected successfully to project: ' . $project->name);
+    }
+
+    /**
+     * Preview Jira import results (AJAX endpoint)
+     */
+    public function previewJiraImport(Request $request)
+    {
+        $validated = $request->validate([
+            'jira_project_key' => 'required|string',
+            'arxitest_project_id' => 'required|uuid|exists:projects,id',
+            'issue_types' => 'required|array',
+            'statuses' => 'nullable|array',
+            'labels' => 'nullable|array',
+            'custom_jql' => 'nullable|string',
+            'mappings' => 'required|array',
+            'mappings.epic_to_suite' => 'required|boolean',
+            'mappings.create_default_suite' => 'required|boolean',
+            'mappings.default_suite_id' => 'nullable|uuid|exists:test_suites,id',
+            'sample_size' => 'nullable|integer|min:1|max:50'
+        ]);
+
+        try {
+            $arxitestProject = Project::findOrFail($validated['arxitest_project_id']);
+            $jiraService = new JiraService($arxitestProject);
+
+            // Get sample of issues based on filters
+            $sampleSize = $validated['sample_size'] ?? 10;
+            $issues = $jiraService->getFilteredIssues([
+                'projectKey' => $validated['jira_project_key'],
+                'issueTypes' => $validated['issue_types'],
+                'statuses' => $validated['statuses'] ?? [],
+                'labels' => $validated['labels'] ?? [],
+                'customJql' => $validated['custom_jql'] ?? '',
+                'maxResults' => $sampleSize
+            ]);
+
+            // Mock what would be imported
+            $mockImport = [
+                'test_suites' => [],
+                'test_cases' => [],
+                'total_issues' => count($issues)
+            ];
+
+            // Process sample issues based on mappings
+            foreach ($issues as $issue) {
+                $issueType = $issue['fields']['issuetype']['name'] ?? '';
+
+                if ($issueType === 'Epic' && $validated['mappings']['epic_to_suite']) {
+                    $mockImport['test_suites'][] = [
+                        'name' => $issue['fields']['summary'] ?? 'Untitled Epic',
+                        'jira_key' => $issue['key'],
+                        'jira_id' => $issue['id']
+                    ];
+                } else {
+                    // Non-epic issues become test cases
+                    $mockImport['test_cases'][] = [
+                        'title' => $issue['fields']['summary'] ?? 'Untitled Issue',
+                        'jira_key' => $issue['key'],
+                        'jira_id' => $issue['id'],
+                        'issue_type' => $issueType,
+                        'parent_epic_key' => $issue['fields']['parent']['key'] ?? null
+                    ];
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'preview' => $mockImport
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
@@ -401,7 +474,7 @@ class IntegrationController extends Controller
     }
 
     /**
-     * Show options for importing from Jira.
+     * Show enhanced options for importing from Jira
      */
     public function showJiraImportOptions(Request $request)
     {
@@ -413,11 +486,6 @@ class IntegrationController extends Controller
 
         $arxitestProject = Project::find($arxitestProjectId);
         if (!$arxitestProject || $arxitestProject->team_id !== session('current_team')) {
-            Log::warning('Invalid project access for Jira import', [
-                'user_id' => Auth::id(),
-                'project_id' => $arxitestProjectId,
-                'team_id' => session('current_team')
-            ]);
             return redirect()->route('dashboard.projects')
                 ->with('error', 'You do not have access to this project.');
         }
@@ -426,30 +494,48 @@ class IntegrationController extends Controller
             $jiraService = new JiraService($arxitestProject);
             $jiraProjects = $jiraService->getProjects();
 
+            // Get test suites for the target project for mapping options
+            $testSuites = $arxitestProject->testSuites()->get(['id', 'name']);
+
+            // Get existing mappings if any
+            $existingMappings = ProjectIntegration::where('project_id', $arxitestProjectId)
+                ->whereHas('integration', function ($q) {
+                    $q->where('type', Integration::TYPE_JIRA);
+                })
+                ->value('project_specific_config')['mappings'] ?? [];
+
             return view('dashboard.integrations.jira-import', [
                 'jiraProjects' => $jiraProjects,
                 'arxitestProjectId' => $arxitestProject->id,
                 'arxitestProjectName' => $arxitestProject->name,
+                'testSuites' => $testSuites,
+                'existingMappings' => $existingMappings
             ]);
         } catch (\Exception $e) {
-            Log::error('Error fetching Jira projects', [
-                'error' => $e->getMessage(),
-                'project_id' => $arxitestProjectId
-            ]);
             return redirect()->route('dashboard.integrations.index', ['project_id' => $arxitestProjectId])
                 ->with('error', 'Could not access Jira projects: ' . $e->getMessage());
         }
     }
 
     /**
-     * Import a Jira project into Arxitest.
+     * Import Jira project with advanced options
      */
     public function importJiraProject(Request $request)
     {
         $validated = $request->validate([
-            'jira_project_key' => 'required|string|max:100',
-            'jira_project_name' => 'required|string|max:255',
-            'arxitest_project_id' => 'required|uuid|exists:projects,id'
+            'jira_project_key' => 'required|string',
+            'jira_project_name' => 'required|string',
+            'arxitest_project_id' => 'required|uuid|exists:projects,id',
+            'issue_types' => 'required|array',
+            'statuses' => 'nullable|array',
+            'labels' => 'nullable|array',
+            'custom_jql' => 'nullable|string',
+            'mappings' => 'required|array',
+            'mappings.epic_to_suite' => 'required|boolean',
+            'mappings.create_default_suite' => 'required|boolean',
+            'mappings.default_suite_id' => 'nullable|uuid|exists:test_suites,id',
+            'mappings.include_description' => 'required|boolean',
+            'mappings.status_to_priority' => 'nullable|array'
         ]);
 
         $jiraProjectKey = $validated['jira_project_key'];
@@ -458,28 +544,21 @@ class IntegrationController extends Controller
 
         $arxitestProject = Project::findOrFail($arxitestProjectId);
         if ($arxitestProject->team_id !== session('current_team')) {
-            Log::warning('Unauthorized Jira import attempt', [
-                'user_id' => Auth::id(),
-                'project_id' => $arxitestProjectId
-            ]);
             return back()->with('error', 'You do not have permission to import into this project.');
         }
-
-        Log::info('Starting Jira project import', [
-            'jira_key' => $jiraProjectKey,
-            'project_id' => $arxitestProjectId
-        ]);
 
         DB::beginTransaction();
         try {
             $jiraService = new JiraService($arxitestProject);
 
-            // Get issues (epics and stories)
-            $issues = $jiraService->getIssuesInProject(
-                $jiraProjectKey,
-                ['Epic', 'Story'],
-                ['summary', 'description', 'issuetype', 'parent', 'status', 'created', 'updated', 'labels', 'priority']
-            );
+            // Get issues based on filters
+            $issues = $jiraService->getFilteredIssues([
+                'projectKey' => $jiraProjectKey,
+                'issueTypes' => $validated['issue_types'],
+                'statuses' => $validated['statuses'] ?? [],
+                'labels' => $validated['labels'] ?? [],
+                'customJql' => $validated['custom_jql'] ?? '',
+            ]);
 
             // Track import progress
             $epicToSuiteMap = [];
@@ -487,108 +566,145 @@ class IntegrationController extends Controller
             $testCasesCreated = 0;
             $defaultSuite = null;
 
-            // Process Epics -> Test Suites
-            foreach ($issues as $issue) {
-                if (Arr::get($issue, 'fields.issuetype.name') === 'Epic') {
-                    $epicName = Arr::get($issue, 'fields.summary', 'Untitled Epic ' . $issue['key']);
-                    $suiteSettings = [
-                        'jira_epic_id' => $issue['id'],
-                        'jira_epic_key' => $issue['key']
-                    ];
+            // Save mappings in project integration config
+            $projectIntegration = ProjectIntegration::where('project_id', $arxitestProjectId)
+                ->whereHas('integration', function ($q) {
+                    $q->where('type', Integration::TYPE_JIRA);
+                })
+                ->first();
 
-                    $testSuite = TestSuite::updateOrCreate(
+            if ($projectIntegration) {
+                $config = $projectIntegration->project_specific_config ?? [];
+                $config['mappings'] = $validated['mappings'];
+                $projectIntegration->update(['project_specific_config' => $config]);
+            }
+
+            // Process epics first if mapping to suites
+            if ($validated['mappings']['epic_to_suite']) {
+                foreach ($issues as $index => $issue) {
+                    if (($issue['fields']['issuetype']['name'] ?? '') === 'Epic') {
+                        $epicName = $issue['fields']['summary'] ?? 'Untitled Epic ' . $issue['key'];
+                        $suiteSettings = [
+                            'jira_epic_id' => $issue['id'],
+                            'jira_epic_key' => $issue['key']
+                        ];
+
+                        $testSuite = TestSuite::updateOrCreate(
+                            [
+                                'project_id' => $arxitestProject->id,
+                                'settings->jira_epic_key' => $issue['key']
+                            ],
+                            [
+                                'name' => $epicName,
+                                'description' => $validated['mappings']['include_description'] ?
+                                    ($issue['fields']['description'] ?? '') : 'From Epic: ' . $issue['key'],
+                                'settings' => $suiteSettings
+                            ]
+                        );
+
+                        $epicToSuiteMap[$issue['id']] = $testSuite->id;
+
+                        // Remove processed epics
+                        unset($issues[$index]);
+                    }
+                }
+
+                // Reset array keys
+                $issues = array_values($issues);
+            }
+
+            // Create default suite if needed
+            if ($validated['mappings']['create_default_suite']) {
+                if (!empty($validated['mappings']['default_suite_id'])) {
+                    $defaultSuite = TestSuite::find($validated['mappings']['default_suite_id']);
+                }
+
+                if (!$defaultSuite) {
+                    $defaultSuite = TestSuite::firstOrCreate(
                         [
                             'project_id' => $arxitestProject->id,
-                            'settings->jira_epic_key' => $issue['key']
+                            'name' => 'Imported from Jira'
                         ],
                         [
-                            'name' => $epicName,
-                            'description' => Arr::get($issue, 'fields.description', '') ?? 'From Epic: ' . $issue['key'],
-                            'settings' => $suiteSettings
+                            'description' => 'Issues imported from Jira project: ' . $jiraProjectName,
+                            'settings' => ['jira_project_key' => $jiraProjectKey]
                         ]
                     );
-
-                    $epicToSuiteMap[$issue['id']] = $testSuite->id;
                 }
             }
 
-            // Process Stories -> Stories & Test Cases
+            // Process remaining issues (stories, tasks, etc.)
             foreach ($issues as $issue) {
-                if (Arr::get($issue, 'fields.issuetype.name') === 'Story') {
-                    $storyTitle = Arr::get($issue, 'fields.summary', 'Untitled Story ' . $issue['key']);
-                    $storyDescription = Arr::get($issue, 'fields.description', '') ?? '';
-                    $parentEpicId = Arr::get($issue, 'fields.parent.id');
+                $issueTitle = $issue['fields']['summary'] ?? 'Untitled Issue ' . $issue['key'];
+                $issueDescription = $validated['mappings']['include_description'] ?
+                    ($issue['fields']['description'] ?? '') : '';
+                $parentEpicId = $issue['fields']['parent']['id'] ?? null;
+                $issueType = $issue['fields']['issuetype']['name'] ?? 'Unknown';
 
-                    // Determine suite to associate with
-                    $suiteId = null;
-                    if ($parentEpicId && isset($epicToSuiteMap[$parentEpicId])) {
-                        $suiteId = $epicToSuiteMap[$parentEpicId];
-                    } else {
-                        // Create default suite if needed
-                        if (!$defaultSuite) {
-                            $defaultSuite = TestSuite::firstOrCreate(
-                                [
-                                    'project_id' => $arxitestProject->id,
-                                    'name' => 'Imported (Uncategorized)'
-                                ],
-                                [
-                                    'description' => 'Imported Jira stories without epics.',
-                                    'settings' => []
-                                ]
-                            );
-                        }
-                        $suiteId = $defaultSuite->id;
-                    }
+                // Map issue priority based on status if configured
+                $issuePriority = 'medium'; // Default
+                $issueStatus = $issue['fields']['status']['name'] ?? '';
 
-                    // Create the story
-                    $arxitestStory = ArxitestStory::updateOrCreate(
-                        [
-                            'external_id' => $issue['key'],
-                            'source' => 'jira'
-                        ],
-                        [
-                            'title' => $storyTitle,
-                            'description' => $storyDescription,
-                            'metadata' => [
-                                'jira_id' => $issue['id'],
-                                'jira_status' => Arr::get($issue, 'fields.status.name'),
-                                'jira_priority' => Arr::get($issue, 'fields.priority.name')
-                            ]
-                        ]
-                    );
-                    $storiesCreated++;
-
-                    // Create a basic test case for the story
-                    ArxitestTestCase::firstOrCreate(
-                        [
-                            'story_id' => $arxitestStory->id,
-                            'suite_id' => $suiteId,
-                            'title' => 'Verify Story: ' . Str::limit($storyTitle, 100)
-                        ],
-                        [
-                            'steps' => [
-                                'Navigate to relevant feature',
-                                'Verify functionality described in: ' . $issue['key']
-                            ],
-                            'expected_results' => 'Feature works as described in story.',
-                            'priority' => 'medium',
-                            'status' => 'draft'
-                        ]
-                    );
-                    $testCasesCreated++;
+                if (!empty($validated['mappings']['status_to_priority']) && isset($validated['mappings']['status_to_priority'][$issueStatus])) {
+                    $issuePriority = $validated['mappings']['status_to_priority'][$issueStatus];
                 }
+
+                // Determine suite to associate with
+                $suiteId = null;
+                if ($parentEpicId && isset($epicToSuiteMap[$parentEpicId])) {
+                    $suiteId = $epicToSuiteMap[$parentEpicId];
+                } elseif ($defaultSuite) {
+                    $suiteId = $defaultSuite->id;
+                } else {
+                    // Skip if no suite to associate with
+                    continue;
+                }
+
+                // Create the story
+                $arxitestStory = ArxitestStory::updateOrCreate(
+                    [
+                        'external_id' => $issue['key'],
+                        'source' => 'jira'
+                    ],
+                    [
+                        'title' => $issueTitle,
+                        'description' => $issueDescription,
+                        'metadata' => [
+                            'jira_id' => $issue['id'],
+                            'jira_status' => $issueStatus,
+                            'jira_type' => $issueType,
+                            'jira_labels' => $issue['fields']['labels'] ?? [],
+                            'jira_priority' => $issue['fields']['priority']['name'] ?? null
+                        ]
+                    ]
+                );
+                $storiesCreated++;
+
+                // Create test case
+                ArxitestTestCase::firstOrCreate(
+                    [
+                        'story_id' => $arxitestStory->id,
+                        'suite_id' => $suiteId,
+                        'title' => "[$issueType] " . Str::limit($issueTitle, 100)
+                    ],
+                    [
+                        'steps' => [
+                            'Navigate to relevant feature',
+                            'Verify functionality described in: ' . $issue['key'] . ' (' . $issueType . ')'
+                        ],
+                        'expected_results' => 'Feature works as described in ' . $issueType . '.',
+                        'priority' => $issuePriority,
+                        'status' => 'draft',
+                        'tags' => array_merge([$issueType], $issue['fields']['labels'] ?? [])
+                    ]
+                );
+                $testCasesCreated++;
             }
 
             DB::commit();
-            Log::info('Jira project import successful', [
-                'jira_key' => $jiraProjectKey,
-                'stories' => $storiesCreated,
-                'test_cases' => $testCasesCreated
-            ]);
 
             return redirect()->route('dashboard.projects.show', $arxitestProject->id)
-                ->with('success', "Imported {$storiesCreated} stories and created {$testCasesCreated} test cases from '{$jiraProjectName}'.");
-
+                ->with('success', "Imported {$storiesCreated} issues and created {$testCasesCreated} test cases from '{$jiraProjectName}'.");
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Jira import failed', [
@@ -600,6 +716,63 @@ class IntegrationController extends Controller
                 ->with('error', 'Import failed: ' . $e->getMessage());
         }
     }
+
+    /**
+     * Get issue types, statuses, and labels for a Jira project (AJAX endpoint)
+     */
+    public function getJiraProjectMetadata(Request $request)
+    {
+        $validated = $request->validate([
+            'jira_project_key' => 'required|string',
+            'arxitest_project_id' => 'required|uuid|exists:projects,id'
+        ]);
+
+        try {
+            $arxitestProject = Project::findOrFail($validated['arxitest_project_id']);
+            $jiraService = new JiraService($arxitestProject);
+
+            // Get issue types
+            $issueTypes = $jiraService->getIssueTypes($validated['jira_project_key']);
+
+            // Get sample issues to extract statuses and labels
+            $sampleIssues = $jiraService->getFilteredIssues([
+                'projectKey' => $validated['jira_project_key'],
+                'maxResults' => 100,
+                'fields' => ['status', 'labels']
+            ]);
+
+            // Extract unique statuses and labels
+            $statuses = [];
+            $labels = [];
+
+            foreach ($sampleIssues as $issue) {
+                $status = $issue['fields']['status']['name'] ?? null;
+                if ($status && !in_array($status, $statuses)) {
+                    $statuses[] = $status;
+                }
+
+                $issueLabels = $issue['fields']['labels'] ?? [];
+                foreach ($issueLabels as $label) {
+                    if (!in_array($label, $labels)) {
+                        $labels[] = $label;
+                    }
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'issueTypes' => $issueTypes,
+                'statuses' => $statuses,
+                'labels' => $labels
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
 
     /**
      * Clear Jira OAuth session data.
