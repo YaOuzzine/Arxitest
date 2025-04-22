@@ -35,14 +35,14 @@ class IntegrationController extends Controller
         }
 
         // Check if *any* project in the team has an active Jira connection
-        $jiraConnected = ProjectIntegration::whereHas('project', fn ($q) => $q->where('team_id', $currentTeamId))
-            ->whereHas('integration', fn ($q) => $q->where('type', Integration::TYPE_JIRA))
+        $jiraConnected = ProjectIntegration::whereHas('project', fn($q) => $q->where('team_id', $currentTeamId))
+            ->whereHas('integration', fn($q) => $q->where('type', Integration::TYPE_JIRA))
             ->where('is_active', true)
             ->exists();
 
         // Placeholder for GitHub check (similar logic)
-        $githubConnected = ProjectIntegration::whereHas('project', fn ($q) => $q->where('team_id', $currentTeamId))
-            ->whereHas('integration', fn ($q) => $q->where('type', Integration::TYPE_GITHUB))
+        $githubConnected = ProjectIntegration::whereHas('project', fn($q) => $q->where('team_id', $currentTeamId))
+            ->whereHas('integration', fn($q) => $q->where('type', Integration::TYPE_GITHUB))
             ->where('is_active', true)
             ->exists();
 
@@ -61,8 +61,8 @@ class IntegrationController extends Controller
         }
 
         // Check if Jira is connected for the current team
-        $jiraConnected = ProjectIntegration::whereHas('project', fn ($q) => $q->where('team_id', $currentTeamId))
-            ->whereHas('integration', fn ($q) => $q->where('type', Integration::TYPE_JIRA))
+        $jiraConnected = ProjectIntegration::whereHas('project', fn($q) => $q->where('team_id', $currentTeamId))
+            ->whereHas('integration', fn($q) => $q->where('type', Integration::TYPE_JIRA))
             ->where('is_active', true)
             ->exists();
 
@@ -196,7 +196,6 @@ class IntegrationController extends Controller
                 'statuses' => $statusSet,
                 'labels' => $labelSet
             ]);
-
         } catch (\Exception $e) {
             Log::error('Error fetching Jira project metadata', [
                 'error' => $e->getMessage(),
@@ -275,6 +274,25 @@ class IntegrationController extends Controller
             // Generate preview data
             $preview = $this->generateImportPreview($issues, $mappings);
 
+            if (!empty($preview['test_suites'])) {
+                $preview['sample_suites'] = $preview['test_suites'];
+                $preview['potential_suites_count'] = count($preview['test_suites']);
+            }
+
+            if (!empty($preview['test_cases'])) {
+                $preview['sample_cases'] = $preview['test_cases'];
+                $preview['potential_cases_count'] = count($preview['test_cases']);
+            }
+            $preview['total_issues'] = -1;
+
+            $preview['total_matching_issues'] =
+                count($preview['test_suites'] ?? []) +
+                count($preview['test_cases'] ?? []);
+
+            if ($preview['total_issues'] < 0) {
+                $preview['total_issues'] = $preview['total_matching_issues'];
+            }
+
             // Get total count (might be more than we fetched for preview)
             $totalCount = $jiraService->getFilteredIssuesCount(['customJql' => $jql]);
             $preview['total_issues'] = $totalCount;
@@ -283,7 +301,6 @@ class IntegrationController extends Controller
                 'success' => true,
                 'preview' => $preview
             ]);
-
         } catch (\Exception $e) {
             Log::error('Error generating Jira import preview', [
                 'error' => $e->getMessage(),
@@ -400,8 +417,8 @@ class IntegrationController extends Controller
 
         // Verify state, expects user_id and team_id (stored as project_id in OAuthState for reuse)
         $oauthState = OAuthState::where('state_token', $stateParam)
-                                ->where('expires_at', '>', now())
-                                ->first();
+            ->where('expires_at', '>', now())
+            ->first();
 
         if (!$oauthState) {
             Log::error('Jira OAuth invalid or expired state token', ['state' => $stateParam]);
@@ -486,8 +503,8 @@ class IntegrationController extends Controller
         try {
             $encryptedCredentials = Crypt::encryptString(json_encode($credentials));
 
-             // Find or create the base Jira Integration record
-             $integration = Integration::firstOrCreate(
+            // Find or create the base Jira Integration record
+            $integration = Integration::firstOrCreate(
                 ['type' => Integration::TYPE_JIRA],
                 ['name' => 'Jira', 'base_url' => 'https://api.atlassian.com', 'is_active' => true]
             );
@@ -529,7 +546,6 @@ class IntegrationController extends Controller
                 'holding_project_id' => $targetProject->id,
                 'jira_site' => $jiraSite['name']
             ]);
-
         } catch (DecryptException $e) {
             Log::error('Encryption error storing Jira credentials', ['error' => $e->getMessage()]);
             return redirect()->route('dashboard.integrations.index')->with('error', 'Failed to securely store Jira connection (Encryption Error).');
@@ -578,7 +594,7 @@ class IntegrationController extends Controller
     {
         // Find a project with Jira integration in this team
         $projectWithJira = Project::where('team_id', $teamId)
-            ->whereHas('projectIntegrations', function($query) {
+            ->whereHas('projectIntegrations', function ($query) {
                 $query->whereHas('integration', fn($q) => $q->where('type', Integration::TYPE_JIRA))
                     ->where('is_active', true);
             })

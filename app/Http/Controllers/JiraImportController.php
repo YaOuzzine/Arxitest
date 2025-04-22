@@ -220,8 +220,7 @@ class JiraImportController extends Controller
 
             return redirect()->route('dashboard.projects.show', $arxitestProject->id)
                 ->with('success', "Successfully imported {$importResult['epicCount']} epics, " .
-                       "{$importResult['storyCount']} stories and created {$importResult['testCaseCount']} test cases.");
-
+                    "{$importResult['storyCount']} stories and created {$importResult['testCaseCount']} test cases.");
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Jira import failed', [
@@ -246,6 +245,17 @@ class JiraImportController extends Controller
         }
     }
 
+    public function extractPlainTextFromAdf(array $doc): string
+    {
+        $text = '';
+        array_walk_recursive($doc, function ($value, $key) use (&$text) {
+            // Whenever we see a "text" key, grab its value
+            if ($key === 'text') {
+                $text .= $value;
+            }
+        });
+        return $text;
+    }
     /**
      * Process the import of Jira issues into Arxitest entities
      *
@@ -277,7 +287,10 @@ class JiraImportController extends Controller
             foreach ($issues as $issue) {
                 if (Arr::get($issue, 'fields.issuetype.name') === 'Epic') {
                     $epicName = Arr::get($issue, 'fields.summary', 'Untitled Epic ' . $issue['key']);
-                    $epicDescription = Arr::get($issue, 'fields.description', '');
+                    $rawDesc = Arr::get($issue, 'fields.description', []);
+                    $epicDescription = is_array($rawDesc)
+                        ? $this->extractPlainTextFromAdf($rawDesc)
+                        : $rawDesc;
 
                     // Enhanced metadata
                     $suiteSettings = [
@@ -322,7 +335,10 @@ class JiraImportController extends Controller
                 }
 
                 $storyTitle = Arr::get($issue, 'fields.summary', 'Untitled ' . $issueType . ' ' . $issue['key']);
-                $storyDescription = Arr::get($issue, 'fields.description', '') ?? '';
+                $rawDesc = Arr::get($issue, 'fields.description', []);
+                $storyDescription = is_array($rawDesc)
+                    ? $this->extractPlainTextFromAdf($rawDesc)
+                    : $rawDesc;
                 $parentEpicId = Arr::get($issue, 'fields.parent.id');
                 $acceptanceCriteria = Arr::get($issue, 'fields.customfield_10005', ''); // Common field for AC
 
@@ -586,7 +602,7 @@ class JiraImportController extends Controller
         }
 
         // Filter and clean criteria
-        return array_filter(array_map(function($item) {
+        return array_filter(array_map(function ($item) {
             return trim(strip_tags($item));
         }, $criteria));
     }
@@ -645,7 +661,7 @@ class JiraImportController extends Controller
     {
         if (!empty($criteria)) {
             // Convert criteria to verification statements
-            $results = array_map(function($criterion) {
+            $results = array_map(function ($criterion) {
                 // Remove prefixes and convert to verification language
                 $result = preg_replace('/^(given|when|then)\s+/i', '', $criterion);
                 $result = preg_replace('/user should be able to/i', 'User can', $result);
@@ -696,11 +712,10 @@ class JiraImportController extends Controller
      */
     private function isJiraConnectedForTeam(string $teamId): bool
     {
-        return ProjectIntegration::whereHas('project', fn ($q) => $q->where('team_id', $teamId))
-            ->whereHas('integration', fn ($q) => $q->where('type', Integration::TYPE_JIRA))
+        return ProjectIntegration::whereHas('project', fn($q) => $q->where('team_id', $teamId))
+            ->whereHas('integration', fn($q) => $q->where('type', Integration::TYPE_JIRA))
             ->where('is_active', true)
             ->exists();
-
     }
     /**
      * Find a project with Jira integration in a team
@@ -708,7 +723,7 @@ class JiraImportController extends Controller
     private function findProjectWithJiraIntegration(string $teamId): Project
     {
         $project = Project::where('team_id', $teamId)
-            ->whereHas('projectIntegrations', function($query) {
+            ->whereHas('projectIntegrations', function ($query) {
                 $query->whereHas('integration', fn($q) => $q->where('type', Integration::TYPE_JIRA))
                     ->where('is_active', true);
             })

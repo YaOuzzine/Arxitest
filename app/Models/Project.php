@@ -12,7 +12,7 @@ class Project extends Model
     protected $keyType = 'string';
     public $incrementing = false;
 
-    protected $fillable = ['name', 'description', 'settings'];
+    protected $fillable = ['name', 'description', 'settings', 'team_id'];
 
     protected $casts = [
         'settings' => 'array',
