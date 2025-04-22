@@ -1,750 +1,872 @@
-{{-- resources/views/dashboard/integrations/jira-import.blade.php --}}
-@extends('layouts.dashboard')
+{{-- resources/views/integrations/jira/import-existing-project.blade.php --}}
+@extends('layouts.dashboard') {{-- Assuming you have a base dashboard layout --}}
+@section('title', 'Import to Existing Project from Jira')
 
-@section('title', 'Import from Jira')
-
-@section('breadcrumbs')
-    <li class="flex items-center">
-        <i data-lucide="chevron-right" class="w-4 h-4 text-zinc-400 mx-1"></i>
-        <a href="{{ route('dashboard.integrations.index') }}" class="text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300">Integrations</a>
-    </li>
-    <li class="flex items-center">
-        <i data-lucide="chevron-right" class="w-4 h-4 text-zinc-400 mx-1"></i>
-        <span class="text-zinc-700 dark:text-zinc-300">Import Jira Project</span>
-    </li>
-@endsection
-
-@section('content')
-<div class="h-full" x-data="jiraImport({
-        arxitestProjectId: '{{ $arxitestProjectId }}',
-        jiraProjectsData: {{ json_encode($jiraProjects ?? []) }},
-        arxitestSuitesData: {{ json_encode($testSuites ?? []) }},
-        existingMappingsData: {{ json_encode($existingMappings ?? []) }},
-        projectMetadataUrl: '{{ route('integrations.jira.project-metadata') }}',
-        previewImportUrl: '{{ route('integrations.jira.preview-import') }}',
-        csrfToken: '{{ csrf_token() }}'
-    })" x-init="init()">
-    <!-- Header -->
-    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
-        <div>
-            <h1 class="text-2xl font-bold text-zinc-900 dark:text-white">Import from Jira</h1>
-            <p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-                Configure and customize how to import Jira issues into '{{ $arxitestProjectName }}'.
-            </p>
-        </div>
-        <div>
-            <a href="{{ route('dashboard.integrations.index') }}" class="btn-secondary">
-                <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i> Back to Integrations
-            </a>
-        </div>
-    </div>
-
-    {{-- Display general errors from session --}}
-    @if(session('error'))
-        <div class="mb-6 p-4 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800 rounded-lg">
-            <div class="flex items-center">
-                <i data-lucide="alert-circle" class="w-5 h-5 mr-2"></i>
-                <span>{{ session('error') }}</span>
-            </div>
-        </div>
-    @endif
-
-    {{-- Display specific error messages from Alpine --}}
-    <div x-show="errorMessage" x-cloak class="mb-6 p-4 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800 rounded-lg">
-        <div class="flex items-center">
-            <i data-lucide="alert-circle" class="w-5 h-5 mr-2"></i>
-            <span x-text="errorMessage"></span>
-        </div>
-    </div>
-
-    <!-- Multi-step import wizard -->
-    <div class="bg-white dark:bg-zinc-800 rounded-xl shadow-lg border border-zinc-200/50 dark:border-zinc-700/50 overflow-hidden">
-        <!-- Progress Steps -->
-        <div class="border-b border-zinc-200 dark:border-zinc-700">
-            <div class="px-6 py-4">
-                <div class="flex flex-col sm:flex-row items-center justify-between space-y-2 sm:space-y-0 sm:space-x-4 text-sm">
-                    {{-- Step 1 --}}
-                    <button @click="goToStep(1)" :disabled="isImporting"
-                            class="flex items-center"
-                            :class="{'font-semibold text-indigo-600 dark:text-indigo-400': step >= 1, 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300': step < 1}">
-                        <span class="flex items-center justify-center w-6 h-6 rounded-full mr-2 border-2"
-                              :class="{'bg-indigo-100 dark:bg-indigo-900/30 border-indigo-500 dark:border-indigo-400': step >= 1, 'border-zinc-300 dark:border-zinc-600': step < 1}">1</span>
-                        Select Project
-                    </button>
-                    <div class="flex-1 h-px bg-zinc-200 dark:bg-zinc-700 sm:block hidden"></div>
-                    {{-- Step 2 --}}
-                    <button @click="goToStep(2)" :disabled="!canGoToStep(2) || isImporting"
-                            class="flex items-center"
-                            :class="{'font-semibold text-indigo-600 dark:text-indigo-400': step >= 2, 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300': step < 2, 'opacity-50 cursor-not-allowed': !canGoToStep(2)}">
-                        <span class="flex items-center justify-center w-6 h-6 rounded-full mr-2 border-2"
-                              :class="{'bg-indigo-100 dark:bg-indigo-900/30 border-indigo-500 dark:border-indigo-400': step >= 2, 'border-zinc-300 dark:border-zinc-600': step < 2}">2</span>
-                        Filter Issues
-                    </button>
-                    <div class="flex-1 h-px bg-zinc-200 dark:bg-zinc-700 sm:block hidden"></div>
-                    {{-- Step 3 --}}
-                    <button @click="goToStep(3)" :disabled="!canGoToStep(3) || isImporting"
-                            class="flex items-center"
-                            :class="{'font-semibold text-indigo-600 dark:text-indigo-400': step >= 3, 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300': step < 3, 'opacity-50 cursor-not-allowed': !canGoToStep(3)}">
-                        <span class="flex items-center justify-center w-6 h-6 rounded-full mr-2 border-2"
-                              :class="{'bg-indigo-100 dark:bg-indigo-900/30 border-indigo-500 dark:border-indigo-400': step >= 3, 'border-zinc-300 dark:border-zinc-600': step < 3}">3</span>
-                        Configure Mapping
-                    </button>
-                    <div class="flex-1 h-px bg-zinc-200 dark:bg-zinc-700 sm:block hidden"></div>
-                    {{-- Step 4 --}}
-                    <button @click="goToStep(4)" :disabled="!canGoToStep(4) || isImporting"
-                            class="flex items-center"
-                            :class="{'font-semibold text-indigo-600 dark:text-indigo-400': step >= 4, 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300': step < 4, 'opacity-50 cursor-not-allowed': !canGoToStep(4)}">
-                        <span class="flex items-center justify-center w-6 h-6 rounded-full mr-2 border-2"
-                              :class="{'bg-indigo-100 dark:bg-indigo-900/30 border-indigo-500 dark:border-indigo-400': step >= 4, 'border-zinc-300 dark:border-zinc-600': step < 4}">4</span>
-                        Preview & Import
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        {{-- Step 1: Select Jira Project --}}
-        <div x-show="step === 1" class="p-6 animate-fade-in">
-            <h3 class="text-xl font-semibold mb-4 text-zinc-900 dark:text-white">1. Select Jira Project</h3>
-            <p class="text-sm text-zinc-600 dark:text-zinc-400 mb-6">Choose the Jira project you want to import issues from.</p>
-
-            <div class="mb-6">
-                <label for="project-search" class="sr-only">Search Projects</label>
-                <div class="relative">
-                    <input id="project-search" type="search" x-model="projectSearch" placeholder="Search projects by name or key..."
-                        class="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent pl-10">
-                    <div class="absolute left-0 pl-3 flex items-center pointer-events-none">
-                        <i data-lucide="search" class="w-5 h-5 text-zinc-400"></i>
-                    </div>
-                </div>
-            </div>
-
-            <div class="max-h-[50vh] overflow-y-auto pr-2 space-y-3 custom-scrollbar">
-                <template x-if="filteredProjects.length === 0 && !isLoadingProjects">
-                    <div class="text-center py-8 text-zinc-500 dark:text-zinc-400">
-                        <i data-lucide="search-x" class="w-12 h-12 mx-auto mb-3 text-zinc-400 dark:text-zinc-500"></i>
-                        <p>No projects match your search or none found.</p>
-                    </div>
-                </template>
-                <template x-if="isLoadingProjects">
-                     <div class="text-center py-8 text-zinc-500 dark:text-zinc-400">
-                        <i data-lucide="loader-2" class="w-8 h-8 mx-auto mb-3 text-indigo-500 animate-spin"></i>
-                        <p>Loading Jira Projects...</p>
-                    </div>
-                </template>
-                <template x-for="project in filteredProjects" :key="project.id">
-                    <div @click="selectProject(project)"
-                        class="p-4 border rounded-lg cursor-pointer transition-all duration-200 flex items-start gap-4 hover:shadow-md"
-                        :class="{
-                            'border-indigo-500 dark:border-indigo-400 ring-2 ring-indigo-300 dark:ring-indigo-600 bg-indigo-50 dark:bg-indigo-900/30': selectedProject?.id === project.id,
-                            'border-zinc-200 dark:border-zinc-700 hover:border-indigo-300 dark:hover:border-indigo-600 hover:bg-zinc-50 dark:hover:bg-zinc-700/50': selectedProject?.id !== project.id
-                        }">
-                        {{-- Project Icon --}}
-                        <div class="shrink-0">
-                             <div class="w-10 h-10 rounded-lg flex items-center justify-center overflow-hidden bg-zinc-100 dark:bg-zinc-700 ring-1 ring-zinc-200 dark:ring-zinc-600">
-                                <template x-if="project.avatarUrls && project.avatarUrls['32x32']">
-                                    <img :src="project.avatarUrls['32x32']" :alt="project.name + ' Logo'" class="w-full h-full object-cover">
-                                </template>
-                                <template x-if="!project.avatarUrls || !project.avatarUrls['32x32']">
-                                    <span class="text-zinc-600 dark:text-zinc-300 font-semibold text-sm" x-text="project.key ? project.key.substring(0, 2).toUpperCase() : '?'"></span>
-                                </template>
-                            </div>
-                        </div>
-                        {{-- Project Details --}}
-                        <div class="flex-1 min-w-0">
-                            <h4 class="font-medium text-zinc-900 dark:text-white truncate" x-text="project.name" :title="project.name"></h4>
-                            <p class="text-xs text-zinc-500 dark:text-zinc-400">
-                                Key: <span class="font-mono" x-text="project.key"></span>
-                                <template x-if="project.projectTypeKey">
-                                    <span class="ml-2 capitalize font-medium px-1.5 py-0.5 rounded text-indigo-700 bg-indigo-100 dark:text-indigo-300 dark:bg-indigo-900/30" x-text="project.projectTypeKey.replace('-', ' ')"></span>
-                                </template>
-                            </p>
-                        </div>
-                    </div>
-                </template>
-            </div>
-
-            <div class="mt-8 flex justify-end">
-                <button @click="goToStep(2)" :disabled="!selectedProject" class="btn-primary">
-                    Continue <i data-lucide="arrow-right" class="w-4 h-4 ml-2"></i>
-                </button>
-            </div>
-        </div>
-
-        {{-- Step 2: Filter Issues --}}
-        <div x-show="step === 2" class="p-6 animate-fade-in" x-cloak>
-            <div class="flex justify-between items-center mb-6">
-                <h3 class="text-xl font-semibold text-zinc-900 dark:text-white">2. Filter Jira Issues</h3>
-                <div class="text-sm text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-700 px-3 py-1 rounded-full">
-                    Project: <span class="font-medium text-zinc-900 dark:text-white" x-text="selectedProject?.name"></span>
-                </div>
-            </div>
-
-            <div class="mb-6 p-4 bg-zinc-50 dark:bg-zinc-700/30 rounded-lg border border-zinc-200 dark:border-zinc-600" x-show="isLoadingMetadata">
-                <div class="flex items-center justify-center space-x-2 text-zinc-600 dark:text-zinc-400">
-                    <i data-lucide="loader-2" class="w-5 h-5 animate-spin text-indigo-500"></i>
-                    <span>Loading issue types, statuses and labels from Jira...</span>
-                </div>
-            </div>
-
-            <div x-show="!isLoadingMetadata" class="space-y-6">
-                {{-- Issue Types Selection --}}
-                <div>
-                    <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Issue Types to Import <span class="text-red-500">*</span></label>
-                    <div class="flex flex-wrap gap-2">
-                        <template x-if="projectMetadata.issueTypes.length === 0">
-                            <span class="text-sm text-zinc-500 italic">No issue types found or failed to load.</span>
-                        </template>
-                        <template x-for="type in projectMetadata.issueTypes" :key="type.id">
-                             <button type="button" @click="toggleIssueType(type.name)"
-                                class="inline-flex items-center px-3 py-1.5 rounded-full text-sm border transition-all duration-200 transform hover:scale-105"
-                                :class="selectedIssueTypes.includes(type.name) ?
-                                    'bg-indigo-100 dark:bg-indigo-900/30 border-indigo-300 dark:border-indigo-600 text-indigo-700 dark:text-indigo-300 ring-1 ring-indigo-300' :
-                                    'bg-white dark:bg-zinc-700 border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 hover:border-indigo-400'">
-                                {{-- Display Jira Icon --}}
-                                <img :src="type.iconUrl" :alt="type.name" class="w-4 h-4 mr-1.5 flex-shrink-0">
-                                <span x-text="type.name"></span>
-                                <i data-lucide="check" class="w-3 h-3 ml-1.5 text-indigo-500" x-show="selectedIssueTypes.includes(type.name)"></i>
-                            </button>
-                        </template>
-                    </div>
-                     @error('issue_types') <p class="mt-1 text-sm text-red-500">{{ $message }}</p> @enderror
-                </div>
-
-                {{-- Statuses Selection --}}
-                 <div>
-                    <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Status Filter (Optional - Select statuses to include)</label>
-                    <div class="flex flex-wrap gap-2">
-                        <template x-if="projectMetadata.statuses.length === 0">
-                            <span class="text-sm text-zinc-500 italic">No statuses found or failed to load.</span>
-                        </template>
-                        <template x-for="status in projectMetadata.statuses" :key="status">
-                            <button type="button" @click="toggleStatus(status)"
-                                class="px-3 py-1.5 rounded-full text-sm border transition-all duration-200 transform hover:scale-105"
-                                :class="selectedStatuses.includes(status) ?
-                                    'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600 text-blue-700 dark:text-blue-300 ring-1 ring-blue-300' :
-                                    'bg-white dark:bg-zinc-700 border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 hover:border-blue-400'">
-                                <span x-text="status"></span>
-                                <i data-lucide="check" class="w-3 h-3 ml-1.5 text-blue-500" x-show="selectedStatuses.includes(status)"></i>
-                            </button>
-                        </template>
-                    </div>
-                </div>
-
-                {{-- Labels Selection --}}
-                <div>
-                    <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Label Filter (Optional - Select labels to include)</label>
-                    <div x-show="projectMetadata.labels.length === 0 && !isLoadingMetadata" class="text-sm italic text-zinc-500 dark:text-zinc-400">
-                        No labels found in recent issues for this project.
-                    </div>
-                     <div class="flex flex-wrap gap-2">
-                        <template x-for="label in projectMetadata.labels" :key="label">
-                            <button type="button" @click="toggleLabel(label)"
-                                class="px-3 py-1.5 rounded-full text-sm border transition-all duration-200 transform hover:scale-105"
-                                :class="selectedLabels.includes(label) ?
-                                    'bg-green-100 dark:bg-green-900/30 border-green-300 dark:border-green-600 text-green-700 dark:text-green-300 ring-1 ring-green-300' :
-                                    'bg-white dark:bg-zinc-700 border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 hover:border-green-400'">
-                                <span x-text="label"></span>
-                                <i data-lucide="check" class="w-3 h-3 ml-1.5 text-green-500" x-show="selectedLabels.includes(label)"></i>
-                            </button>
-                        </template>
-                    </div>
-                </div>
-
-                {{-- Custom JQL Query --}}
-                <div>
-                    <label for="custom-jql" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Advanced: Custom JQL Filter (Optional)</label>
-                    <div class="relative">
-                        <input id="custom-jql" x-model="customJql" placeholder="E.g., created >= -30d OR priority = High"
-                            class="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent pl-10">
-                        <i data-lucide="search-code" class="absolute left-3 top-3.5 w-5 h-5 text-zinc-400"></i>
-                        <button type="button" @click="customJql = ''" x-show="customJql"
-                                class="absolute right-3 top-1/2 transform -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-1 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-600">
-                            <i data-lucide="x" class="w-4 h-4"></i>
-                        </button>
-                    </div>
-                    <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                        This JQL will be added using `AND` to your other filters (Project, Issue Types, Status, Labels).
-                    </p>
-                </div>
-            </div>
-
-            <div class="mt-8 flex justify-between">
-                <button @click="goToStep(1)" class="btn-secondary">
-                    <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i> Back
-                </button>
-                <button @click="goToStep(3)" :disabled="selectedIssueTypes.length === 0" class="btn-primary">
-                    Continue <i data-lucide="arrow-right" class="w-4 h-4 ml-2"></i>
-                </button>
-            </div>
-        </div>
-
-        {{-- Step 3: Configure Mapping --}}
-        <div x-show="step === 3" class="p-6 animate-fade-in" x-cloak>
-             <h3 class="text-xl font-semibold mb-4 text-zinc-900 dark:text-white">3. Configure Mapping</h3>
-            <p class="text-sm text-zinc-600 dark:text-zinc-400 mb-6">Define how Jira issues and fields should map to Arxitest entities.</p>
-
-             <div class="space-y-6">
-                {{-- Epic to Suite Mapping --}}
-                <div class="p-5 bg-zinc-50 dark:bg-zinc-700/30 rounded-xl border border-zinc-200 dark:border-zinc-600/50 shadow-sm">
-                    <div class="flex items-center justify-between">
-                         <label for="epic-to-suite" class="flex items-center cursor-pointer">
-                             <input id="epic-to-suite" type="checkbox" x-model="mappings.epicToSuite" class="form-checkbox rounded border-zinc-300 dark:border-zinc-600 text-indigo-600 focus:ring-indigo-500">
-                             <span class="ml-3 text-sm font-medium text-zinc-800 dark:text-zinc-200">Map Jira Epics to Test Suites</span>
-                         </label>
-                         <span class="text-xs px-2 py-0.5 rounded-full" :class="mappings.epicToSuite ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300' : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-600 dark:text-zinc-300'" x-text="mappings.epicToSuite ? 'Enabled' : 'Disabled'"></span>
-                    </div>
-                    <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-2 ml-7">
-                        If enabled, each Jira Epic found by your filters will create a Test Suite. Issues linked to that Epic will be placed inside.
-                    </p>
-                </div>
-
-                 {{-- Default Suite Selection --}}
-                <div class="p-5 bg-zinc-50 dark:bg-zinc-700/30 rounded-xl border border-zinc-200 dark:border-zinc-600/50 shadow-sm">
-                    <div class="flex items-center justify-between mb-3">
-                        <label for="create-default-suite" class="flex items-center cursor-pointer">
-                            <input id="create-default-suite" type="checkbox" x-model="mappings.createDefaultSuite" class="form-checkbox rounded border-zinc-300 dark:border-zinc-600 text-indigo-600 focus:ring-indigo-500">
-                            <span class="ml-3 text-sm font-medium text-zinc-800 dark:text-zinc-200">Use Default Test Suite</span>
-                        </label>
-                         <span class="text-xs px-2 py-0.5 rounded-full" :class="mappings.createDefaultSuite ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300' : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-600 dark:text-zinc-300'" x-text="mappings.createDefaultSuite ? 'Enabled' : 'Disabled'"></span>
-                    </div>
-                    <p class="text-xs text-zinc-500 dark:text-zinc-400 mb-3 ml-7">
-                        Handles issues not linked to an Epic (or if Epic mapping is off). Choose an existing suite or a new one will be created.
-                    </p>
-                    <div x-show="mappings.createDefaultSuite" class="ml-7">
-                        <label for="default-suite" class="sr-only">Select Default Test Suite</label>
-                        <select id="default-suite" x-model="mappings.defaultSuiteId" class="w-full rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white py-2.5 px-3 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
-                            <option value="">-- Create New Default Suite --</option>
-                             <template x-for="suite in arxitestSuites" :key="suite.id">
-                                <option :value="suite.id" x-text="suite.name"></option>
-                            </template>
-                        </select>
-                    </div>
-                </div>
-
-                 {{-- Include Description --}}
-                 <div class="p-5 bg-zinc-50 dark:bg-zinc-700/30 rounded-xl border border-zinc-200 dark:border-zinc-600/50 shadow-sm">
-                    <div class="flex items-center justify-between">
-                         <label for="include-description" class="flex items-center cursor-pointer">
-                             <input id="include-description" type="checkbox" x-model="mappings.includeDescription" class="form-checkbox rounded border-zinc-300 dark:border-zinc-600 text-indigo-600 focus:ring-indigo-500">
-                             <span class="ml-3 text-sm font-medium text-zinc-800 dark:text-zinc-200">Import Jira Descriptions</span>
-                         </label>
-                          <span class="text-xs px-2 py-0.5 rounded-full" :class="mappings.includeDescription ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300' : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-600 dark:text-zinc-300'" x-text="mappings.includeDescription ? 'Enabled' : 'Disabled'"></span>
-                    </div>
-                     <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-2 ml-7">
-                        Include the full issue description in the corresponding Arxitest test suite or test case.
-                    </p>
-                </div>
-
-                 {{-- Status to Priority Mapping --}}
-                <div class="p-5 bg-zinc-50 dark:bg-zinc-700/30 rounded-xl border border-zinc-200 dark:border-zinc-600/50 shadow-sm">
-                    <h4 class="text-sm font-medium text-zinc-800 dark:text-zinc-200 mb-3">Map Jira Status to Test Case Priority</h4>
-                     <p class="text-xs text-zinc-500 dark:text-zinc-400 mb-4">Optionally assign Arxitest test case priorities based on the Jira issue status.</p>
-
-                    <div class="space-y-3 max-h-48 overflow-y-auto custom-scrollbar pr-2">
-                         <template x-if="projectMetadata.statuses.length === 0 && !isLoadingMetadata">
-                            <p class="text-sm italic text-zinc-500 dark:text-zinc-400">No statuses loaded to map.</p>
-                        </template>
-                        <template x-for="(status, index) in projectMetadata.statuses" :key="index">
-                             <div class="flex items-center space-x-3">
-                                <span class="w-1/3 text-sm text-zinc-700 dark:text-zinc-300 truncate" :title="status" x-text="status"></span>
-                                 <span class="text-zinc-400 text-sm"><i data-lucide="arrow-right" class="w-4 h-4"></i></span>
-                                <select x-model="mappings.statusToPriority[status]" class="grow rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white py-1.5 px-3 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
-                                     <option value="">(No Mapping)</option>
-                                     <option value="low">Low Priority</option>
-                                    <option value="medium">Medium Priority</option>
-                                    <option value="high">High Priority</option>
-                                </select>
-                            </div>
-                        </template>
-                    </div>
-                </div>
-            </div>
-
-            <div class="mt-8 flex justify-between">
-                <button @click="goToStep(2)" class="btn-secondary">
-                    <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i> Back
-                </button>
-                <button @click="fetchPreview()" :disabled="fetchingPreview" class="btn-primary flex items-center">
-                    <i x-show="fetchingPreview" data-lucide="loader-2" class="w-4 h-4 mr-2 animate-spin"></i>
-                    <span x-show="!fetchingPreview">Generate Preview <i data-lucide="arrow-right" class="w-4 h-4 ml-2"></i></span>
-                    <span x-show="fetchingPreview">Generating Preview...</span>
-                </button>
-            </div>
-        </div>
-
-        {{-- Step 4: Preview & Import --}}
-        <div x-show="step === 4" class="p-6 animate-fade-in" x-cloak>
-             <h3 class="text-xl font-semibold mb-4 text-zinc-900 dark:text-white">4. Preview & Import</h3>
-             <p class="text-sm text-zinc-600 dark:text-zinc-400 mb-6">Review the items that will be created or updated in Arxitest based on your selections.</p>
-
-            <div class="mb-6 p-5 bg-zinc-50 dark:bg-zinc-700/30 rounded-xl border border-zinc-200 dark:border-zinc-600/50 shadow-sm">
-                 <h4 class="font-medium text-zinc-800 dark:text-zinc-200 mb-3">Import Summary</h4>
-                <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
-                     <div class="sm:col-span-2 py-2 border-b border-zinc-200 dark:border-zinc-600/50">
-                        <dt class="font-medium text-zinc-600 dark:text-zinc-300">Jira Project</dt>
-                        <dd class="mt-1 text-zinc-900 dark:text-white flex items-center space-x-2">
-                            <template x-if="selectedProject.avatarUrls && selectedProject.avatarUrls['16x16']">
-                                <img :src="selectedProject.avatarUrls['16x16']" class="w-4 h-4 rounded-sm">
-                            </template>
-                            <span x-text="selectedProject?.name + ' (' + selectedProject?.key + ')'"></span>
-                        </dd>
-                    </div>
-                    <div>
-                        <dt class="font-medium text-zinc-600 dark:text-zinc-300">Issues Found (Matching Filters)</dt>
-                        <dd class="mt-1 text-zinc-900 dark:text-white" x-text="importPreview.total_issues ?? 0"></dd>
-                    </div>
-                     <div>
-                        <dt class="font-medium text-zinc-600 dark:text-zinc-300">Test Suites to Create/Update</dt>
-                         <dd class="mt-1 text-zinc-900 dark:text-white" x-text="(importPreview.test_suites?.length || 0) + (mappings.createDefaultSuite && (importPreview.test_cases?.length || 0) > 0 ? 1 : 0)"></dd>
-                    </div>
-                    <div>
-                        <dt class="font-medium text-zinc-600 dark:text-zinc-300">Test Cases to Create/Update</dt>
-                        <dd class="mt-1 text-zinc-900 dark:text-white" x-text="importPreview.test_cases?.length || 0"></dd>
-                    </div>
-                    <div>
-                        <dt class="font-medium text-zinc-600 dark:text-zinc-300">Selected Issue Types</dt>
-                        <dd class="mt-1 text-zinc-900 dark:text-white truncate" :title="selectedIssueTypes.join(', ')" x-text="selectedIssueTypes.join(', ') || 'None'"></dd>
-                    </div>
-                </dl>
-            </div>
-
-            <div class="mb-6">
-                <h4 class="font-medium text-zinc-800 dark:text-zinc-200 mb-3">Preview Test Suites (<span x-text="importPreview.test_suites?.length || 0"></span>)</h4>
-                <div class="border border-zinc-200 dark:border-zinc-700 rounded-lg overflow-hidden shadow-sm">
-                    <table class="min-w-full divide-y divide-zinc-200 dark:divide-zinc-700">
-                        <thead class="bg-zinc-50 dark:bg-zinc-700/50">
-                            <tr>
-                                <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider w-10"></th>
-                                <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Name</th>
-                                <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Jira Key</th>
-                            </tr>
-                        </thead>
-                        <tbody class="bg-white dark:bg-zinc-800 divide-y divide-zinc-200 dark:divide-zinc-700">
-                            <template x-if="importPreview.test_suites?.length === 0 && !mappings.createDefaultSuite">
-                                <tr><td colspan="3" class="px-4 py-4 text-center text-sm italic text-zinc-500 dark:text-zinc-400">No test suites will be created.</td></tr>
-                            </template>
-                            <template x-for="(suite, index) in importPreview.test_suites" :key="index">
-                                <tr>
-                                     <td class="px-4 py-3 whitespace-nowrap text-sm text-center">
-                                        <template x-if="suite.jira_icon_url">
-                                            <img :src="suite.jira_icon_url" :alt="suite.name" class="w-4 h-4 inline-block">
-                                        </template>
-                                        <template x-if="!suite.jira_icon_url"><i data-lucide="layers" class="w-4 h-4 inline-block text-indigo-500"></i></template>
-                                    </td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-zinc-900 dark:text-white" x-text="suite.name"></td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400" x-text="suite.jira_key"></td>
-                                </tr>
-                            </template>
-                            <template x-if="mappings.createDefaultSuite && (importPreview.test_cases?.length || 0) > 0">
-                                <tr>
-                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-center"><i data-lucide="folder" class="w-4 h-4 inline-block text-zinc-400"></i></td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-zinc-900 dark:text-white italic">Default Suite (if needed)</td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400">-</td>
-                                </tr>
-                            </template>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div class="mb-6">
-                 <h4 class="font-medium text-zinc-800 dark:text-zinc-200 mb-3">Preview Test Cases (<span x-text="importPreview.test_cases?.slice(0, 5).length || 0"></span> of <span x-text="importPreview.test_cases?.length || 0"></span>)</h4>
-                <div class="border border-zinc-200 dark:border-zinc-700 rounded-lg overflow-hidden shadow-sm">
-                    <table class="min-w-full divide-y divide-zinc-200 dark:divide-zinc-700">
-                        <thead class="bg-zinc-50 dark:bg-zinc-700/50">
-                            <tr>
-                                <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider w-10">Type</th>
-                                <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Title</th>
-                                <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Jira Key</th>
-                                <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Target Suite</th>
-                            </tr>
-                        </thead>
-                        <tbody class="bg-white dark:bg-zinc-800 divide-y divide-zinc-200 dark:divide-zinc-700">
-                            <template x-if="importPreview.test_cases?.length === 0">
-                                <tr><td colspan="4" class="px-4 py-4 text-center text-sm italic text-zinc-500 dark:text-zinc-400">No test cases match your filter criteria.</td></tr>
-                            </template>
-                            <template x-for="(testCase, index) in importPreview.test_cases?.slice(0, 5)" :key="index">
-                                <tr>
-                                     <td class="px-4 py-3 whitespace-nowrap text-sm text-center">
-                                        <template x-if="testCase.jira_icon_url">
-                                            <img :src="testCase.jira_icon_url" :alt="testCase.issue_type" class="w-4 h-4 inline-block">
-                                        </template>
-                                        <template x-if="!testCase.jira_icon_url"><i data-lucide="check-square" class="w-4 h-4 inline-block text-green-500"></i></template>
-                                    </td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-zinc-900 dark:text-white truncate max-w-xs" :title="testCase.title" x-text="testCase.title"></td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400" x-text="testCase.jira_key"></td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400" x-text="getSuiteName(testCase.parent_epic_key)"></td>
-                                </tr>
-                            </template>
-                            <template x-if="importPreview.test_cases?.length > 5">
-                                <tr>
-                                    <td colspan="4" class="px-4 py-3 text-center text-sm italic text-zinc-500 dark:text-zinc-400">
-                                        + <span x-text="(importPreview.test_cases.length || 0) - 5"></span> more test cases...
-                                    </td>
-                                </tr>
-                            </template>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-             <div class="mb-6 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/30 rounded-lg">
-                <div class="flex">
-                    <div class="flex-shrink-0"> <i data-lucide="alert-triangle" class="h-5 w-5 text-amber-500 dark:text-amber-400"></i> </div>
-                    <div class="ml-3">
-                         <h3 class="text-sm font-medium text-amber-800 dark:text-amber-300">Important Note</h3>
-                        <div class="mt-2 text-sm text-amber-700 dark:text-amber-200">
-                             <p>Importing a large number of issues may take several minutes. The process will run in the background, and you'll be redirected upon completion. Do not close this tab until the import finishes.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="mt-8 flex justify-between">
-                <button @click="goToStep(3)" :disabled="isImporting" class="btn-secondary">
-                    <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i> Back
-                </button>
-
-                {{-- Actual Form Submission --}}
-                <form x-ref="importForm" method="POST" action="{{ route('integrations.jira.import.project') }}" @submit="startImport()">
-                    @csrf
-                    <input type="hidden" name="jira_project_key" :value="selectedProject?.key">
-                    <input type="hidden" name="jira_project_name" :value="selectedProject?.name">
-                    <input type="hidden" name="arxitest_project_id" value="{{ $arxitestProjectId }}">
-                    <input type="hidden" name="issue_types" :value="JSON.stringify(selectedIssueTypes)">
-                    <input type="hidden" name="statuses" :value="JSON.stringify(selectedStatuses)">
-                    <input type="hidden" name="labels" :value="JSON.stringify(selectedLabels)">
-                    <input type="hidden" name="custom_jql" :value="customJql">
-                    <input type="hidden" name="mappings[epic_to_suite]" :value="mappings.epicToSuite">
-                    <input type="hidden" name="mappings[create_default_suite]" :value="mappings.createDefaultSuite">
-                    <input type="hidden" name="mappings[default_suite_id]" :value="mappings.defaultSuiteId">
-                    <input type="hidden" name="mappings[include_description]" :value="mappings.includeDescription">
-                    <input type="hidden" name="mappings[status_to_priority]" :value="JSON.stringify(mappings.statusToPriority)">
-
-                    <button type="submit" :disabled="isImporting || (importPreview.total_issues ?? 0) === 0" class="btn-primary flex items-center">
-                        <i x-show="isImporting" data-lucide="loader-2" class="w-4 h-4 mr-2 animate-spin"></i>
-                        <i x-show="!isImporting" data-lucide="download-cloud" class="w-4 h-4 mr-2"></i>
-                        <span x-show="!isImporting">Start Import (<span x-text="importPreview.total_issues ?? 0"></span> issues)</span>
-                        <span x-show="isImporting">Importing... Please Wait</span>
-                    </button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-@endsection
-
-@push('styles')
-<style>
-    .btn-primary { @apply inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed; }
-    .btn-secondary { @apply inline-flex items-center px-4 py-2 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 font-medium rounded-lg shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed; }
-    .dropdown-container { position: relative; }
-    .dropdown-menu {
-        position: absolute;
-        z-index: 50;
-        margin-top: 0.25rem;
-        width: 100%;
-        background-color: white;
-        border-radius: 0.375rem; /* rounded-md */
-        --tw-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-        --tw-shadow-colored: 0 10px 15px -3px var(--tw-shadow-color), 0 4px 6px -4px var(--tw-shadow-color);
-        box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
-        border: 1px solid #e5e7eb; /* zinc-200 */
-        max-height: 15rem; /* max-h-60 */
-        overflow-y: auto;
-    }
-    .dark .dropdown-menu { background-color: #27272a; border-color: #3f3f46; } /* zinc-800, zinc-700 */
-    .dropdown-item { padding: 0.5rem 1rem; font-size: 0.875rem; cursor: pointer; display: flex; align-items: center; } /* Adjust padding */
-    .dropdown-item:hover { background-color: #f3f4f6; } /* zinc-100 */
-    .dark .dropdown-item:hover { background-color: #3f3f46; } /* zinc-700 */
-    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-    .custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(161, 161, 170, 0.3); border-radius: 3px; }
-    .dark .custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(113, 113, 122, 0.4); }
-    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-    .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
-</style>
+{{-- Inject Arxitest Project ID into JS --}}
+@push('head-scripts')
+<script>
+    window.arxitestProjectId = {{ $arxitestProjectId }}; // Pass project ID for JS usage
+</script>
 @endpush
 
+{{-- Breadcrumbs Section --}}
+@section('breadcrumbs')
+<li>
+    <i data-lucide="chevron-right" class="w-4 h-4 text-zinc-400 mx-1"></i>
+    <a href="{{ route('dashboard.integrations.index') }}" class="text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300">Integrations</a>
+</li>
+<li>
+    <i data-lucide="chevron-right" class="w-4 h-4 text-zinc-400 mx-1"></i>
+    <a href="{{ route('integrations.jira.import.options') }}" class="text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300">Import from Jira</a>
+</li>
+<li>
+    <i data-lucide="chevron-right" class="w-4 h-4 text-zinc-400 mx-1"></i>
+    <span class="text-zinc-700 dark:text-zinc-300">Existing Project</span>
+</li>
+@endsection
+
+{{-- Main Content Section --}}
+@section('content')
+{{-- Alpine Component Root --}}
+<div class="page-transition" x-data="jiraImportApp()">
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold text-zinc-900 dark:text-white tracking-tight mb-2">Import to Existing Project from Jira</h1>
+        <p class="text-zinc-600 dark:text-zinc-400">Import Jira issues as test cases (and optionally test suites) into your selected Arxitest project.</p>
+    </div>
+
+    <div class="mb-8 bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-700 p-6">
+        <div class="flex items-start sm:items-center flex-col sm:flex-row">
+            <div class="p-3 rounded-xl bg-gradient-to-br from-purple-600 to-pink-500 shadow-lg mr-0 mb-3 sm:mr-4 sm:mb-0 flex-shrink-0">
+                <i data-lucide="folder-sync" class="h-6 w-6 text-white"></i>
+            </div>
+            <div>
+                <h2 class="text-xl font-semibold text-zinc-900 dark:text-white">{{ $arxitestProjectName }}</h2>
+                <p class="text-sm text-zinc-600 dark:text-zinc-400">You are importing Jira issues into this Arxitest project.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-700 overflow-hidden mb-8">
+        <div class="px-6 py-4 border-b border-zinc-200 dark:border-zinc-700">
+             <div class="flex items-center">
+                {{-- Step 1 Indicator --}}
+                <div class="flex items-center justify-center w-8 h-8 rounded-full text-sm" :class="{
+                        'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400': step > 1,
+                        'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400': step == 1,
+                    }">
+                    <span x-show="step > 1"><i data-lucide="check" class="w-5 h-5"></i></span>
+                    <span x-show="step <= 1">1</span>
+                </div>
+                <div class="ml-2 mr-6">
+                    <p class="text-sm font-medium" :class="step == 1 ? 'text-zinc-900 dark:text-white' : 'text-zinc-600 dark:text-zinc-400'">Select Source & Target</p> {{-- Adjusted title --}}
+                </div>
+                <div class="flex-grow h-0.5 bg-zinc-200 dark:bg-zinc-700"></div>
+
+                {{-- Step 2 Indicator --}}
+                <div class="mx-6 flex items-center justify-center w-8 h-8 rounded-full text-sm" :class="{
+                        'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400': step > 2,
+                        'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400': step == 2,
+                        'bg-zinc-100 dark:bg-zinc-700/50 text-zinc-400 dark:text-zinc-500': step < 2
+                    }">
+                    <span x-show="step > 2"><i data-lucide="check" class="w-5 h-5"></i></span>
+                    <span x-show="step <= 2">2</span>
+                </div>
+                <div class="ml-2 mr-6">
+                    <p class="text-sm font-medium" :class="{
+                        'text-zinc-900 dark:text-white': step == 2,
+                        'text-zinc-600 dark:text-zinc-400': step > 2,
+                        'text-zinc-400 dark:text-zinc-500': step < 2
+                    }">Configure Import</p>
+                </div>
+                <div class="flex-grow h-0.5 bg-zinc-200 dark:bg-zinc-700"></div>
+
+                {{-- Step 3 Indicator --}}
+                <div class="ml-6 flex items-center justify-center w-8 h-8 rounded-full text-sm" :class="{
+                        'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400': step == 3 && !isImporting && !importCompleted && !importError,
+                        'bg-zinc-100 dark:bg-zinc-700/50 text-zinc-400 dark:text-zinc-500': step < 3 || isImporting || importCompleted || importError
+                    }">
+                    <span>3</span>
+                </div>
+                <div class="ml-2">
+                    <p class="text-sm font-medium" :class="{
+                        'text-zinc-900 dark:text-white': step == 3 && !isImporting && !importCompleted && !importError,
+                        'text-zinc-400 dark:text-zinc-500': step < 3 || isImporting || importCompleted || importError
+                    }">Review & Import</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="p-6">
+            <div x-show="step == 1">
+                <div class="mb-6">
+                    <h2 class="text-xl font-semibold text-zinc-900 dark:text-white mb-2">Select Source Jira Project & Target Suite</h2>
+                    <p class="text-sm text-zinc-600 dark:text-zinc-400">Choose the Jira project to import from and where the imported items should go within '{{ $arxitestProjectName }}'.</p>
+                </div>
+
+                <div class="mb-6">
+                    <label for="jira_project" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Source Jira Project</label>
+                    <select id="jira_project" x-model="selectedJiraProject" class="w-full rounded-lg border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                        <option value="">Select a Jira project...</option>
+                        @forelse($jiraProjects as $project)
+                            <option value="{{ $project['key'] }}" data-name="{{ $project['name'] }}">{{ $project['name'] }} ({{ $project['key'] }})</option>
+                        @empty
+                             <option value="" disabled>No Jira projects found or integration not configured.</option>
+                        @endforelse
+                    </select>
+                    @error('jira_project_key') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+                </div>
+
+                <div class="mb-6">
+                    <label for="test_suite" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Import into Arxitest Test Suite</label>
+                    <select id="test_suite" x-model="selectedTestSuite" class="w-full rounded-lg border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                        <option value="">Select a target test suite...</option>
+                        <option value="new">-- Create New Test Suites from Jira Epics --</option>
+                        @forelse($testSuites as $suite)
+                            <option value="{{ $suite->id }}" data-name="{{ $suite->name }}">{{ $suite->name }}</option>
+                        @empty
+                            {{-- Still allow 'new' even if no existing suites --}}
+                        @endforelse
+                    </select>
+                    <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Choose an existing suite to add test cases to, or select the 'Create New' option to generate suites based on Jira Epics.</p>
+                    @error('target_test_suite_id') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+                </div>
+
+                <div class="flex justify-end pt-4">
+                    <button type="button" @click="goToNextStep" :disabled="!selectedJiraProject || !selectedTestSuite" class="px-4 py-2 rounded-lg text-white font-medium bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-colors">
+                        Next Step
+                    </button>
+                </div>
+            </div>
+
+            <div x-show="step == 2" x-cloak>
+                <div class="mb-6">
+                    <h2 class="text-xl font-semibold text-zinc-900 dark:text-white mb-2">Configure Import Options</h2>
+                    <p class="text-sm text-zinc-600 dark:text-zinc-400">Customize which Jira issue types become Arxitest items and apply filters.</p>
+                </div>
+
+                <div x-show="isLoading" class="flex justify-center items-center py-8">
+                    <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+                </div>
+
+                <div x-show="!isLoading && !error">
+                    <div class="mb-6">
+                        <h3 class="text-md font-medium text-zinc-800 dark:text-zinc-200 mb-2">Issue Type Mapping</h3>
+                        <div class="space-y-2">
+                            {{-- Conditionally show Epic mapping only if creating new suites --}}
+                            <template x-if="selectedTestSuite === 'new'">
+                                <label class="flex items-center p-3 rounded-lg border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700/50 cursor-pointer">
+                                    <input type="checkbox" x-model="importEpics" class="rounded text-blue-600 focus:ring-blue-500 border-zinc-300 dark:border-zinc-500 bg-white dark:bg-zinc-700 shadow-sm">
+                                    <span class="ml-3 text-sm text-zinc-700 dark:text-zinc-300">Import Jira <strong class="font-semibold">Epics</strong> as Arxitest <strong class="font-semibold">Test Suites</strong></span>
+                                </label>
+                            </template>
+                            <label class="flex items-center p-3 rounded-lg border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700/50 cursor-pointer">
+                                <input type="checkbox" x-model="importStories" class="rounded text-blue-600 focus:ring-blue-500 border-zinc-300 dark:border-zinc-500 bg-white dark:bg-zinc-700 shadow-sm">
+                                <span class="ml-3 text-sm text-zinc-700 dark:text-zinc-300">Import Jira <strong class="font-semibold">Stories, Tasks, Bugs</strong> as Arxitest <strong class="font-semibold">Test Cases</strong></span>
+                            </label>
+                        </div>
+                         <p x-show="!importStories && (selectedTestSuite !== 'new' || !importEpics)" class="mt-2 text-xs text-red-600 dark:text-red-400">Please select at least one issue type mapping to import.</p>
+                    </div>
+
+                    <div class="mb-6">
+                        <h3 class="text-md font-medium text-zinc-800 dark:text-zinc-200 mb-2">Additional Options</h3>
+                        <div class="space-y-2">
+                            <label class="flex items-center p-3 rounded-lg border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700/50 cursor-pointer">
+                                <input type="checkbox" x-model="generateTestScripts" class="rounded text-blue-600 focus:ring-blue-500 border-zinc-300 dark:border-zinc-500 bg-white dark:bg-zinc-700 shadow-sm">
+                                <span class="ml-3 text-sm text-zinc-700 dark:text-zinc-300">Attempt to Generate Test Script Steps from Acceptance Criteria (if found)</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="mb-6">
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="text-md font-medium text-zinc-800 dark:text-zinc-200">Advanced Filtering</h3>
+                             <button type="button" @click="showAdvancedFilters = !showAdvancedFilters" class="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium">
+                                <span x-text="showAdvancedFilters ? 'Hide Advanced Filters' : 'Show Advanced Filters'"></span>
+                                <i :class="showAdvancedFilters ? 'rotate-180' : ''" data-lucide="chevron-down" class="inline-block w-3 h-3 ml-1 transition-transform"></i>
+                            </button>
+                        </div>
+
+                        <div x-show="showAdvancedFilters" x-collapse x-cloak class="mt-2 space-y-4 p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-zinc-200 dark:border-zinc-700">
+                            <div>
+                                <label for="jql_filter" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Custom JQL Filter (Optional)</label>
+                                <input type="text" id="jql_filter" x-model.lazy="jqlFilter" class="w-full rounded-lg border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm" placeholder="e.g., status = 'Ready for Test' AND labels = qa-approved">
+                                <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Enter a JQL query to filter issues within the selected Jira project. This will be combined with the project selection. <a href="https://support.atlassian.com/jira-software-cloud/docs/advanced-search-reference-jql-fields/" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">JQL Reference</a></p>
+                            </div>
+
+                            <div>
+                                <label for="max_issues" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Maximum Issues to Import</label>
+                                <input type="number" id="max_issues" x-model.number="maxIssues" min="1" max="1000" class="w-full rounded-lg border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+                                <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Limit the number of issues imported (max 1000). Useful for testing or large projects.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div x-show="error" x-cloak class="mb-6 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 text-red-700 dark:text-red-300 text-sm" x-text="error"></div>
+
+                <div class="flex justify-between pt-4">
+                    <button type="button" @click="step = 1" class="px-4 py-2 rounded-lg text-zinc-700 dark:text-zinc-300 font-medium bg-zinc-100 dark:bg-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-600 shadow-sm transition-colors">
+                        Back
+                    </button>
+                    {{-- Disable button if no work would be done --}}
+                    <button type="button" @click="goToPreview" :disabled="isLoading || (!importStories && (selectedTestSuite !== 'new' || !importEpics))" class="px-4 py-2 rounded-lg text-white font-medium bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-colors">
+                        Preview Import
+                    </button>
+                </div>
+            </div>
+
+            <div x-show="step == 3 && !isImporting && !importCompleted && !importError" x-cloak>
+                <div class="mb-6">
+                    <h2 class="text-xl font-semibold text-zinc-900 dark:text-white mb-2">Review Import</h2>
+                    <p class="text-sm text-zinc-600 dark:text-zinc-400">Verify the details below. Items shown are a sample based on your configuration.</p>
+                </div>
+
+                <div x-show="isLoadingPreview" class="flex flex-col items-center justify-center py-12">
+                    <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+                    <p class="text-sm text-zinc-600 dark:text-zinc-400">Generating preview based on your selections...</p>
+                </div>
+
+                <div x-show="previewError" x-cloak class="mb-6 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 text-red-700 dark:text-red-300 text-sm">
+                    <strong>Error generating preview:</strong> <span x-text="previewError"></span>
+                    <p class="mt-2 text-xs">Please check your JQL syntax or try adjusting the import options.</p>
+                </div>
+
+                <div x-show="!isLoadingPreview && !previewError && preview">
+                     <div class="bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-zinc-200 dark:border-zinc-700 p-4 mb-6">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            {{-- Project Details Column --}}
+                            <div>
+                                <h3 class="text-sm font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-2">Import Details</h3>
+                                <p class="text-sm text-zinc-900 dark:text-white mb-1">
+                                    <span class="font-semibold text-zinc-600 dark:text-zinc-300">Source Jira Project:</span>
+                                    <span x-text="selectedJiraProjectName || 'N/A'"></span> (<span x-text="selectedJiraProject || 'N/A'"></span>)
+                                </p>
+                                <p class="text-sm text-zinc-900 dark:text-white mb-1">
+                                    <span class="font-semibold text-zinc-600 dark:text-zinc-300">Target Arxitest Project:</span>
+                                    <span>{{ $arxitestProjectName }}</span>
+                                </p>
+                                {{-- Show target suite name or indication of new suites --}}
+                                <p class="text-sm text-zinc-900 dark:text-white">
+                                    <span class="font-semibold text-zinc-600 dark:text-zinc-300">Target Test Suite(s):</span>
+                                    <template x-if="selectedTestSuite === 'new'"><span class="italic">New Suites from Epics</span></template>
+                                    <template x-if="selectedTestSuite !== 'new'"><span x-text="selectedTestSuiteName || 'N/A'"></span></template>
+                                </p>
+                            </div>
+                            {{-- Import Summary Column --}}
+                            <div>
+                                <h3 class="text-sm font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-2">Estimated Import</h3>
+                                <div class="space-y-1">
+                                     <p class="text-sm text-zinc-900 dark:text-white flex justify-between">
+                                        <span>Total Matching Issues Found:</span>
+                                        <span class="font-semibold" x-text="preview.total_matching_issues != null ? preview.total_matching_issues : 'Calculating...'"></span>
+                                    </p>
+                                    {{-- Conditionally show Test Suites count --}}
+                                    <template x-if="selectedTestSuite === 'new'">
+                                        <p class="text-sm text-zinc-900 dark:text-white flex justify-between">
+                                            <span>Test Suites (from Epics):</span>
+                                            <span class="font-semibold" x-text="preview.potential_suites_count != null ? preview.potential_suites_count : 'Calculating...'"></span>
+                                        </p>
+                                    </template>
+                                    <p class="text-sm text-zinc-900 dark:text-white flex justify-between" x-show="importStories">
+                                        <span>Test Cases (from Issues):</span>
+                                        <span class="font-semibold" x-text="preview.potential_cases_count != null ? preview.potential_cases_count : 'Calculating...'"></span>
+                                    </p>
+                                    <p class="text-sm text-zinc-500 dark:text-zinc-400 text-right mt-1" x-show="maxIssues > 0 && preview.total_matching_issues > maxIssues">(Limited to <span x-text="maxIssues"></span> issues)</p>
+                                </div>
+                            </div>
+                        </div>
+                        {{-- Configuration Summary Row --}}
+                        <div class="mt-4 border-t border-zinc-200 dark:border-zinc-700 pt-4">
+                             <h3 class="text-sm font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider mb-2">Configuration</h3>
+                             <ul class="list-disc list-inside text-sm text-zinc-700 dark:text-zinc-300 space-y-1">
+                                <li x-show="selectedTestSuite === 'new' && importEpics">Import Epics as Test Suites</li>
+                                <li x-show="importStories">Import Stories, Tasks, Bugs as Test Cases</li>
+                                <li x-show="generateTestScripts">Generate Test Scripts from Acceptance Criteria</li>
+                                <li x-show="jqlFilter">Custom JQL Filter: <code class="text-xs bg-zinc-200 dark:bg-zinc-700 px-1 py-0.5 rounded" x-text="jqlFilter"></code></li>
+                                <li x-show="maxIssues > 0 && maxIssues < 1000">Maximum Issues: <span x-text="maxIssues"></span></li>
+                             </ul>
+                        </div>
+                    </div>
+
+                    {{-- Preview Tables --}}
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <div x-show="selectedTestSuite === 'new' && importEpics && preview.sample_suites && preview.sample_suites.length > 0">
+                             <h3 class="text-md font-medium text-zinc-800 dark:text-zinc-200 mb-2">Sample Test Suites to be Created</h3>
+                            <div class="max-h-60 overflow-y-auto border border-zinc-200 dark:border-zinc-700 rounded-lg">
+                                <table class="min-w-full divide-y divide-zinc-200 dark:divide-zinc-700">
+                                    <thead class="bg-zinc-50 dark:bg-zinc-800 sticky top-0">
+                                        <tr>
+                                            <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Jira Key</th>
+                                            <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Epic Name / Suite Title</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="bg-white dark:bg-zinc-900 divide-y divide-zinc-200 dark:divide-zinc-700">
+                                        <template x-for="(suite, index) in preview.sample_suites" :key="'suite-'+index">
+                                            <tr class="hover:bg-zinc-50 dark:hover:bg-zinc-700/50">
+                                                <td class="px-4 py-2 whitespace-nowrap text-sm text-zinc-600 dark:text-zinc-300 font-mono" x-text="suite.jira_key"></td>
+                                                <td class="px-4 py-2 text-sm text-zinc-900 dark:text-zinc-100" x-text="suite.title"></td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-1" x-show="preview.potential_suites_count > preview.sample_suites.length">Showing <span x-text="preview.sample_suites.length"></span> of <span x-text="preview.potential_suites_count"></span> potential new suites.</p>
+                        </div>
+
+                         <div x-show="importStories && preview.sample_cases && preview.sample_cases.length > 0">
+                             <h3 class="text-md font-medium text-zinc-800 dark:text-zinc-200 mb-2">Sample Test Cases to be Created</h3>
+                            <div class="max-h-60 overflow-y-auto border border-zinc-200 dark:border-zinc-700 rounded-lg">
+                                <table class="min-w-full divide-y divide-zinc-200 dark:divide-zinc-700">
+                                     <thead class="bg-zinc-50 dark:bg-zinc-800 sticky top-0">
+                                        <tr>
+                                            <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Jira Key</th>
+                                            <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Type</th>
+                                            <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Issue Summary / Case Title</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="bg-white dark:bg-zinc-900 divide-y divide-zinc-200 dark:divide-zinc-700">
+                                        <template x-for="(testCase, index) in preview.sample_cases" :key="'case-'+index">
+                                            <tr class="hover:bg-zinc-50 dark:hover:bg-zinc-700/50">
+                                                <td class="px-4 py-2 whitespace-nowrap text-sm text-zinc-600 dark:text-zinc-300 font-mono" x-text="testCase.jira_key"></td>
+                                                <td class="px-4 py-2 whitespace-nowrap text-sm text-zinc-600 dark:text-zinc-300" x-text="testCase.issue_type"></td>
+                                                <td class="px-4 py-2 text-sm text-zinc-900 dark:text-zinc-100" x-text="testCase.title"></td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                             <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-1" x-show="preview.potential_cases_count > preview.sample_cases.length">Showing <span x-text="preview.sample_cases.length"></span> of <span x-text="preview.potential_cases_count"></span> potential new cases.</p>
+                        </div>
+                    </div>
+
+                     <div x-show="preview && preview.potential_suites_count === 0 && preview.potential_cases_count === 0" class="mb-6 p-4 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800/50 text-yellow-700 dark:text-yellow-300 text-sm">
+                        <i data-lucide="alert-circle" class="inline-block w-4 h-4 mr-1 align-text-bottom"></i> No matching Jira issues found to import based on your current selections. Please go back and adjust the configuration.
+                    </div>
+
+                    <div class="mb-6 p-4 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800/50" x-show="preview && (preview.potential_suites_count > 0 || preview.potential_cases_count > 0)">
+                        <div class="flex">
+                           <i data-lucide="alert-triangle" class="h-5 w-5 text-yellow-600 dark:text-yellow-500 mr-3 flex-shrink-0 mt-0.5"></i>
+                            <div>
+                                <h3 class="text-sm font-medium text-yellow-800 dark:text-yellow-300">Important: Review Carefully</h3>
+                                <div class="mt-1 text-sm text-yellow-700 dark:text-yellow-200 space-y-1">
+                                    <p>Clicking "Start Import" will add items to the existing project '<span class="font-semibold">{{ $arxitestProjectName }}</span>'.</p>
+                                    <template x-if="selectedTestSuite === 'new'">
+                                        <p>New test suites will be created based on Jira Epics found.</p>
+                                    </template>
+                                    <template x-if="selectedTestSuite !== 'new'">
+                                        <p>New test cases will be added to the test suite '<span class="font-semibold" x-text="selectedTestSuiteName"></span>'.</p>
+                                    </template>
+                                    <p>This action cannot be easily undone once started.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex justify-between pt-4">
+                    <button type="button" @click="step = 2" :disabled="isLoadingPreview" class="px-4 py-2 rounded-lg text-zinc-700 dark:text-zinc-300 font-medium bg-zinc-100 dark:bg-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-600 shadow-sm transition-colors disabled:opacity-50">
+                        Back
+                    </button>
+                     {{-- Disable button if nothing would be imported --}}
+                    <button
+                        type="button"
+                        @click="startImport"
+                        :disabled="isImporting || isLoadingPreview || previewError || !preview || (preview.potential_cases_count === 0 && (selectedTestSuite !== 'new' || preview.potential_suites_count === 0))"
+                        class="px-6 py-2 rounded-lg text-white font-medium bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-colors flex items-center"
+                    >
+                        <i data-lucide="download-cloud" class="w-4 h-4 mr-2" x-show="!isImporting"></i>
+                        <i data-lucide="loader-2" class="animate-spin w-4 h-4 mr-2" x-show="isImporting"></i>
+                        <span x-text="isImporting ? 'Importing...' : 'Start Import'"></span>
+                    </button>
+                </div>
+            </div>
+
+            <div x-show="isImporting" x-cloak>
+                 <div class="mb-6 text-center">
+                    <div class="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+                    <h2 class="text-xl font-semibold text-zinc-900 dark:text-white mb-2">Import in Progress...</h2>
+                    <p class="text-sm text-zinc-600 dark:text-zinc-400">Please wait while your Jira data is imported into '{{ $arxitestProjectName }}'.</p>
+                    <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-1">This may take several minutes. Please do not navigate away from this page.</p>
+                </div>
+
+                 <div class="mb-6" x-show="importProgress">
+                    <div class="flex justify-between mb-1">
+                        <span class="text-sm font-medium text-zinc-700 dark:text-zinc-300">Overall Progress</span>
+                        <span class="text-sm font-medium text-zinc-700 dark:text-zinc-300" x-text="getOverallProgress() + '%'"></span>
+                    </div>
+                    <div class="w-full bg-zinc-200 dark:bg-zinc-700 rounded-full h-2.5 overflow-hidden">
+                        <div class="bg-blue-600 h-2.5 rounded-full transition-all duration-500 ease-out" :style="`width: ${getOverallProgress()}%`"></div>
+                    </div>
+                </div>
+
+                <div class="space-y-3 mb-6 text-sm" x-show="importProgress?.details">
+                    <div x-show="selectedTestSuite === 'new' && importProgress.details.suites !== undefined">
+                        <p class="text-zinc-600 dark:text-zinc-400">
+                           <i data-lucide="check-circle" class="w-4 h-4 inline-block mr-1 text-green-500" x-show="importProgress.details.suites?.processed == importProgress.details.suites?.total && importProgress.details.suites?.total > 0"></i>
+                           <i data-lucide="loader-2" class="w-4 h-4 inline-block mr-1 animate-spin" x-show="importProgress.details.suites?.processed < importProgress.details.suites?.total"></i>
+                           Processing Test Suites (Epics): <span x-text="importProgress.details.suites?.processed || 0"></span> / <span x-text="importProgress.details.suites?.total || 0"></span>
+                        </p>
+                        <div class="w-full bg-zinc-200 dark:bg-zinc-700 rounded-full h-1.5 mt-1 overflow-hidden">
+                            <div class="bg-indigo-500 h-1.5 rounded-full" :style="`width: ${calculatePercentage(importProgress.details.suites?.processed, importProgress.details.suites?.total)}%`"></div>
+                        </div>
+                    </div>
+                     <div x-show="importProgress.details.cases !== undefined">
+                        <p class="text-zinc-600 dark:text-zinc-400">
+                            <i data-lucide="check-circle" class="w-4 h-4 inline-block mr-1 text-green-500" x-show="importProgress.details.cases?.processed == importProgress.details.cases?.total && importProgress.details.cases?.total > 0"></i>
+                            <i data-lucide="loader-2" class="w-4 h-4 inline-block mr-1 animate-spin" x-show="importProgress.details.cases?.processed < importProgress.details.cases?.total"></i>
+                            Processing Test Cases (Issues): <span x-text="importProgress.details.cases?.processed || 0"></span> / <span x-text="importProgress.details.cases?.total || 0"></span>
+                        </p>
+                         <div class="w-full bg-zinc-200 dark:bg-zinc-700 rounded-full h-1.5 mt-1 overflow-hidden">
+                            <div class="bg-purple-500 h-1.5 rounded-full" :style="`width: ${calculatePercentage(importProgress.details.cases?.processed, importProgress.details.cases?.total)}%`"></div>
+                        </div>
+                    </div>
+                     <div x-show="importProgress.details.scripts !== undefined">
+                         <p class="text-zinc-600 dark:text-zinc-400">
+                            <i data-lucide="check-circle" class="w-4 h-4 inline-block mr-1 text-green-500" x-show="importProgress.details.scripts?.processed == importProgress.details.scripts?.total && importProgress.details.scripts?.total > 0"></i>
+                            <i data-lucide="loader-2" class="w-4 h-4 inline-block mr-1 animate-spin" x-show="importProgress.details.scripts?.processed < importProgress.details.scripts?.total"></i>
+                            Generating Test Scripts: <span x-text="importProgress.details.scripts?.processed || 0"></span> / <span x-text="importProgress.details.scripts?.total || 0"></span>
+                         </p>
+                         <div class="w-full bg-zinc-200 dark:bg-zinc-700 rounded-full h-1.5 mt-1 overflow-hidden">
+                            <div class="bg-teal-500 h-1.5 rounded-full" :style="`width: ${calculatePercentage(importProgress.details.scripts?.processed, importProgress.details.scripts?.total)}%`"></div>
+                        </div>
+                    </div>
+                </div>
+
+                </div>
+
+            <div x-show="importCompleted" x-cloak>
+                 <div class="text-center py-8">
+                    <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 dark:bg-green-900/30 mb-4">
+                        <i data-lucide="check-check" class="h-8 w-8 text-green-600 dark:text-green-400"></i>
+                    </div>
+                    <h2 class="text-2xl font-semibold text-zinc-900 dark:text-white mb-2">Import Completed Successfully!</h2>
+                    <p class="text-sm text-zinc-600 dark:text-zinc-400 mb-6">Jira issues have been imported into '<span class="font-medium">{{ $arxitestProjectName }}</span>'.</p>
+
+                    <div class="mb-6">
+                         <div class="inline-block bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-zinc-200 dark:border-zinc-700 p-4 text-left">
+                            <h3 class="text-md font-medium text-zinc-800 dark:text-zinc-200 mb-3 text-center">Import Summary</h3>
+                            <div class="space-y-1 text-sm">
+                                <p class="text-zinc-900 dark:text-white flex justify-between">
+                                    <span class="text-zinc-600 dark:text-zinc-300">Target Project:</span>
+                                    <strong>{{ $arxitestProjectName }}</strong>
+                                </p>
+                                {{-- Conditionally show suites created --}}
+                                <template x-if="selectedTestSuite === 'new'">
+                                    <p class="text-zinc-900 dark:text-white flex justify-between">
+                                        <span class="text-zinc-600 dark:text-zinc-300">Test Suites Created:</span>
+                                        <strong x-text="importStats?.suites_created || 0"></strong>
+                                    </p>
+                                </template>
+                                 <template x-if="selectedTestSuite !== 'new'">
+                                    <p class="text-zinc-900 dark:text-white flex justify-between">
+                                        <span class="text-zinc-600 dark:text-zinc-300">Target Test Suite:</span>
+                                        <strong x-text="selectedTestSuiteName || 'N/A'"></strong>
+                                    </p>
+                                </template>
+                                <p class="text-zinc-900 dark:text-white flex justify-between">
+                                    <span class="text-zinc-600 dark:text-zinc-300">Test Cases Created:</span>
+                                    <strong x-text="importStats?.cases_created || 0"></strong>
+                                </p>
+                                <p class="text-zinc-900 dark:text-white flex justify-between">
+                                    <span class="text-zinc-600 dark:text-zinc-300">Test Scripts Generated:</span>
+                                    <strong x-text="importStats?.scripts_generated || 0"></strong>
+                                </p>
+                                 <p class="text-zinc-900 dark:text-white flex justify-between" x-show="(importStats?.issues_skipped || 0) > 0">
+                                    <span class="text-zinc-600 dark:text-zinc-300">Issues Skipped:</span>
+                                    <strong x-text="importStats?.issues_skipped || 0"></strong>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-center space-x-4 pt-4">
+                        {{-- Link to the specific Arxitest project --}}
+                        <a href="{{ route('dashboard.projects.show', $arxitestProjectId) }}" class="px-4 py-2 rounded-lg text-white font-medium bg-blue-600 hover:bg-blue-700 shadow-sm transition-colors">
+                            Go to Project
+                        </a>
+                         <a href="{{ route('integrations.jira.import.options') }}" class="px-4 py-2 rounded-lg text-zinc-700 dark:text-zinc-300 font-medium bg-zinc-100 dark:bg-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-600 shadow-sm transition-colors">
+                            Import More
+                        </a>
+                         <a href="{{ route('dashboard.projects') }}" class="px-4 py-2 rounded-lg text-zinc-700 dark:text-zinc-300 font-medium bg-zinc-100 dark:bg-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-600 shadow-sm transition-colors">
+                            View All Projects
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div x-show="importError" x-cloak>
+                <div class="text-center py-8">
+                    <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-red-100 dark:bg-red-900/30 mb-4">
+                         <i data-lucide="x-octagon" class="h-8 w-8 text-red-600 dark:text-red-400"></i>
+                    </div>
+                    <h2 class="text-2xl font-semibold text-zinc-900 dark:text-white mb-2">Import Failed</h2>
+                    <p class="text-sm text-red-600 dark:text-red-400 mb-6">An error occurred while importing issues into '{{ $arxitestProjectName }}':</p>
+                    <p class="mb-6 p-3 rounded bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800/50 text-red-700 dark:text-red-300 text-sm text-left font-mono" x-text="importError"></p>
+
+                    <div class="flex justify-center space-x-4 pt-4">
+                        <button type="button" @click="resetAndGoToStep(2)" class="px-4 py-2 rounded-lg text-white font-medium bg-blue-600 hover:bg-blue-700 shadow-sm transition-colors">
+                             Try Again (Adjust Options)
+                        </button>
+                        <a href="{{ route('dashboard.projects.show', $arxitestProjectId) }}" class="px-4 py-2 rounded-lg text-zinc-700 dark:text-zinc-300 font-medium bg-zinc-100 dark:bg-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-600 shadow-sm transition-colors">
+                            Back to Project
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+        </div></div></div>@endsection
+
+{{-- Scripts Section --}}
 @push('scripts')
 <script>
-    function jiraImport(config) {
+    function jiraImportApp() {
         return {
+            // State Properties
             step: 1,
-            isLoadingMetadata: false,
-            fetchingPreview: false,
-            isImporting: false,
-            errorMessage: '',
-            projectSearch: '',
-            selectedProject: null,
-            arxitestProjectId: config.arxitestProjectId,
-            allJiraProjects: config.jiraProjectsData,
-            projectMetadata: { issueTypes: [], statuses: [], labels: [] },
-            selectedIssueTypes: [],
-            selectedStatuses: [],
-            selectedLabels: [],
-            customJql: '',
-            arxitestSuites: config.arxitestSuitesData,
-            mappings: {
-                epicToSuite: true,
-                createDefaultSuite: true,
-                defaultSuiteId: '',
-                includeDescription: true,
-                statusToPriority: {} // Initialize as empty object
-            },
-            importPreview: { test_suites: [], test_cases: [], total_issues: 0 },
+            selectedJiraProject: '',
+            selectedJiraProjectName: '',
+            selectedTestSuite: '',      // Can be 'new' or an ID
+            selectedTestSuiteName: '',  // Name of the selected existing suite
+            importEpics: true,          // Relevant only if selectedTestSuite is 'new'
+            importStories: true,
+            generateTestScripts: false,
+            showAdvancedFilters: false,
+            jqlFilter: '',
+            maxIssues: 1000,            // Default max
 
+            // Loading/Error States (Same as previous)
+            isLoading: false,
+            error: null,
+            isLoadingPreview: false,
+            previewError: null,
+            isImporting: false,
+            importError: null,
+
+            // Data Properties (Same as previous, except no newProjectName)
+            preview: null,
+            importJobId: null,
+            importProgress: null,
+            importStats: null,
+            importCompleted: false,
+            // createdProjectId is not needed here, use window.arxitestProjectId passed from PHP
+
+            // Timers/Intervals (Same as previous)
+            progressCheckInterval: null,
+            progressCheckDelay: 3000,
+            maxProgressChecks: 100,
+            progressCheckCount: 0,
+
+            // Lifecycle Hooks & Watchers
             init() {
-                // Load existing mappings if provided
-                if (config.existingMappingsData && Object.keys(config.existingMappingsData).length > 0) {
-                    this.mappings = { ...this.mappings, ...config.existingMappingsData };
-                     // Ensure statusToPriority is an object if it exists in saved data but is null/empty
-                    if (typeof this.mappings.statusToPriority !== 'object' || this.mappings.statusToPriority === null) {
-                        this.mappings.statusToPriority = {};
+                console.log('Jira Import (Existing Project) App Initialized');
+                this.$watch('selectedJiraProject', (value) => {
+                    this.handleJiraProjectChange(value);
+                });
+                 this.$watch('selectedTestSuite', (value) => {
+                    this.handleTestSuiteChange(value);
+                 });
+
+                // Ensure Lucide icons are rendered (Same as previous)
+                 this.$nextTick(() => {
+                     if (typeof lucide !== 'undefined') {
+                        lucide.createIcons();
+                     } else {
+                         console.warn('Lucide icons library not found.');
+                     }
+                });
+                this.$watch('step', () => this.$nextTick(() => lucide.createIcons()));
+                this.$watch('isImporting', () => this.$nextTick(() => lucide.createIcons()));
+                this.$watch('importCompleted', () => this.$nextTick(() => lucide.createIcons()));
+                this.$watch('importError', () => this.$nextTick(() => lucide.createIcons()));
+                this.$watch('showAdvancedFilters', () => this.$nextTick(() => lucide.createIcons()));
+                this.$watch('isLoadingPreview', () => this.$nextTick(() => lucide.createIcons()));
+                this.$watch('previewError', () => this.$nextTick(() => lucide.createIcons()));
+                this.$watch('selectedTestSuite', () => this.$nextTick(() => lucide.createIcons())); // For conditional previews/options
+            },
+
+            // Methods for Step Transitions & Input Handling
+            handleJiraProjectChange(value) {
+                if (value) {
+                    const selectEl = document.getElementById('jira_project');
+                    if (selectEl && selectEl.options[selectEl.selectedIndex]) {
+                         this.selectedJiraProjectName = selectEl.options[selectEl.selectedIndex].getAttribute('data-name');
+                    } else {
+                        this.selectedJiraProjectName = '';
                     }
                 } else {
-                     this.mappings.statusToPriority = {}; // Ensure it's an object if no saved data
-                }
-
-
-                // Initialize icons after Alpine is ready
-                this.$nextTick(() => {
-                    if (typeof lucide !== 'undefined') lucide.createIcons();
-                });
-            },
-
-            get filteredProjects() {
-                if (!this.projectSearch) return this.allJiraProjects;
-                const search = this.projectSearch.toLowerCase();
-                return this.allJiraProjects.filter(project =>
-                    project.name.toLowerCase().includes(search) ||
-                    project.key.toLowerCase().includes(search)
-                );
-            },
-
-            selectProject(project) {
-                this.selectedProject = project;
-                this.errorMessage = ''; // Clear errors when selecting a project
-            },
-
-            canGoToStep(targetStep) {
-                if (targetStep <= this.step) return true; // Can always go back
-                switch (this.step) {
-                    case 1: return !!this.selectedProject;
-                    case 2: return this.selectedIssueTypes.length > 0;
-                    case 3: return this.importPreview.total_issues !== null; // Allow going to preview once generated
-                    default: return false;
+                    this.selectedJiraProjectName = '';
                 }
             },
 
-            goToStep(targetStep) {
-                this.errorMessage = ''; // Clear errors on step change
-                if (!this.canGoToStep(targetStep)) {
-                    if (this.step === 1 && !this.selectedProject) this.errorMessage = "Please select a Jira project first.";
-                    if (this.step === 2 && this.selectedIssueTypes.length === 0) this.errorMessage = "Please select at least one issue type to import.";
+            handleTestSuiteChange(value) {
+                if (value && value !== 'new') {
+                    const selectEl = document.getElementById('test_suite');
+                     if (selectEl && selectEl.options[selectEl.selectedIndex]) {
+                         this.selectedTestSuiteName = selectEl.options[selectEl.selectedIndex].getAttribute('data-name');
+                     } else {
+                         this.selectedTestSuiteName = ''; // Reset if not found
+                     }
+                } else {
+                    this.selectedTestSuiteName = ''; // Reset if 'new' or empty
+                }
+                 // Reset importEpics if not creating new suites, otherwise default to true
+                if (value !== 'new') {
+                    this.importEpics = false;
+                } else {
+                     this.importEpics = true; // Default back to true when 'new' is selected
+                }
+            },
+
+            goToNextStep() {
+                this.error = null;
+                this.isLoading = false;
+                if (this.step === 1 && this.selectedJiraProject && this.selectedTestSuite) {
+                    this.step = 2;
+                    // No metadata load needed here unless fetching specific fields/types
+                }
+            },
+
+            // Method to fetch preview data (Adapted)
+            goToPreview() {
+                // Check if at least one import action is selected
+                if (!this.importStories && (this.selectedTestSuite !== 'new' || !this.importEpics)) {
+                    this.previewError = "Please select at least one mapping (Stories/Tasks/Bugs, or Epics if creating new suites).";
                     return;
                 }
 
-                if (targetStep === 2 && this.step === 1) {
-                    this.loadProjectMetadata(); // Load data when moving to step 2
-                }
+                this.isLoadingPreview = true;
+                this.previewError = null;
+                this.preview = null;
 
-                if (targetStep === 4 && this.step === 3) {
-                    this.fetchPreview(); // Generate preview when moving to step 4
-                } else {
-                    this.step = targetStep; // Directly change step otherwise
-                }
+                const payload = this.buildPayload();
+                payload.sample_size = 30; // Request a sample for preview
 
-                this.$nextTick(() => {
-                    if (typeof lucide !== 'undefined') lucide.createIcons();
+                console.log('Fetching preview (existing project) with payload:', payload);
+
+                // Use the same preview route, backend logic differentiates based on payload
+                fetch('{{ route('integrations.jira.preview-import') }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(err => { throw new Error(err.message || `HTTP error! Status: ${response.status}`) });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Preview data received:', data);
+                    this.isLoadingPreview = false;
+                    if (data.success && data.preview) {
+                        this.preview = data.preview;
+                        this.step = 3;
+                    } else {
+                        this.previewError = data.message || 'Failed to generate import preview. The server returned an unexpected response.';
+                    }
+                })
+                .catch(error => {
+                    this.isLoadingPreview = false;
+                    this.previewError = error.message || 'An error occurred while generating the preview. Check console for details.';
+                    console.error('Preview Fetch Error:', error);
                 });
             },
 
-            async loadProjectMetadata() {
-                if (!this.selectedProject) return;
-                this.isLoadingMetadata = true;
-                this.errorMessage = '';
-                try {
-                    const response = await fetch(config.projectMetadataUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': config.csrfToken, 'Accept': 'application/json' },
-                        body: JSON.stringify({ jira_project_key: this.selectedProject.key, arxitest_project_id: this.arxitestProjectId })
-                    });
-                    const data = await response.json();
-                    if (!response.ok || !data.success) throw new Error(data.message || 'Failed to load metadata');
-                    this.projectMetadata = data;
-                    // Set default selections after loading
-                    this.selectedIssueTypes = this.projectMetadata.issueTypes.filter(type => ['Epic', 'Story', 'Task', 'Bug'].includes(type.name)).map(type => type.name);
-                    this.initializeStatusMappings(); // Initialize mappings after statuses are loaded
-                } catch (error) {
-                    this.errorMessage = `Error loading Jira project data: ${error.message}. Please check connection and permissions.`;
-                    this.projectMetadata = { issueTypes: [], statuses: [], labels: [] }; // Reset on error
-                } finally {
-                    this.isLoadingMetadata = false;
-                     this.$nextTick(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); });
-                }
-            },
-
-            initializeStatusMappings() {
-                 const defaultMappings = { 'To Do': 'low', 'In Progress': 'medium', 'Done': 'high', 'Closed': 'high', 'Resolved': 'high' };
-                 let existingMappings = this.mappings.statusToPriority || {};
-                 let newMappings = {};
-                 (this.projectMetadata.statuses || []).forEach(status => {
-                     // Use existing mapping if available, otherwise use default, otherwise null
-                     newMappings[status] = existingMappings[status] !== undefined ? existingMappings[status] : (defaultMappings[status] || '');
-                 });
-                 this.mappings.statusToPriority = newMappings;
-             },
-
-            toggleIssueType(type) { this.selectedIssueTypes.includes(type) ? this.selectedIssueTypes = this.selectedIssueTypes.filter(t => t !== type) : this.selectedIssueTypes.push(type); },
-            toggleStatus(status) { this.selectedStatuses.includes(status) ? this.selectedStatuses = this.selectedStatuses.filter(s => s !== status) : this.selectedStatuses.push(status); },
-            toggleLabel(label) { this.selectedLabels.includes(label) ? this.selectedLabels = this.selectedLabels.filter(l => l !== label) : this.selectedLabels.push(label); },
-
-            async fetchPreview() {
-                if (this.fetchingPreview || !this.selectedProject) return;
-                this.fetchingPreview = true;
-                this.errorMessage = '';
-                try {
-                    const response = await fetch(config.previewImportUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': config.csrfToken, 'Accept': 'application/json' },
-                        body: JSON.stringify({
-                            jira_project_key: this.selectedProject.key,
-                            arxitest_project_id: this.arxitestProjectId,
-                            issue_types: this.selectedIssueTypes,
-                            statuses: this.selectedStatuses,
-                            labels: this.selectedLabels,
-                            custom_jql: this.customJql,
-                            mappings: this.mappings,
-                            sample_size: 20 // Limit preview size
-                        })
-                    });
-                    const data = await response.json();
-                    if (!response.ok || !data.success) throw new Error(data.message || 'Failed to generate preview');
-                    this.importPreview = data.preview;
-                    this.step = 4; // Move to next step on success
-                } catch (error) {
-                    this.errorMessage = `Error generating preview: ${error.message}`;
-                } finally {
-                    this.fetchingPreview = false;
-                     this.$nextTick(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); });
-                }
-            },
-
-            getSuiteName(epicKey) {
-                if (!epicKey || !this.mappings.epicToSuite) {
-                    return this.mappings.createDefaultSuite ? 'Default Suite' : 'N/A';
-                }
-                const suite = (this.importPreview.test_suites || []).find(s => s.jira_key === epicKey);
-                return suite ? suite.name : (this.mappings.createDefaultSuite ? 'Default Suite' : 'N/A');
-            },
-
+            // Method to start the actual import (Adapted)
             startImport() {
+                if (this.isImporting) return;
+
+                // Final check: ensure something will actually be imported
+                 if (!this.preview || (this.preview.potential_cases_count === 0 && (this.selectedTestSuite !== 'new' || this.preview.potential_suites_count === 0))) {
+                     console.warn('Start import blocked: Preview indicates nothing to import.');
+                     // Optionally show a user message here
+                     return;
+                 }
+
                 this.isImporting = true;
-                // The actual form submission is handled by the browser via the @submit on the form element
-                // You might want to show a more persistent loading indicator here if the backend takes time
+                this.importError = null;
+                this.importCompleted = false;
+                this.importProgress = null;
+                this.importJobId = null;
+                this.importStats = null;
+                this.clearProgressCheck();
+
+                const payload = this.buildPayload();
+                delete payload.sample_size; // Remove sample size for actual import
+
+                console.log('Starting import (existing project) with payload:', payload);
+
+                // Use the same start route, backend logic differentiates based on payload
+                fetch('{{ route('integrations.jira.start-import') }}', {
+                    method: 'POST',
+                     headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(err => {
+                            throw new Error(err.message || `Import initiation failed. Status: ${response.status}`);
+                        }).catch(() => {
+                            throw new Error(`Import initiation failed. Status: ${response.status}`);
+                        });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Import started response:', data);
+                    if (data.success && data.job_id) {
+                        this.importJobId = data.job_id;
+                        this.progressCheckCount = 0;
+                        this.checkImportProgress(); // Initial check
+                        this.progressCheckInterval = setInterval(() => this.checkImportProgress(), this.progressCheckDelay);
+                    } else {
+                        this.isImporting = false;
+                        this.importError = data.message || 'Failed to start the import process. No job ID received.';
+                    }
+                })
+                .catch(error => {
+                    this.isImporting = false;
+                    this.importError = error.message || 'An unexpected error occurred while starting the import.';
+                    console.error('Start Import Error:', error);
+                });
+            },
+
+            // Method to poll for import progress (Identical logic to previous example)
+            checkImportProgress() {
+                 if (!this.importJobId || !this.isImporting) {
+                    this.clearProgressCheck();
+                    return;
+                }
+
+                this.progressCheckCount++;
+                if (this.progressCheckCount > this.maxProgressChecks) {
+                     console.warn('Max progress checks reached. Stopping polling.');
+                     this.importError = 'The import seems to be taking longer than expected. Please check the project later or contact support if the issue persists.';
+                     this.isImporting = false;
+                     this.clearProgressCheck();
+                     return;
+                }
+
+                console.log(`Checking progress for job ${this.importJobId} (Check #${this.progressCheckCount})`);
+
+                fetch(`{{ url('/api/integration/jira/import-status') }}/${this.importJobId}`, { // Use the same status route
+                    method: 'GET',
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                        'Accept': 'application/json'
+                    }
+                })
+                .then(response => {
+                     if (!response.ok) {
+                         console.error(`Progress check failed: Status ${response.status}`);
+                         return null;
+                     }
+                     return response.json();
+                })
+                .then(data => {
+                    if (!data) return;
+
+                    console.log('Progress data:', data);
+                    if (data.status === 'processing' || data.status === 'pending') {
+                        this.importProgress = data.progress || { overall: 0 };
+                    } else if (data.status === 'completed') {
+                        this.isImporting = false;
+                        this.importCompleted = true;
+                        this.importStats = data.stats || {};
+                        // No createdProjectId needed here, project already exists
+                        this.importProgress = data.progress || { overall: 100 };
+                        this.clearProgressCheck();
+                        console.log('Import Completed Successfully!');
+                    } else if (data.status === 'failed') {
+                        this.isImporting = false;
+                        this.importError = data.error_message || 'The import process failed.';
+                        this.clearProgressCheck();
+                        console.error('Import Failed:', this.importError);
+                    } else {
+                         console.warn('Unknown import status received:', data.status);
+                    }
+                })
+                .catch(error => {
+                    console.error('Progress Check Network Error:', error);
+                });
+            },
+
+            // Utility Methods
+            buildPayload() {
+                const payload = {
+                    // Target Arxitest Project
+                    arxitest_project_id: window.arxitestProjectId, // Get ID passed from PHP
+                    target_test_suite_id: this.selectedTestSuite === 'new' ? null : this.selectedTestSuite,
+
+                    // Source Jira Project
+                    jira_project_key: this.selectedJiraProject,
+
+                    // Mappings (conditional)
+                    mappings: {},
+
+                    // Options
+                    options: {
+                        generate_scripts: this.generateTestScripts,
+                        jql_filter: this.jqlFilter || null,
+                        max_issues: this.maxIssues > 0 ? this.maxIssues : null
+                    }
+                };
+
+                 // Only include epic mapping if creating new suites
+                 if (this.selectedTestSuite === 'new' && this.importEpics) {
+                     payload.mappings.epic_to_suite = true;
+                 }
+                 // Always include story/task/bug mapping if selected
+                 if (this.importStories) {
+                     payload.mappings.story_task_bug_to_case = true;
+                 }
+
+                return payload;
+            },
+
+            // Other utility methods (identical to previous example)
+            clearProgressCheck() {
+                if (this.progressCheckInterval) {
+                    clearInterval(this.progressCheckInterval);
+                    this.progressCheckInterval = null;
+                    console.log('Progress polling stopped.');
+                }
+            },
+            getOverallProgress() {
+                return this.importProgress?.overall ?? 0;
+            },
+            calculatePercentage(value, total) {
+                if (!total || total <= 0 || !value || value < 0) return 0;
+                if (value >= total) return 100;
+                return Math.round((value / total) * 100);
+            },
+            resetAndGoToStep(targetStep) {
+                this.isImporting = false;
+                this.importError = null;
+                this.importCompleted = false;
+                this.importProgress = null;
+                this.importJobId = null;
+                this.importStats = null;
+                this.clearProgressCheck();
+                if (targetStep <= 2) {
+                    this.isLoadingPreview = false;
+                    this.previewError = null;
+                    this.preview = null;
+                }
+                 if (targetStep === 1) {
+                    this.error = null;
+                 }
+                this.step = targetStep;
             }
-        };
+        }
     }
 </script>
 @endpush
