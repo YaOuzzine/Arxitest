@@ -184,38 +184,35 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
         ->name('integrations.jira.redirect');
     Route::post('/integrations/jira/disconnect', [IntegrationController::class, 'jiraDisconnect'])
         ->name('integrations.jira.disconnect');
-    Route::get('/dashboard/integrations/jira/import', [IntegrationController::class, 'showJiraImportOptions'])
-        ->name('integrations.jira.import.options');
-    Route::post('/dashboard/integrations/jira/import', [IntegrationController::class, 'importJiraProject'])
-        ->name('integrations.jira.import.project');
-
-    Route::post('/dashboard/integrations/jira/project-metadata', [IntegrationController::class, 'getJiraProjectMetadata'])
-        ->name('integrations.jira.project-metadata');
-
-    Route::post('/dashboard/integrations/jira/preview-import', [IntegrationController::class, 'previewJiraImport'])
-        ->name('integrations.jira.preview-import');
-
-    Route::get('/integrations/jira/import/progress/{project_id}', [JiraImportController::class, 'getImportProgress'])
-        ->name('integrations.jira.import.progress');
-
     Route::prefix('dashboard/integrations/jira')->name('integrations.jira.')->group(function () {
+        // Connection routes
         Route::get('/redirect', [IntegrationController::class, 'jiraRedirect'])
             ->name('redirect');
+        Route::get('/callback', [IntegrationController::class, 'jiraCallback'])
+            ->name('callback');
         Route::post('/disconnect', [IntegrationController::class, 'jiraDisconnect'])
             ->name('disconnect');
 
-        // Enhanced import routes
-        Route::get('/import', [JiraImportController::class, 'showImportOptions'])
+        // Import routes
+        Route::get('/import-options', [IntegrationController::class, 'showJiraImportOptions'])
             ->name('import.options');
+        Route::get('/import-new', [IntegrationController::class, 'showImportNewOptions'])
+            ->name('import.new');
+        Route::get('/import-to-existing', [IntegrationController::class, 'showImportToExistingOptions'])
+            ->name('import.existing');
+
+        // Metadata and preview endpoints
+        Route::post('/project-metadata', [IntegrationController::class, 'getJiraProjectMetadata'])
+            ->name('project-metadata');
+        Route::post('/preview-import', [IntegrationController::class, 'previewJiraImport'])
+            ->name('preview-import');
+
+        // Import execution and progress tracking
         Route::post('/import', [JiraImportController::class, 'importProject'])
             ->name('import.project');
-
-
-        // Progress tracking endpoint
-        Route::get('/import/progress/{project_id}', [JiraImportController::class, 'getImportProgress'])
+        Route::get('/import/progress/{project_id?}', [JiraImportController::class, 'getImportProgress'])
             ->name('import.progress');
     });
-
 });
 
 Route::middleware(['web'])->group(function () {

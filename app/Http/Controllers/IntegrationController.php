@@ -1,5 +1,4 @@
 <?php
-// FILE: app/Http/Controllers/IntegrationController.php
 
 namespace App\Http\Controllers;
 
@@ -16,6 +15,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Support\Str;
+use App\Services\JiraService;
 
 class IntegrationController extends Controller
 {
@@ -48,6 +48,305 @@ class IntegrationController extends Controller
 
         // Pass a flag indicating if connection exists for enabling import buttons
         return view('dashboard.integrations.index', compact('jiraConnected', 'githubConnected', 'team'));
+    }
+
+    /**
+     * Show options for importing from Jira.
+     */
+    public function showJiraImportOptions()
+    {
+        $currentTeamId = session('current_team');
+        if (!$currentTeamId) {
+            return redirect()->route('dashboard.select-team')->with('error', 'Please select a team first.');
+        }
+
+        // Check if Jira is connected for the current team
+        $jiraConnected = ProjectIntegration::whereHas('project', fn ($q) => $q->where('team_id', $currentTeamId))
+            ->whereHas('integration', fn ($q) => $q->where('type', Integration::TYPE_JIRA))
+            ->where('is_active', true)
+            ->exists();
+
+        if (!$jiraConnected) {
+            return redirect()->route('dashboard.integrations.index')
+                ->with('error', 'Please connect Jira before attempting to import.');
+        }
+
+        // Get all projects for this team (for importing into existing project)
+        $team = Team::findOrFail($currentTeamId);
+        $existingProjects = $team->projects()->get(['id', 'name']);
+
+        return view('dashboard.integrations.jira-import-options', [
+            'existingProjects' => $existingProjects,
+            'teamName' => $team->name
+        ]);
+    }
+
+    /**
+     * Show options for importing from Jira into a new project.
+     */
+    public function showImportNewOptions()
+    {
+        $currentTeamId = session('current_team');
+        if (!$currentTeamId) {
+            return redirect()->route('dashboard.select-team')->with('error', 'Please select a team first.');
+        }
+
+        $team = Team::findOrFail($currentTeamId);
+
+        try {
+            // Get list of Jira projects to choose from
+            $jiraService = $this->getJiraServiceForTeam($currentTeamId);
+            $jiraProjects = $jiraService->getProjects();
+
+            return view('dashboard.integrations.jira-import-new', [
+                'jiraProjects' => $jiraProjects,
+                'teamName' => $team->name
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error fetching Jira projects', [
+                'error' => $e->getMessage(),
+                'team_id' => $currentTeamId
+            ]);
+            return redirect()->route('dashboard.integrations.index')
+                ->with('error', 'Could not access Jira projects: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Show options for importing from Jira into an existing project.
+     */
+    public function showImportToExistingOptions(Request $request)
+    {
+        $request->validate([
+            'project_id' => 'required|uuid|exists:projects,id'
+        ]);
+
+        $arxitestProjectId = $request->input('project_id');
+        $arxitestProject = Project::findOrFail($arxitestProjectId);
+        $currentTeamId = session('current_team');
+
+        // Verify user has access to this project
+        if ($arxitestProject->team_id !== $currentTeamId) {
+            return redirect()->route('dashboard.projects')
+                ->with('error', 'You do not have access to this project.');
+        }
+
+        try {
+            $jiraService = $this->getJiraServiceForTeam($currentTeamId);
+            $jiraProjects = $jiraService->getProjects();
+            $testSuites = $arxitestProject->testSuites()->get(['id', 'name']);
+
+            return view('dashboard.integrations.jira-import-into-project', [
+                'jiraProjects' => $jiraProjects,
+                'arxitestProjectId' => $arxitestProject->id,
+                'arxitestProjectName' => $arxitestProject->name,
+                'testSuites' => $testSuites
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error fetching Jira projects', [
+                'error' => $e->getMessage(),
+                'project_id' => $arxitestProjectId
+            ]);
+            return redirect()->route('dashboard.integrations.index')
+                ->with('error', 'Could not access Jira projects: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Get Jira project metadata (issue types, statuses, labels)
+     */
+    public function getJiraProjectMetadata(Request $request)
+    {
+        $request->validate([
+            'jira_project_key' => 'required|string',
+            'arxitest_project_id' => 'nullable|uuid|exists:projects,id'
+        ]);
+
+        $jiraProjectKey = $request->input('jira_project_key');
+        $currentTeamId = session('current_team');
+
+        try {
+            $jiraService = $this->getJiraServiceForTeam($currentTeamId);
+
+            // Fetch issue types
+            $issueTypes = $jiraService->getIssueTypes($jiraProjectKey);
+
+            // Get sample issues to extract statuses and labels
+            $sampleIssues = $jiraService->getIssuesWithJql(
+                "project = \"$jiraProjectKey\" ORDER BY created DESC",
+                ['status', 'labels'],
+                50
+            );
+
+            // Extract statuses from issues
+            $statusSet = collect($sampleIssues)->pluck('fields.status.name')->filter()->unique()->values()->all();
+
+            // Extract labels from issues
+            $labelSet = collect($sampleIssues)
+                ->pluck('fields.labels')
+                ->flatten()
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+
+            return response()->json([
+                'success' => true,
+                'issueTypes' => $issueTypes,
+                'statuses' => $statusSet,
+                'labels' => $labelSet
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error fetching Jira project metadata', [
+                'error' => $e->getMessage(),
+                'jira_project_key' => $jiraProjectKey
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch Jira data: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Generate a preview of what will be imported
+     */
+    public function previewJiraImport(Request $request)
+    {
+        $request->validate([
+            'jira_project_key' => 'required|string',
+            'arxitest_project_id' => 'nullable|uuid|exists:projects,id',
+            'issue_types' => 'required|array',
+            'statuses' => 'nullable|array',
+            'labels' => 'nullable|array',
+            'custom_jql' => 'nullable|string',
+            'mappings' => 'required|array',
+            'sample_size' => 'nullable|integer|min:1|max:100'
+        ]);
+
+        $jiraProjectKey = $request->input('jira_project_key');
+        $issueTypes = $request->input('issue_types', []);
+        $statuses = $request->input('statuses', []);
+        $labels = $request->input('labels', []);
+        $customJql = $request->input('custom_jql', '');
+        $mappings = $request->input('mappings', []);
+        $sampleSize = $request->input('sample_size', 20);
+        $currentTeamId = session('current_team');
+
+        try {
+            $jiraService = $this->getJiraServiceForTeam($currentTeamId);
+
+            // Build JQL query
+            $jqlParts = ["project = \"" . str_replace('"', '\"', $jiraProjectKey) . "\""];
+
+            if (!empty($issueTypes)) {
+                $escapedTypes = implode('", "', array_map(fn($t) => str_replace('"', '\"', $t), $issueTypes));
+                $jqlParts[] = "issuetype IN (\"$escapedTypes\")";
+            }
+
+            if (!empty($statuses)) {
+                $escapedStatuses = implode('", "', array_map(fn($s) => str_replace('"', '\"', $s), $statuses));
+                $jqlParts[] = "status IN (\"$escapedStatuses\")";
+            }
+
+            if (!empty($labels)) {
+                $labelConditions = array_map(
+                    fn($l) => "labels = \"" . str_replace('"', '\"', $l) . "\"",
+                    $labels
+                );
+                $jqlParts[] = '(' . implode(' OR ', $labelConditions) . ')';
+            }
+
+            if (!empty($customJql)) {
+                $jqlParts[] = "($customJql)";
+            }
+
+            $jql = implode(' AND ', $jqlParts) . ' ORDER BY created DESC';
+
+            // Fetch sample of issues
+            $issues = $jiraService->getIssuesWithJql(
+                $jql,
+                ['summary', 'issuetype', 'status', 'parent', 'labels'],
+                $sampleSize
+            );
+
+            // Generate preview data
+            $preview = $this->generateImportPreview($issues, $mappings);
+
+            // Get total count (might be more than we fetched for preview)
+            $totalCount = $jiraService->getFilteredIssuesCount(['customJql' => $jql]);
+            $preview['total_issues'] = $totalCount;
+
+            return response()->json([
+                'success' => true,
+                'preview' => $preview
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error generating Jira import preview', [
+                'error' => $e->getMessage(),
+                'jira_project_key' => $jiraProjectKey
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to generate preview: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Helper to generate preview data from issues
+     */
+    private function generateImportPreview(array $issues, array $mappings)
+    {
+        $epicToSuite = $mappings['epic_to_suite'] ?? true;
+        $suites = [];
+        $testCases = [];
+        $epicKeys = [];
+
+        foreach ($issues as $issue) {
+            $issueType = $issue['fields']['issuetype']['name'] ?? 'Unknown';
+            $issueIconUrl = $issue['fields']['issuetype']['iconUrl'] ?? null;
+
+            // Handle epics - create test suites
+            if ($epicToSuite && $issueType === 'Epic') {
+                $epicKeys[] = $issue['key'];
+                $suites[] = [
+                    'name' => $issue['fields']['summary'] ?? "Epic: {$issue['key']}",
+                    'jira_key' => $issue['key'],
+                    'jira_id' => $issue['id'],
+                    'jira_icon_url' => $issueIconUrl
+                ];
+            }
+
+            // Handle non-epic issues - create test cases
+            if ($issueType !== 'Epic') {
+                $parentEpicKey = null;
+
+                // Check if has parent epic
+                if (isset($issue['fields']['parent']) && ($issue['fields']['parent']['fields']['issuetype']['name'] ?? '') === 'Epic') {
+                    $parentEpicKey = $issue['fields']['parent']['key'] ?? null;
+                }
+
+                $testCases[] = [
+                    'title' => $issue['fields']['summary'] ?? "Issue: {$issue['key']}",
+                    'jira_key' => $issue['key'],
+                    'jira_id' => $issue['id'],
+                    'issue_type' => $issueType,
+                    'parent_epic_key' => $parentEpicKey,
+                    'jira_icon_url' => $issueIconUrl
+                ];
+            }
+        }
+
+        return [
+            'test_suites' => $suites,
+            'test_cases' => $testCases,
+            'epic_keys' => $epicKeys
+        ];
     }
 
     /**
@@ -270,5 +569,25 @@ class IntegrationController extends Controller
         }
 
         return redirect()->route('dashboard.integrations.index')->with('info', 'No active Jira integrations found for this team to disconnect.');
+    }
+
+    /**
+     * Helper method to get a JiraService instance for a team
+     */
+    private function getJiraServiceForTeam(string $teamId)
+    {
+        // Find a project with Jira integration in this team
+        $projectWithJira = Project::where('team_id', $teamId)
+            ->whereHas('projectIntegrations', function($query) {
+                $query->whereHas('integration', fn($q) => $q->where('type', Integration::TYPE_JIRA))
+                    ->where('is_active', true);
+            })
+            ->first();
+
+        if (!$projectWithJira) {
+            throw new \Exception("No project found with active Jira integration for this team.");
+        }
+
+        return new JiraService($projectWithJira);
     }
 }

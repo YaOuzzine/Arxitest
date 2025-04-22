@@ -23,45 +23,79 @@ class JiraService
     protected ?string $baseUrl = null;
 
     /**
-     * Constructor - Requires the Arxitest Project context.
+     * Constructor - Works with either Project object or team ID
      *
-     * @param Project $project The Arxitest project linked to the Jira integration.
-     * @throws \Exception If Jira integration is not configured for the project.
+     * @param Project|string $contextOrId Either a Project object or a team ID
+     * @throws \Exception If Jira integration is not configured
      */
-    public function __construct(Project $project)
+    public function __construct($contextOrId)
     {
         $this->clientId = config('services.atlassian.client_id');
         $this->clientSecret = config('services.atlassian.client_secret');
         $this->redirectUri = config('services.atlassian.redirect');
 
-        Log::info("Initializing JiraService for project", [
+        if ($contextOrId instanceof Project) {
+            // Use the project directly
+            $this->initializeFromProject($contextOrId);
+        } else {
+            // Assume it's a team ID, find a project with Jira integration
+            $this->initializeFromTeamId($contextOrId);
+        }
+
+        // Once project integration is initialized, load credentials
+        $this->loadCredentials();
+    }
+
+    /**
+     * Initialize from Project object
+     */
+    private function initializeFromProject(Project $project)
+    {
+        Log::info("Initializing JiraService from project", [
             'project_id' => $project->id,
             'project_name' => $project->name
         ]);
 
-        // Find the active Jira integration linked to this specific Arxitest project
         $this->projectIntegration = ProjectIntegration::where('project_id', $project->id)
             ->whereHas('integration', fn($q) => $q->where('type', Integration::TYPE_JIRA))
             ->where('is_active', true)
             ->first();
 
         if (!$this->projectIntegration) {
-            Log::warning('No active Jira integration found for project', [
-                'project_id' => $project->id
-            ]);
             throw new \Exception("Jira integration is not configured for this project. Please connect Jira first.");
         }
-
-        if (!$this->projectIntegration->encrypted_credentials) {
-            Log::warning('Jira integration has no credentials', [
-                'project_integration_id' => $this->projectIntegration->id
-            ]);
-            throw new \Exception("Jira integration credentials are missing. Please reconnect Jira.");
-        }
-
-        $this->loadCredentials();
     }
 
+    /**
+     * Initialize from Team ID
+     */
+    private function initializeFromTeamId(string $teamId)
+    {
+        Log::info("Initializing JiraService from team ID", [
+            'team_id' => $teamId
+        ]);
+
+        // Find any active project in this team with Jira integration
+        $project = Project::where('team_id', $teamId)
+            ->whereHas('projectIntegrations', function($query) {
+                $query->whereHas('integration', fn($q) => $q->where('type', Integration::TYPE_JIRA))
+                    ->where('is_active', true);
+            })
+            ->first();
+
+        if (!$project) {
+            throw new \Exception("No project found with active Jira integration for this team. Please connect Jira first.");
+        }
+
+        $this->projectIntegration = ProjectIntegration::where('project_id', $project->id)
+            ->whereHas('integration', fn($q) => $q->where('type', Integration::TYPE_JIRA))
+            ->where('is_active', true)
+            ->first();
+
+        if (!$this->projectIntegration) {
+            throw new \Exception("Jira integration configuration not found for the project. Please reconnect Jira.");
+        }
+    }
     /**
      * Load and decrypt credentials.
      * @throws \Exception
