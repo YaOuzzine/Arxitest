@@ -111,6 +111,7 @@
                             <li> <x-nav-link :route="'dashboard'" icon="layout-dashboard">Dashboard</x-nav-link> </li>
                             <li> <x-nav-link :route="'dashboard.projects'" icon="folder-kanban">Projects</x-nav-link> </li>
                             <li> <x-nav-link :route="'dashboard.test-suites.indexAll'" icon="layers-3">Test Suites</x-nav-link> </li>
+                            <li> <x-nav-link :route="'dashboard.stories.indexAll'" icon="file-text">Stories</x-nav-link> </li>
                             {{-- Links using query parameters (adjust route if dedicated routes exist) --}}
                             <li> <x-nav-link :route="'dashboard.test-cases.indexAll'" :params="['page' => 'test-cases']" icon="check-check" :checkQueryParam="true">Test Cases</x-nav-link> </li>
                             <li> <x-nav-link :route="'dashboard'" :params="['page' => 'executions']" icon="play-circle" :checkQueryParam="true">Executions</x-nav-link> </li>
@@ -137,7 +138,7 @@
                              {{-- Links using query parameters (adjust route if dedicated routes exist) --}}
                              <li> <x-nav-link :route="'dashboard.integrations.index'" :params="['page' => 'integrations']" icon="puzzle" :checkQueryParam="true">Integrations</x-nav-link> </li>
                              <li> <x-nav-link :route="'dashboard'" :params="['page' => 'environments']" icon="server" :checkQueryParam="true">Environments</x-nav-link> </li>
-                             <li> <x-nav-link :route="'dashboard'" :params="['page' => 'profile']" icon="user-cog" :checkQueryParam="true">Profile</x-nav-link> </li>
+                             <li> <x-nav-link :route="'dashboard.profile.show'" icon="user-cog">Profile</x-nav-link> </li>
                              <li> <x-nav-link :route="'dashboard'" :params="['page' => 'settings']" icon="settings" :checkQueryParam="true">Settings</x-nav-link> </li>
                         </ul>
                     </div>

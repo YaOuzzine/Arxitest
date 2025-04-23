@@ -7,7 +7,9 @@ use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\JiraImportController;
 use App\Http\Controllers\OAuthController;
 use App\Http\Controllers\PhoneAuthController;
+use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\StoryController;
 use App\Http\Controllers\TeamController;
 use App\Http\Controllers\TestCaseController;
 use App\Http\Controllers\TestDataController;
@@ -178,6 +180,25 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
         Route::post('/generate-ai', [TestDataController::class, 'generateWithAI'])->name('generateAI');
     });
 
+    // Global Stories Index (All projects)
+    Route::get('/dashboard/stories', [StoryController::class, 'indexAll'])
+        ->name('dashboard.stories.indexAll');
+
+    // Story CRUD routes
+    Route::prefix('/dashboard/stories')->name('dashboard.stories.')->group(function () {
+        Route::get('/create', [StoryController::class, 'create'])->name('create');
+        Route::post('/', [StoryController::class, 'store'])->name('store');
+        Route::get('/{story}', [StoryController::class, 'show'])->name('show');
+        Route::get('/{story}/edit', [StoryController::class, 'edit'])->name('edit');
+        Route::put('/{story}', [StoryController::class, 'update'])->name('update');
+        Route::delete('/{story}', [StoryController::class, 'destroy'])->name('destroy');
+    });
+
+    // Project-specific Stories
+    Route::prefix('/dashboard/projects/{project}/stories')->name('dashboard.projects.stories.')->group(function () {
+        Route::get('/', [StoryController::class, 'index'])->name('index');
+    });
+
     Route::get('/dashboard/integrations', [IntegrationController::class, 'index'])
         ->name('dashboard.integrations.index');
     Route::get('/integrations/jira/redirect', [IntegrationController::class, 'jiraRedirect'])
@@ -245,4 +266,20 @@ Route::middleware(['web', 'auth:web'])->group(function () {
         ->name('invitations.accept-directly');
     Route::delete('invitations/reject/{id}', [InvitationController::class, 'reject'])
         ->name('invitations.reject');
+
+    Route::prefix('dashboard/profile')->name('dashboard.profile.')->middleware(['web', 'auth:web'])->group(function () {
+        Route::get('/', [ProfileController::class, 'show'])->name('show');
+        Route::get('/edit', [ProfileController::class, 'edit'])->name('edit');
+        Route::put('/update', [ProfileController::class, 'update'])->name('update');
+        Route::get('/password', [ProfileController::class, 'editPassword'])->name('password');
+        Route::put('/password', [ProfileController::class, 'updatePassword'])->name('password.update');
+        Route::get('/security', [ProfileController::class, 'security'])->name('security');
+        Route::get('/connections', [ProfileController::class, 'connections'])->name('connections');
+        Route::get('/notifications', [ProfileController::class, 'notifications'])->name('notifications');
+    });
+    // Profile notification settings update route
+    Route::put('/dashboard/profile/notifications', [ProfileController::class, 'updateNotifications'])->name('dashboard.profile.notifications.update');
+
+    // OAuth disconnect route (for connected accounts)
+    Route::post('/oauth/disconnect/{provider}', [OAuthController::class, 'disconnect'])->name('oauth.disconnect');
 });

@@ -16,6 +16,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use App\Models\Team;
+use App\Models\TestScript;
+use App\Models\TestCase;
+use Illuminate\Support\Facades\Http;
 
 class JiraImportController extends Controller
 {
@@ -48,7 +51,7 @@ class JiraImportController extends Controller
             // Get existing projects for the option to import into existing project
             $existingProjects = $team->projects()->get(['id', 'name']);
 
-            return view('dashboard.integrations.jira-import', [
+            return view('dashboard.integrations.jira-import-options', [
                 'jiraProjects' => $jiraProjects,
                 'existingProjects' => $existingProjects,
                 'teamName' => $team->name
@@ -78,7 +81,8 @@ class JiraImportController extends Controller
             'import_stories' => 'sometimes|boolean',
             'generate_test_scripts' => 'sometimes|boolean',
             'jql_filter' => 'nullable|string|max:1000',
-            'max_issues' => 'nullable|integer|min:0'
+            'max_issues' => 'nullable|integer|min:0',
+            'generate_test_scripts' => 'sometimes|boolean',
         ]);
 
         $jiraProjectKey = $validated['jira_project_key'];
@@ -90,6 +94,7 @@ class JiraImportController extends Controller
         $maxIssues = $validated['max_issues'] ?? 50;
         $createNewProject = $request->boolean('create_new_project');
         $currentTeamId = session('current_team');
+
 
         if (!$currentTeamId) {
             Log::error('Team context missing during Jira import');
@@ -200,27 +205,46 @@ class JiraImportController extends Controller
             ]);
 
             DB::commit();
+            $testScriptCount = $importResult['testScriptCount'] ?? 0;
 
+            $scriptGenerationStatus = [
+                'attempted' => $generateTestScripts,
+                'count' => $testScriptCount,
+                'errors' => session('script_generation_errors', 0)
+            ];
             // Set success flag in progress tracking
-            $this->setImportCompleted($arxitestProject->id, true, $importResult);
+            $this->setImportCompleted($arxitestProject->id, true, $importResult, null, $scriptGenerationStatus);
 
             Log::info('Jira project import successful', [
                 'jira_key' => $jiraProjectKey,
                 'project_id' => $arxitestProject->id,
-                'stats' => $importResult
+                'stats' => $importResult,
+                'scripts_generated' => $testScriptCount
             ]);
 
             if ($request->wantsJson()) {
                 return response()->json([
                     'success' => true,
                     'message' => "Import completed successfully!",
-                    'data' => $importResult
+                    'data' => $importResult,
+                    'test_scripts' => $scriptGenerationStatus
                 ]);
             }
 
+            $successMessage = "Successfully imported {$importResult['epicCount']} epics and " .
+                "{$importResult['storyCount']} stories, creating {$importResult['testCaseCount']} test cases.";
+
+            if ($generateTestScripts) {
+                if ($testScriptCount > 0) {
+                    $successMessage .= " Generated {$testScriptCount} test scripts.";
+                } else {
+                    $successMessage .= " No test scripts could be generated. Please check the application logs or ensure your OpenAI API key is configured correctly.";
+                }
+            }
+
+
             return redirect()->route('dashboard.projects.show', $arxitestProject->id)
-                ->with('success', "Successfully imported {$importResult['epicCount']} epics, " .
-                    "{$importResult['storyCount']} stories and created {$importResult['testCaseCount']} test cases.");
+                ->with('success', $successMessage);
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Jira import failed', [
@@ -255,6 +279,92 @@ class JiraImportController extends Controller
             }
         });
         return $text;
+    }
+
+    /**
+     * Generate a script for a test case using AI
+     *
+     * @param TestCase $testCase The test case to generate a script for
+     * @param string $framework The framework to use (selenium-python, cypress, etc)
+     * @return string The generated script content
+     */
+    private function generateScriptForTestCase(TestCase $testCase, string $framework): string
+    {
+        // Debug log the API key configuration (masked for security)
+        $apiKey = env('OPENAI_API_KEY', config('services.openai.key'));
+        Log::debug('OpenAI API configuration check', [
+            'api_key_configured' => !empty($apiKey),
+            'api_key_preview' => !empty($apiKey) ? substr($apiKey, 0, 3) . '...' . substr($apiKey, -3) : 'not set'
+        ]);
+        // Prepare the prompt for the AI
+        $prompt = "Generate a test script for the following test case:\n\n";
+        $prompt .= "Title: {$testCase->title}\n";
+        $prompt .= "Steps:\n" . implode("\n", $testCase->steps) . "\n";
+        $prompt .= "Expected Results: {$testCase->expected_results}\n";
+
+        // Call the OpenAI API
+        $apiKey = env('OPENAI_API_KEY', config('services.openai.key'));
+        $model = env('OPENAI_MODEL', config('services.openai.model', 'gpt-4o'));
+
+        Log::info('Generating test script via AI', [
+            'test_case_id' => $testCase->id,
+            'framework' => $framework
+        ]);
+
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer ' . $apiKey,
+            'Content-Type' => 'application/json',
+        ])->timeout(30)
+            ->post('https://api.openai.com/v1/chat/completions', [
+                'model' => $model,
+                'messages' => [
+                    ['role' => 'system', 'content' => $this->getScriptGenerationSystemPrompt($framework)],
+                    ['role' => 'user', 'content' => $prompt],
+                ],
+                'temperature' => 0.7,
+            ]);
+
+        if (!$response->successful()) {
+            Log::error('AI script generation failed', [
+                'status' => $response->status(),
+                'body' => $response->body()
+            ]);
+            throw new \Exception("AI generation failed: " . $response->status());
+        }
+
+        $scriptContent = $response->json('choices.0.message.content');
+
+        // Clean up any possible markdown code blocks
+        $scriptContent = trim(preg_replace('/^```[\w]*\n|```$/m', '', $scriptContent));
+
+        return $scriptContent;
+    }
+
+    /**
+     * Get the system prompt for script generation
+     */
+    private function getScriptGenerationSystemPrompt(string $framework): string
+    {
+        return <<<PROMPT
+You are an AI assistant that specializes in generating test automation scripts. You'll create a test script based on the provided test case information.
+
+Create a complete, working test script using the {$framework} framework. Do not abbreviate or omit parts of the code - generate a complete test script that could be executed.
+
+Follow these specific guidelines:
+1. For selenium-python:
+   - Use Selenium WebDriver with Python
+   - Include proper imports, setup, teardown
+   - Use best practices like explicit waits
+   - Structure as a proper Python test using unittest or pytest
+
+2. For cypress:
+   - Use Cypress JavaScript syntax
+   - Include proper imports, before/after hooks
+   - Follow Cypress best practices
+   - Structure as a proper Cypress test
+
+Your response should be ONLY the code for the test script, without explanations, markdown formatting, or code block markers.
+PROMPT;
     }
     /**
      * Process the import of Jira issues into Arxitest entities
@@ -430,10 +540,89 @@ class JiraImportController extends Controller
 
                 // Generate test scripts if requested - this would be implemented in a real app
                 // For now we just update the progress count
+                // In the processJiraImport method, replace the placeholder with:
                 if ($generateTestScripts) {
-                    $testScriptCount++;
-                    $this->updateImportProgress($project->id, 'testScripts', 1);
+                    // For each test case, generate a script using the AI
+                    try {
+                        $framework = $project->settings['default_framework'] ?? 'selenium-python';
+
+                        // Call the script generation service
+                        $scriptContent = $this->generateScriptForTestCase($testCase, $framework);
+
+                        // Create test script record
+                        $testScript = new TestScript();
+                        $testScript->test_case_id = $testCase->id;
+                        $testScript->creator_id = Auth::id();
+                        $testScript->name = "{$testCase->title} - {$framework} Script";
+                        $testScript->framework_type = $framework;
+                        $testScript->script_content = $scriptContent;
+                        $testScript->metadata = [
+                            'created_through' => 'ai',
+                            'source' => 'jira-import',
+                            'import_batch_id' => $importBatchId
+                        ];
+                        $testScript->save();
+
+                        $testScriptCount++;
+                        $this->updateImportProgress($project->id, 'testScripts', 1);
+                    } catch (\Exception $e) {
+                        // Log error but continue with other test cases
+                        Log::error("Failed to generate script for test case {$testCase->id}", [
+                            'error' => $e->getMessage(),
+                            'test_case' => $testCase->id
+                        ]);
+                    }
                 }
+            }
+        }
+
+        if ($generateTestScripts) {
+            try {
+                // Determine the framework to use
+                $framework = $project->settings['default_framework'] ?? 'selenium-python';
+
+                // Check if OpenAI API key is configured
+                $apiKey = env('OPENAI_API_KEY', config('services.openai.key'));
+                if (empty($apiKey)) {
+                    throw new \Exception("OpenAI API key not configured. Please set OPENAI_API_KEY in your environment.");
+                }
+
+                // Generate script for this test case
+                $scriptContent = $this->generateScriptForTestCase($testCase, $framework);
+
+                // Create the test script record
+                $testScript = new TestScript();
+                $testScript->test_case_id = $testCase->id;
+                $testScript->creator_id = Auth::id();
+                $testScript->name = "{$testCase->title} - {$framework} Script";
+                $testScript->framework_type = $framework;
+                $testScript->script_content = $scriptContent;
+                $testScript->metadata = [
+                    'created_through' => 'ai',
+                    'source' => 'jira-import',
+                    'import_batch_id' => $importBatchId,
+                    'import_timestamp' => $importTimestamp
+                ];
+                $testScript->save();
+
+                $testScriptCount++;
+                $this->updateImportProgress($project->id, 'testScripts', 1);
+
+                Log::info('Generated test script for test case', [
+                    'test_case_id' => $testCase->id,
+                    'test_script_id' => $testScript->id,
+                    'framework' => $framework
+                ]);
+            } catch (\Exception $e) {
+                // Log error but continue with other test cases
+                Log::error("Failed to generate script for test case {$testCase->id}", [
+                    'error' => $e->getMessage(),
+                    'test_case' => $testCase->id
+                ]);
+
+                // Track error count in session for summary
+                $errorCount = session('script_generation_errors', 0);
+                session(['script_generation_errors' => $errorCount + 1]);
             }
         }
 
@@ -534,7 +723,7 @@ class JiraImportController extends Controller
     /**
      * Mark the import as completed.
      */
-    private function setImportCompleted(string $projectId, bool $success, $stats = null, string $error = null)
+    private function setImportCompleted(string $projectId, bool $success, $stats = null, string $error = null, array $scriptStatus = null)
     {
         $cacheKey = "jira_import_progress_{$projectId}";
         $progress = cache()->get($cacheKey, [
@@ -554,6 +743,10 @@ class JiraImportController extends Controller
 
         if ($stats) {
             $progress['stats'] = $stats;
+        }
+
+        if ($scriptStatus) {
+            $progress['script_generation'] = $scriptStatus;
         }
 
         cache()->put($cacheKey, $progress, now()->addHours(1));
