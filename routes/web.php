@@ -9,6 +9,7 @@ use App\Http\Controllers\OAuthController;
 use App\Http\Controllers\PhoneAuthController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\StoryController;
 use App\Http\Controllers\TeamController;
 use App\Http\Controllers\TestCaseController;
@@ -17,6 +18,7 @@ use App\Http\Controllers\TestScriptController;
 use App\Http\Controllers\TestSuiteController;
 use App\Http\Controllers\WebLoginController;
 use Illuminate\Support\Facades\Route;
+use Twilio\Rest\Voice\V1\DialingPermissions\SettingsContext;
 
 /*
 |--------------------------------------------------------------------------
@@ -279,6 +281,7 @@ Route::middleware(['web', 'auth:web'])->group(function () {
     });
     // Profile notification settings update route
     Route::put('/dashboard/profile/notifications', [ProfileController::class, 'updateNotifications'])->name('dashboard.profile.notifications.update');
+    Route::get('/dashboard/settings', [SettingsController::class, 'index'])->name('dashboard.settings.index');
 
     // OAuth disconnect route (for connected accounts)
     Route::post('/oauth/disconnect/{provider}', [OAuthController::class, 'disconnect'])->name('oauth.disconnect');
