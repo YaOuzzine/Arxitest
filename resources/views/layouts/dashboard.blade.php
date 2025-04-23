@@ -183,7 +183,7 @@
                             {{-- Links using query parameters (adjust route if dedicated routes exist) --}}
                             <li> <x-nav-link :route="'dashboard.test-cases.indexAll'" :params="['page' => 'test-cases']" icon="check-check"
                                     :checkQueryParam="true">Test Cases</x-nav-link> </li>
-                            <li> <x-nav-link :route="'dashboard'" :params="['page' => 'executions']" icon="play-circle"
+                            <li> <x-nav-link :route="'dashboard.executions.index'" :params="['page' => 'executions']" icon="play-circle"
                                     :checkQueryParam="true">Executions</x-nav-link> </li>
                         </ul>
                     </div>

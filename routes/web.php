@@ -14,6 +14,7 @@ use App\Http\Controllers\StoryController;
 use App\Http\Controllers\TeamController;
 use App\Http\Controllers\TestCaseController;
 use App\Http\Controllers\TestDataController;
+use App\Http\Controllers\TestExecutionController;
 use App\Http\Controllers\TestScriptController;
 use App\Http\Controllers\TestSuiteController;
 use App\Http\Controllers\WebLoginController;
@@ -286,3 +287,20 @@ Route::middleware(['web', 'auth:web'])->group(function () {
     // OAuth disconnect route (for connected accounts)
     Route::post('/oauth/disconnect/{provider}', [OAuthController::class, 'disconnect'])->name('oauth.disconnect');
 });
+
+// Settings routes
+Route::prefix('dashboard/settings')->name('dashboard.settings.')->middleware(['web', 'auth:web'])->group(function () {
+    Route::get('/', [SettingsController::class, 'index'])->name('index');
+    Route::post('/app', [SettingsController::class, 'updateAppSettings'])->name('app');
+    Route::post('/test-execution', [SettingsController::class, 'updateTestExecutionSettings'])->name('test-execution');
+});
+
+// Test Execution Routes
+Route::prefix('/dashboard/executions')->name('dashboard.executions.')->middleware(['web', 'auth:web', 'require.team'])->group(function () {
+    Route::get('/', [TestExecutionController::class, 'index'])->name('index');
+    Route::get('/create', [TestExecutionController::class, 'create'])->name('create');
+    Route::post('/', [TestExecutionController::class, 'store'])->name('store');
+    Route::get('/{execution}', [TestExecutionController::class, 'show'])->name('show');
+    Route::post('/{execution}/abort', [TestExecutionController::class, 'abort'])->name('abort');
+});
+
