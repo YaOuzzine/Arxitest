@@ -1,4 +1,3 @@
-```blade
 @extends('layouts.dashboard')
 
 @section('title', 'Teams')

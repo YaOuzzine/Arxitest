@@ -129,7 +129,6 @@ class RunTestExecutionJob implements ShouldQueue
 
             // 9. Process test results
             $this->processResults($container);
-
         } catch (\Exception $e) {
             Log::error("Error executing test #{$this->execution->id}: " . $e->getMessage());
 
@@ -163,7 +162,7 @@ class RunTestExecutionJob implements ShouldQueue
      */
     protected function getScriptExtension(string $frameworkType): string
     {
-        return match($frameworkType) {
+        return match ($frameworkType) {
             'selenium-python' => '.py',
             'cypress' => '.js',
             default => '.txt'
@@ -175,7 +174,7 @@ class RunTestExecutionJob implements ShouldQueue
      */
     protected function getDockerImage(string $frameworkType): string
     {
-        return match($frameworkType) {
+        return match ($frameworkType) {
             'selenium-python' => 'arxitest/selenium-python:latest',
             'cypress' => 'arxitest/cypress:latest',
             default => 'alpine:latest' // Fallback image
@@ -213,20 +212,41 @@ class RunTestExecutionJob implements ShouldQueue
 
         Log::info("Monitoring container {$containerId}");
 
+        // Create a log file for this execution
+        $executionLogPath = storage_path("app/executions/{$this->execution->id}/execution_log.txt");
+        if (!is_dir(dirname($executionLogPath))) {
+            mkdir(dirname($executionLogPath), 0755, true);
+        }
+        file_put_contents($executionLogPath, "Starting execution: " . date('Y-m-d H:i:s') . "\n");
+
         while (time() - $startTime < $timeout) {
             // Check container status
             exec("docker inspect --format='{{.State.Status}}' {$containerId} 2>&1", $statusOutput, $statusCode);
 
             if ($statusCode !== 0 || !isset($statusOutput[0])) {
-                Log::error("Failed to get container status: " . implode("\n", $statusOutput));
+                $errorMsg = "Failed to get container status: " . implode("\n", $statusOutput);
+                Log::error($errorMsg);
+                file_put_contents($executionLogPath, $errorMsg . "\n", FILE_APPEND);
                 throw new \Exception("Container monitoring failed");
             }
 
             $containerStatus = trim($statusOutput[0]);
 
+            // Get current logs to track progress
+            exec("docker logs {$containerId} 2>&1", $logsOutput, $logsStatus);
+            if ($logsStatus === 0 && !empty($logsOutput)) {
+                $currentLogs = implode("\n", $logsOutput);
+                file_put_contents($executionLogPath, $currentLogs . "\n", FILE_APPEND);
+
+                // Update execution with current logs for better tracking
+                $this->execution->s3_results_key = "executions/{$this->execution->id}/execution_log.txt";
+                $this->execution->save();
+            }
+
             // If container is no longer running, break the loop
             if ($containerStatus === 'exited' || $containerStatus === 'dead') {
                 Log::info("Container {$containerId} finished with status: {$containerStatus}");
+                file_put_contents($executionLogPath, "Container finished with status: {$containerStatus}\n", FILE_APPEND);
                 break;
             }
 

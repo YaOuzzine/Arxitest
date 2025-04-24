@@ -11,6 +11,7 @@ use App\Models\TestScript;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 
 class TestExecutionController extends Controller
@@ -78,7 +79,6 @@ class TestExecutionController extends Controller
 
             return redirect()->route('dashboard.executions.show', $execution->id)
                 ->with('success', 'Test execution queued successfully!');
-
         } catch (\Exception $e) {
             Log::error('Failed to create test execution: ' . $e->getMessage());
 
@@ -95,7 +95,53 @@ class TestExecutionController extends Controller
     {
         $execution->load(['testScript', 'initiator', 'environment', 'status', 'containers']);
 
-        return view('dashboard.executions.show', compact('execution'));
+        // Get execution logs if available
+        $logs = "";
+        $logPath = storage_path("app/executions/{$execution->id}/execution_log.txt");
+        if (file_exists($logPath)) {
+            $logs = file_get_contents($logPath);
+        } elseif ($execution->s3_results_key) {
+            // Try to get from storage
+            $logs = Storage::exists($execution->s3_results_key) ?
+                Storage::get($execution->s3_results_key) :
+                "Logs not available";
+        }
+
+        // Check container status more directly
+        $containers = $execution->containers;
+        $containerStatus = [];
+
+        foreach ($containers as $container) {
+            $containerId = $container->container_id;
+
+            // Try to get the actual Docker container status
+            try {
+                exec("docker inspect --format='{{.State.Status}}' {$containerId} 2>&1", $statusOutput, $statusCode);
+                $dockerStatus = ($statusCode === 0 && isset($statusOutput[0])) ?
+                    trim($statusOutput[0]) :
+                    'unknown';
+
+                $containerStatus[$containerId] = [
+                    'db_status' => $container->status,
+                    'docker_status' => $dockerStatus,
+                    'start_time' => $container->start_time,
+                    'end_time' => $container->end_time,
+                ];
+            } catch (\Exception $e) {
+                $containerStatus[$containerId] = [
+                    'db_status' => $container->status,
+                    'docker_status' => 'error: ' . $e->getMessage(),
+                    'start_time' => $container->start_time,
+                    'end_time' => $container->end_time,
+                ];
+            }
+        }
+
+        return view('dashboard.executions.show', [
+            'execution' => $execution,
+            'logs' => $logs,
+            'containerStatus' => $containerStatus
+        ]);
     }
 
     /**
@@ -129,7 +175,6 @@ class TestExecutionController extends Controller
 
                 return redirect()->route('dashboard.executions.show', $execution->id)
                     ->with('success', 'Test execution aborted.');
-
             } catch (\Exception $e) {
                 Log::error('Failed to abort test execution: ' . $e->getMessage());
 
