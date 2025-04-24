@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EmailRegistrationController;
+use App\Http\Controllers\EnvironmentController;
 use App\Http\Controllers\IntegrationController;
 use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\JiraImportController;
@@ -304,3 +305,12 @@ Route::prefix('/dashboard/executions')->name('dashboard.executions.')->middlewar
     Route::post('/{execution}/abort', [TestExecutionController::class, 'abort'])->name('abort');
 });
 
+Route::prefix('/dashboard/environments')->name('dashboard.environments.')->middleware(['web', 'auth:web', 'require.team'])->group(function () {
+    Route::get('/', [EnvironmentController::class, 'index'])->name('index');
+    Route::get('/create', [EnvironmentController::class, 'create'])->name('create');
+    Route::post('/', [EnvironmentController::class, 'store'])->name('store');
+    Route::get('/{environment}', [EnvironmentController::class, 'show'])->name('show');
+    Route::get('/{environment}/edit', [EnvironmentController::class, 'edit'])->name('edit');
+    Route::put('/{environment}', [EnvironmentController::class, 'update'])->name('update');
+    Route::delete('/{environment}', [EnvironmentController::class, 'destroy'])->name('destroy');
+});

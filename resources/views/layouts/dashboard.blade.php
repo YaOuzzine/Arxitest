@@ -210,7 +210,7 @@
                             {{-- Links using query parameters (adjust route if dedicated routes exist) --}}
                             <li> <x-nav-link :route="'dashboard.integrations.index'" :params="['page' => 'integrations']" icon="puzzle"
                                     :checkQueryParam="true">Integrations</x-nav-link> </li>
-                            <li> <x-nav-link :route="'dashboard'" :params="['page' => 'environments']" icon="server"
+                            <li> <x-nav-link :route="'dashboard.environments.index'" :params="['page' => 'environments']" icon="server"
                                     :checkQueryParam="true">Environments</x-nav-link> </li>
                             <li> <x-nav-link :route="'dashboard.profile.show'" icon="user-cog">Profile</x-nav-link> </li>
                             <li> <x-nav-link :route="'dashboard.settings.index'" icon="settings">Settings</x-nav-link> </li>

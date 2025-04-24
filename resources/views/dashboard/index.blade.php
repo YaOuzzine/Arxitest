@@ -87,7 +87,7 @@
                 </div>
             </div>
             <p class="stat-card-value text-4xl mb-4">{{ $stats->caseCount ?? 0 }}</p>
-            <a href="{{ route('dashboard.test-suites.indexAll') }}" class="stat-card-link group inline-flex items-center px-3 py-1.5 rounded-lg transition-colors duration-200 bg-green-100/50 dark:bg-green-900/30 hover:bg-green-100 dark:hover:bg-green-900/40 text-green-600 dark:text-green-300">
+            <a href="{{ route('dashboard.test-cases.indexAll') }}" class="stat-card-link group inline-flex items-center px-3 py-1.5 rounded-lg transition-colors duration-200 bg-green-100/50 dark:bg-green-900/30 hover:bg-green-100 dark:hover:bg-green-900/40 text-green-600 dark:text-green-300">
                 Explore Cases <i data-lucide="arrow-right" class="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform"></i>
             </a>
         </div>
