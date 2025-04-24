@@ -79,7 +79,7 @@ class RunTestExecutionJob implements ShouldQueue
 
             // 4. Write test script to file
             $scriptExtension = $this->getScriptExtension($script->framework_type);
-            $scriptPath = $workDir . '/test_script' . $scriptExtension;
+            $scriptPath = $workDir . '/your_tests' . $scriptExtension;
             file_put_contents($scriptPath, $script->script_content);
 
             // 5. Create container record
@@ -104,11 +104,15 @@ class RunTestExecutionJob implements ShouldQueue
             $dockerCommand = [
                 'docker run',
                 "--name {$containerId}",
-                '-d', // Run in detached mode
+                '-d',
                 "--label arxitest_execution_id={$this->execution->id}",
-                "-v {$workDir}:/app",
+                "-v {$workDir}:/tests",
                 $envVars,
-                $dockerImage
+                "--entrypoint python",
+                $dockerImage,
+                "-m",  // Use Python's module running capability
+                "unittest",  // Invoke the unittest module
+                "/tests/your_tests{$scriptExtension}"  // Path to your test file
             ];
             $fullCommand = implode(' ', array_filter($dockerCommand));
 
@@ -220,30 +224,25 @@ class RunTestExecutionJob implements ShouldQueue
         }
         file_put_contents($executionLogPath, "Starting execution: " . date('Y-m-d H:i:s') . "\n");
 
+        // Variables for loop detection
+        $previousLogLength = 0;
+        $testCompletionCount = 0;
+        $maxTestRuns = 2; // Consider complete after detecting 2 test completions
+
         while (time() - $startTime < $timeout) {
-            // Check container status
+            // Check PHP memory usage
             if (memory_get_usage(true) > $memoryLimit) {
                 $errorMsg = "Memory usage exceeded limit. Stopping execution to prevent crash.";
                 Log::error($errorMsg);
                 file_put_contents($executionLogPath, $errorMsg . "\n", FILE_APPEND);
 
-                // Force stop the container
+                // Force stop the container and update status
                 $this->cleanupContainer($containerId);
-
-                // Update execution status
-                $failedStatus = ExecutionStatus::where('name', 'failed')->first();
-                $this->execution->status_id = $failedStatus->id;
-                $this->execution->end_time = now();
-                $this->execution->save();
-
-                // Update container status
-                $container->status = Container::FAILED;
-                $container->end_time = now();
-                $container->save();
-
+                $this->updateExecutionFailure($container, "Memory limit exceeded");
                 throw new \Exception("Memory limit exceeded, execution terminated");
             }
 
+            // Check if container is still running
             exec("docker inspect --format='{{.State.Status}}' {$containerId} 2>&1", $statusOutput, $statusCode);
 
             if ($statusCode !== 0 || !isset($statusOutput[0])) {
@@ -255,17 +254,6 @@ class RunTestExecutionJob implements ShouldQueue
 
             $containerStatus = trim($statusOutput[0]);
 
-            // Get current logs to track progress
-            exec("docker logs {$containerId} 2>&1", $logsOutput, $logsStatus);
-            if ($logsStatus === 0 && !empty($logsOutput)) {
-                $currentLogs = implode("\n", $logsOutput);
-                file_put_contents($executionLogPath, $currentLogs . "\n", FILE_APPEND);
-
-                // Update execution with current logs for better tracking
-                $this->execution->s3_results_key = "executions/{$this->execution->id}/execution_log.txt";
-                $this->execution->save();
-            }
-
             // If container is no longer running, break the loop
             if ($containerStatus === 'exited' || $containerStatus === 'dead') {
                 Log::info("Container {$containerId} finished with status: {$containerStatus}");
@@ -273,23 +261,67 @@ class RunTestExecutionJob implements ShouldQueue
                 break;
             }
 
-            // Collect resource metrics every 15 seconds
+            // Get container logs
+            exec("docker logs {$containerId} 2>&1", $logsOutput, $logsStatus);
+
+            if ($logsStatus === 0 && !empty($logsOutput)) {
+                $currentLogs = implode("\n", $logsOutput);
+                $newLogContent = substr($currentLogs, $previousLogLength);
+
+                // Only append new content to avoid duplicating logs
+                if (!empty($newLogContent)) {
+                    file_put_contents($executionLogPath, $newLogContent, FILE_APPEND);
+                    $previousLogLength = strlen($currentLogs);
+
+                    // Update execution with log path
+                    $this->execution->s3_results_key = "executions/{$this->execution->id}/execution_log.txt";
+                    $this->execution->save();
+                }
+
+                // Detect test completion patterns
+                if (preg_match('/Ran \d+ test.+\nOK\s*$/m', $currentLogs)) {
+                    $testCompletionCount++;
+                    Log::info("Detected test completion #{$testCompletionCount} for container {$containerId}");
+
+                    // If we've detected enough completions, stop the container
+                    if ($testCompletionCount >= $maxTestRuns) {
+                        Log::info("Test run completed successfully. Stopping container {$containerId}");
+                        file_put_contents($executionLogPath, "\n*** Test run completed successfully. Stopping container. ***\n", FILE_APPEND);
+                        exec("docker stop {$containerId} 2>&1");
+                        break;
+                    }
+                }
+
+                // Check for test failures too
+                if (preg_match('/FAILED \(.*\)$/m', $currentLogs)) {
+                    Log::info("Test failure detected. Stopping container {$containerId}");
+                    file_put_contents($executionLogPath, "\n*** Test failure detected. Stopping container. ***\n", FILE_APPEND);
+                    exec("docker stop {$containerId} 2>&1");
+                    break;
+                }
+            }
+
+            // Collect resource metrics at regular intervals
             if (time() % 15 === 0) {
                 $this->collectResourceMetrics($container);
             }
 
+            // Free up memory
             gc_collect_cycles();
 
+            // Wait before next check
             sleep($checkInterval);
         }
 
-        // Check if we hit the timeout
+        // Handle timeout
         if (time() - $startTime >= $timeout) {
             Log::warning("Container {$containerId} execution timed out");
+            file_put_contents($executionLogPath, "\n*** Execution timed out after " . $timeout . " seconds. Stopping container. ***\n", FILE_APPEND);
 
             // Stop the container
             exec("docker stop {$containerId} 2>&1");
 
+            // Update execution and container status
             $timeoutStatus = ExecutionStatus::where('name', 'timeout')->first();
             $this->execution->status_id = $timeoutStatus->id;
             $this->execution->end_time = now();
@@ -301,6 +333,21 @@ class RunTestExecutionJob implements ShouldQueue
 
             throw new \Exception("Test execution timed out");
         }
+    }
+
+    /**
+     * Helper method to update status for failed executions
+     */
+    private function updateExecutionFailure(Container $container, string $reason): void
+    {
+        $failedStatus = ExecutionStatus::where('name', 'failed')->first();
+        $this->execution->status_id = $failedStatus->id;
+        $this->execution->end_time = now();
+        $this->execution->save();
+
+        $container->status = Container::FAILED;
+        $container->end_time = now();
+        $container->save();
     }
 
     /**
@@ -403,10 +450,14 @@ class RunTestExecutionJob implements ShouldQueue
     protected function cleanupContainer($containerId): void
     {
         try {
-            exec("docker rm -f {$containerId} 2>&1", $output, $exitCode);
+            // First stop the container if it's still running
+            exec("docker stop {$containerId} 2>&1", $stopOutput, $stopCode);
 
-            if ($exitCode !== 0) {
-                Log::error("Failed to remove container {$containerId}: " . implode("\n", $output));
+            // Then remove it
+            exec("docker rm {$containerId} 2>&1", $rmOutput, $rmCode);
+
+            if ($rmCode !== 0) {
+                Log::error("Failed to remove container {$containerId}: " . implode("\n", $rmOutput));
             }
         } catch (\Exception $e) {
             Log::error("Error cleaning up container {$containerId}: " . $e->getMessage());
