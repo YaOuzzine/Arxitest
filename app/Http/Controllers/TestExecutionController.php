@@ -267,6 +267,25 @@ class TestExecutionController extends Controller
         ]);
     }
 
+    public function downloadLogs(TestExecution $execution)
+{
+    // Check if the logs file exists
+    $logPath = storage_path("app/executions/{$execution->id}/execution_log.txt");
+
+    if (!file_exists($logPath)) {
+        // Check if logs are in S3/storage instead
+        if ($execution->s3_results_key && Storage::exists($execution->s3_results_key)) {
+            return Storage::download($execution->s3_results_key, "execution_{$execution->id}_logs.txt");
+        }
+
+        // No logs found
+        return redirect()->back()->with('error', 'No logs found for this execution.');
+    }
+
+    // Stream the logs file for download
+    return response()->download($logPath, "execution_{$execution->id}_logs.txt");
+}
+
     // In app/Http/Controllers/TestExecutionController.php
 
     /**

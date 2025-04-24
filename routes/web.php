@@ -309,6 +309,8 @@ Route::get('/emergency-stop/{id}', [TestExecutionController::class, 'emergencySt
     ->name('dashboard.executions.emergency-stop');
 Route::get('/dashboard/executions/{id}/logs', [TestExecutionController::class, 'loadMoreLogs'])
 ->name('dashboard.executions.logs');
+Route::get('/dashboard/executions/{execution}/logs/download', [TestExecutionController::class, 'downloadLogs'])
+    ->name('dashboard.executions.logs.download');
 
 Route::prefix('/dashboard/environments')->name('dashboard.environments.')->middleware(['web', 'auth:web', 'require.team'])->group(function () {
     Route::get('/', [EnvironmentController::class, 'index'])->name('index');
