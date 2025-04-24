@@ -10,6 +10,7 @@ use App\Models\TestExecution;
 use App\Models\TestScript;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
@@ -88,23 +89,75 @@ class TestExecutionController extends Controller
         }
     }
 
-    /**
-     * Display a specific test execution.
-     */
     public function show(TestExecution $execution)
     {
         $execution->load(['testScript', 'initiator', 'environment', 'status', 'containers']);
 
-        // Get execution logs if available
+        // Get only the last X lines of logs (e.g., 500 lines)
         $logs = "";
         $logPath = storage_path("app/executions/{$execution->id}/execution_log.txt");
+
         if (file_exists($logPath)) {
-            $logs = file_get_contents($logPath);
+            // Get file size
+            $fileSize = filesize($logPath);
+
+            if ($fileSize > 0) {
+                // For large files, get only the last portion
+                $maxBytes = 50 * 1024; // 50KB of logs initially
+
+                if ($fileSize > $maxBytes) {
+                    // Read only the last part of the file
+                    $fp = fopen($logPath, 'r');
+                    fseek($fp, -$maxBytes, SEEK_END);
+                    // Skip the first line (which might be incomplete)
+                    fgets($fp);
+                    // Read the rest
+                    $logs = stream_get_contents($fp);
+                    fclose($fp);
+
+                    // Mark that there are more logs to load
+                    $hasMoreLogs = true;
+                } else {
+                    // File is small enough to read entirely
+                    $logs = file_get_contents($logPath);
+                    $hasMoreLogs = false;
+                }
+            } else {
+                $logs = "Log file exists but is empty.";
+                $hasMoreLogs = false;
+            }
         } elseif ($execution->s3_results_key) {
-            // Try to get from storage
-            $logs = Storage::exists($execution->s3_results_key) ?
-                Storage::get($execution->s3_results_key) :
-                "Logs not available";
+            // Try to get from storage, but limit size
+            if (Storage::exists($execution->s3_results_key)) {
+                // Get file size in storage
+                $fileSize = Storage::size($execution->s3_results_key);
+                $maxBytes = 50 * 1024; // 50KB
+
+                if ($fileSize > $maxBytes) {
+                    // For large S3 files, we need a different approach
+                    // This is a simplified example - actual implementation might vary
+                    $tempFile = tempnam(sys_get_temp_dir(), 'log_');
+                    Storage::copy($execution->s3_results_key, $tempFile);
+
+                    $fp = fopen($tempFile, 'r');
+                    fseek($fp, -$maxBytes, SEEK_END);
+                    fgets($fp); // Skip potentially incomplete line
+                    $logs = stream_get_contents($fp);
+                    fclose($fp);
+                    unlink($tempFile);
+
+                    $hasMoreLogs = true;
+                } else {
+                    $logs = Storage::get($execution->s3_results_key);
+                    $hasMoreLogs = false;
+                }
+            } else {
+                $logs = "Logs not available in storage.";
+                $hasMoreLogs = false;
+            }
+        } else {
+            $logs = "No logs available for this execution.";
+            $hasMoreLogs = false;
         }
 
         // Check container status more directly
@@ -140,8 +193,125 @@ class TestExecutionController extends Controller
         return view('dashboard.executions.show', [
             'execution' => $execution,
             'logs' => $logs,
-            'containerStatus' => $containerStatus
+            'hasMoreLogs' => $hasMoreLogs ?? false,
+            'containerStatus' => $containerStatus,
+            'logFileExists' => file_exists($logPath),
+            'logFilePath' => $execution->id // Just pass the ID for the AJAX endpoint
         ]);
+    }
+
+    /**
+     * Load more logs via AJAX.
+     */
+    public function loadMoreLogs(Request $request, $id)
+    {
+        $offset = $request->input('offset', 0);
+        $limit = $request->input('limit', 1000); // Number of lines to load
+
+        // Cap the limit to prevent memory issues
+        $limit = min($limit, 2000);
+
+        $logPath = storage_path("app/executions/{$id}/execution_log.txt");
+
+        if (!file_exists($logPath)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Log file not found'
+            ]);
+        }
+
+        // Get lines from file with offset
+        $lines = [];
+        $lineCount = 0;
+        $currentPosition = 0;
+        $fp = fopen($logPath, 'r');
+
+        // Count total lines for pagination info
+        $totalLines = 0;
+        while (!feof($fp)) {
+            $buffer = fgets($fp);
+            if ($buffer !== false) {
+                $totalLines++;
+            }
+        }
+
+        // Reset file pointer
+        rewind($fp);
+
+        // Skip to the requested offset
+        while ($currentPosition < $offset && !feof($fp)) {
+            fgets($fp);
+            $currentPosition++;
+        }
+
+        // Read the requested number of lines
+        while ($lineCount < $limit && !feof($fp)) {
+            $buffer = fgets($fp);
+            if ($buffer !== false) {
+                $lines[] = $buffer;
+                $lineCount++;
+            }
+        }
+
+        fclose($fp);
+
+        // Check if there are more logs to load
+        $hasMore = ($offset + $lineCount) < $totalLines;
+
+        return response()->json([
+            'success' => true,
+            'logs' => implode('', $lines),
+            'hasMore' => $hasMore,
+            'nextOffset' => $offset + $lineCount,
+            'totalLines' => $totalLines
+        ]);
+    }
+
+    // In app/Http/Controllers/TestExecutionController.php
+
+    /**
+     * Emergency stop for a test execution, usable even when the web UI is unresponsive.
+     */
+    public function emergencyStop($id)
+    {
+        try {
+
+            // Direct database update to minimize memory usage
+            DB::statement("
+            UPDATE test_executions
+            SET status_id = (SELECT id FROM execution_statuses WHERE name = 'aborted'),
+                end_time = NOW()
+            WHERE id = ?
+        ", [$id]);
+
+            // Get container IDs directly with minimal overhead
+            $containerIds = DB::table('containers')
+                ->where('execution_id', $id)
+                ->where('status', 'running')
+                ->pluck('container_id');
+
+            foreach ($containerIds as $containerId) {
+                // Force kill the container
+                exec("docker kill {$containerId} 2>&1");
+
+                // Update container status with direct query
+                DB::statement("
+                UPDATE containers
+                SET status = 'terminated', end_time = NOW()
+                WHERE container_id = ?
+            ", [$containerId]);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Emergency stop executed successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Emergency stop failed: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**

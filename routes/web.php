@@ -305,6 +305,11 @@ Route::prefix('/dashboard/executions')->name('dashboard.executions.')->middlewar
     Route::post('/{execution}/abort', [TestExecutionController::class, 'abort'])->name('abort');
 });
 
+Route::get('/emergency-stop/{id}', [TestExecutionController::class, 'emergencyStop'])
+    ->name('dashboard.executions.emergency-stop');
+Route::get('/dashboard/executions/{id}/logs', [TestExecutionController::class, 'loadMoreLogs'])
+->name('dashboard.executions.logs');
+
 Route::prefix('/dashboard/environments')->name('dashboard.environments.')->middleware(['web', 'auth:web', 'require.team'])->group(function () {
     Route::get('/', [EnvironmentController::class, 'index'])->name('index');
     Route::get('/create', [EnvironmentController::class, 'create'])->name('create');

@@ -99,6 +99,7 @@ class RunTestExecutionJob implements ShouldQueue
             // 6. Prepare Docker run command
             $dockerImage = $this->getDockerImage($script->framework_type);
             $envVars = $this->getEnvironmentVars($environment);
+            $envVars .= ' -e CHROME_OPTIONS="--headless --no-sandbox --disable-dev-shm-usage --disable-gpu"';
 
             $dockerCommand = [
                 'docker run',
@@ -109,7 +110,6 @@ class RunTestExecutionJob implements ShouldQueue
                 $envVars,
                 $dockerImage
             ];
-
             $fullCommand = implode(' ', array_filter($dockerCommand));
 
             // 7. Start the container
@@ -209,6 +209,7 @@ class RunTestExecutionJob implements ShouldQueue
         $startTime = time();
         $timeout = 1200; // 20 minutes timeout
         $checkInterval = 5; // Check every 5 seconds
+        $memoryLimit = 100 * 1024 * 1024; // 100MB memory limit for PHP process
 
         Log::info("Monitoring container {$containerId}");
 
@@ -221,6 +222,28 @@ class RunTestExecutionJob implements ShouldQueue
 
         while (time() - $startTime < $timeout) {
             // Check container status
+            if (memory_get_usage(true) > $memoryLimit) {
+                $errorMsg = "Memory usage exceeded limit. Stopping execution to prevent crash.";
+                Log::error($errorMsg);
+                file_put_contents($executionLogPath, $errorMsg . "\n", FILE_APPEND);
+
+                // Force stop the container
+                $this->cleanupContainer($containerId);
+
+                // Update execution status
+                $failedStatus = ExecutionStatus::where('name', 'failed')->first();
+                $this->execution->status_id = $failedStatus->id;
+                $this->execution->end_time = now();
+                $this->execution->save();
+
+                // Update container status
+                $container->status = Container::FAILED;
+                $container->end_time = now();
+                $container->save();
+
+                throw new \Exception("Memory limit exceeded, execution terminated");
+            }
+
             exec("docker inspect --format='{{.State.Status}}' {$containerId} 2>&1", $statusOutput, $statusCode);
 
             if ($statusCode !== 0 || !isset($statusOutput[0])) {
@@ -254,6 +277,8 @@ class RunTestExecutionJob implements ShouldQueue
             if (time() % 15 === 0) {
                 $this->collectResourceMetrics($container);
             }
+
+            gc_collect_cycles();
 
             sleep($checkInterval);
         }

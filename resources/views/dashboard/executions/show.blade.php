@@ -343,6 +343,7 @@
                 @endif
             </div>
             <div class="mt-6">
+
                 <h3 class="text-lg font-semibold text-zinc-900 dark:text-white mb-3">Execution Logs</h3>
 
                 <div class="overflow-x-auto">
@@ -357,7 +358,23 @@
                             </div>
                         </div>
 
-                        <pre class="overflow-auto p-4 bg-zinc-800 text-zinc-100 rounded-lg h-96 text-sm font-mono">{{ $logs }}</pre>
+                        <div class="relative">
+                            @if ($hasMoreLogs)
+                                <button id="load-more-logs"
+                                    class="absolute top-0 left-0 right-0 bg-zinc-700 hover:bg-zinc-600 text-white py-2 text-center w-full z-10 rounded-t-lg">
+                                    Load more logs <i data-lucide="chevron-up" class="inline-block w-4 h-4"></i>
+                                </button>
+                            @endif
+
+                            <pre id="logs-container" class="overflow-auto p-4 bg-zinc-800 text-zinc-100 rounded-lg h-96 text-sm font-mono"
+                                data-execution-id="{{ $logFilePath }}" data-offset="0" data-has-more="{{ $hasMoreLogs ? 'true' : 'false' }}">{{ $logs }}</pre>
+
+                            <div id="logs-loading"
+                                class="hidden absolute inset-0 bg-zinc-800/50 flex items-center justify-center">
+                                <div class="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-indigo-500">
+                                </div>
+                            </div>
+                        </div>
 
                         <div class="mt-4">
                             <h4 class="font-medium text-zinc-700 dark:text-zinc-300 mb-2">Container Status</h4>
@@ -414,6 +431,11 @@
                         <i data-lucide="refresh-cw" class="w-5 h-5 mr-1.5"></i>
                         Refresh Logs
                     </button>
+
+                    <a href="{{ route('dashboard.executions.emergency-stop', $execution->id) }}" class="btn-danger"
+                        onclick="return confirm('Are you sure you want to perform an emergency stop? This is for when the normal abort function is unresponsive.')">
+                        Emergency Stop
+                    </a>
 
                     @if ($execution->status->name === 'running' || $execution->status->name === 'pending')
                         @if (request()->has('refresh'))
@@ -523,5 +545,64 @@
                 window.location.reload();
             }, 5000); // Refresh every 5 seconds
         @endif
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const loadMoreBtn = document.getElementById('load-more-logs');
+            const logsContainer = document.getElementById('logs-container');
+            const logsLoading = document.getElementById('logs-loading');
+
+            if (loadMoreBtn && logsContainer) {
+                loadMoreBtn.addEventListener('click', function() {
+                    const executionId = logsContainer.dataset.executionId;
+                    const currentOffset = parseInt(logsContainer.dataset.offset || 0);
+                    const hasMore = logsContainer.dataset.hasMore === 'true';
+
+                    if (!hasMore) return;
+
+                    // Show loading indicator
+                    if (logsLoading) logsLoading.classList.remove('hidden');
+
+                    // Make AJAX request to load more logs
+                    fetch(`/dashboard/executions/${executionId}/logs?offset=${currentOffset}&limit=1000`, {
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')
+                                    .content
+                            }
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                // Prepend the new logs to the existing ones
+                                logsContainer.textContent = data.logs + logsContainer.textContent;
+
+                                // Update offset for next load
+                                logsContainer.dataset.offset = data.nextOffset;
+                                logsContainer.dataset.hasMore = data.hasMore ? 'true' : 'false';
+
+                                // Hide load more button if no more logs
+                                if (!data.hasMore) {
+                                    loadMoreBtn.classList.add('hidden');
+                                }
+                            } else {
+                                // Handle error
+                                console.error('Failed to load logs:', data.message);
+                                loadMoreBtn.textContent = 'Failed to load more logs';
+                                loadMoreBtn.classList.add('text-red-500');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error loading logs:', error);
+                            loadMoreBtn.textContent = 'Error loading logs';
+                            loadMoreBtn.classList.add('text-red-500');
+                        })
+                        .finally(() => {
+                            // Hide loading indicator
+                            if (logsLoading) logsLoading.classList.add('hidden');
+                        });
+                });
+            }
+        });
     </script>
 @endpush

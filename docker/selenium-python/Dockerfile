@@ -1,18 +1,38 @@
-FROM arxitest/selenium-python
+FROM python:3.9-slim
 
-# Update ChromeDriver to match Chrome version
-RUN apt-get update && apt-get install -y curl unzip \
-    && rm -f /usr/local/bin/chromedriver \
-    && CHROME_VERSION=$(google-chrome --version | grep -oE "[0-9]{1,3}\.[0-9]{1,3}") \
-    && CHROMEDRIVER_VERSION=$(curl -sS "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_$CHROME_VERSION") \
-    && echo "Installing ChromeDriver version: $CHROMEDRIVER_VERSION" \
-    && wget -q "https://chromedriver.storage.googleapis.com/${CHROMEDRIVER_VERSION}/chromedriver_linux64.zip" -O /tmp/chromedriver.zip \
-    && unzip -o /tmp/chromedriver.zip -d /usr/local/bin/ \
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    wget \
+    gnupg \
+    unzip \
+    curl \
+    xvfb \
+    libgconf-2-4
+
+# Install Chrome
+RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
+    && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
+    && apt-get update \
+    && apt-get install -y google-chrome-stable
+
+# Install ChromeDriver that matches Chrome version
+RUN CHROME_VERSION=$(google-chrome --version | grep -oE "[0-9]+\.[0-9]+\.[0-9]+") \
+    && CHROME_MAJOR_VERSION=$(echo $CHROME_VERSION | cut -d '.' -f 1) \
+    && wget -q "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_$CHROME_MAJOR_VERSION" -O chromedriver_version \
+    && CHROMEDRIVER_VERSION=$(cat chromedriver_version) \
+    && wget -q "https://chromedriver.storage.googleapis.com/$CHROMEDRIVER_VERSION/chromedriver_linux64.zip" -O /tmp/chromedriver.zip \
+    && unzip /tmp/chromedriver.zip -d /usr/local/bin/ \
     && rm /tmp/chromedriver.zip \
     && chmod +x /usr/local/bin/chromedriver
 
-# Add additional Chrome flags to fix initialization errors
-RUN echo "export CHROME_OPTS='--no-sandbox --headless --disable-gpu --disable-dev-shm-usage --disable-software-rasterizer --remote-debugging-port=9222'" >> /etc/environment
+# Install Python packages
+RUN pip install --no-cache-dir selenium pytest pytest-html requests
 
-# Test the Chrome setup works
-RUN python -c "from selenium import webdriver; from selenium.webdriver.chrome.options import Options; options = Options(); options.add_argument('--headless'); options.add_argument('--no-sandbox'); options.add_argument('--disable-gpu'); options.add_argument('--disable-dev-shm-usage'); driver = webdriver.Chrome(options=options); print('ChromeDriver works!'); driver.quit()"
+# Add Chrome startup flags to fix container execution issues
+ENV CHROME_OPTIONS="--headless --no-sandbox --disable-dev-shm-usage --disable-gpu"
+
+# Set up working directory
+WORKDIR /app
+
+# Command to run the tests (example)
+CMD ["python", "test_script.py"]
