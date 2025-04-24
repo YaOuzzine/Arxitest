@@ -1,36 +1,43 @@
-$tempDir = "$env:TEMP\chromedriver-update"
-New-Item -Path $tempDir -ItemType Directory -Force
+Param(
+  [string]$ImageName = 'arxitest/selenium-python',
+  [string]$Tag       = 'latest'
+)
 
-# Create the Dockerfile
-@"
-FROM arxitest/selenium-python
+# 1) get the full Chrome version from inside the container
+$verOutput = docker run --rm "$ImageName:$Tag" google-chrome --version 2>$null
+if ($verOutput -match '([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)') {
+  $fullVersion = $Matches[1]
+  Write-Host "Detected Chrome version inside container: $fullVersion"
+} else {
+  Write-Error "Could not detect Chrome version. Got: $verOutput"
+  exit 1
+}
 
-# Get Chrome version
-RUN google-chrome --version | grep -oE "[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}" > /tmp/chrome_version.txt
-RUN cat /tmp/chrome_version.txt | cut -d '.' -f 1 > /tmp/chrome_major.txt
+# 2) build a Dockerfile that pulls that exact driver
+$df = @"
+FROM $ImageName:$Tag
 
-# Remove old ChromeDriver
-RUN rm -f /usr/local/bin/chromedriver
+RUN apt-get update \
+ && apt-get install -y curl unzip \
+ && rm -f /usr/local/bin/chromedriver \
+ && echo 'Downloading matching ChromeDriver $fullVersion …' \
+ && wget -q "https://chromedriver.storage.googleapis.com/$fullVersion/chromedriver_linux64.zip" -O /tmp/chromedriver.zip \
+ && unzip -o /tmp/chromedriver.zip -d /usr/local/bin/ \
+ && chmod +x /usr/local/bin/chromedriver \
+ && rm /tmp/chromedriver.zip
 
-# Install matching ChromeDriver
-RUN CHROME_MAJOR=`$(cat /tmp/chrome_major.txt) && \
-    CHROMEDRIVER_VERSION=`$(curl -sS "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_`$CHROME_MAJOR") && \
-    echo "Installing ChromeDriver version: `$CHROMEDRIVER_VERSION" && \
-    wget -q "https://chromedriver.storage.googleapis.com/`${CHROMEDRIVER_VERSION}/chromedriver_linux64.zip" -O /tmp/chromedriver.zip && \
-    unzip /tmp/chromedriver.zip -d /usr/local/bin/ && \
-    rm /tmp/chromedriver.zip && \
-    chmod +x /usr/local/bin/chromedriver
+# bake in headless flags
+RUN echo "export CHROME_OPTS='--no-sandbox --headless --disable-gpu --disable-dev-shm-usage --remote-debugging-port=9222'" \
+    >> /etc/environment
+"@
 
-# Test if ChromeDriver works
-RUN python -c "import time; from selenium import webdriver; from selenium.webdriver.chrome.options import Options; options = Options(); options.add_argument('--headless'); options.add_argument('--no-sandbox'); options.add_argument('--disable-dev-shm-usage'); driver = webdriver.Chrome(options=options); print('ChromeDriver is working!'); driver.quit()"
-"@ | Out-File -FilePath "$tempDir\Dockerfile" -Encoding ascii
+$dfPath = Join-Path (Get-Location) 'update_chromedriver.dockerfile'
+$df | Out-File -FilePath $dfPath -Encoding ascii
 
-# Build the updated image
-Set-Location $tempDir
-docker build -t arxitest/selenium-python:latest -f Dockerfile .
+# 3) build & tag
+Write-Host "Building $ImageName:$Tag with ChromeDriver $fullVersion" -ForegroundColor Cyan
+docker build -t "$ImageName:$Tag" -f $dfPath .
 
-# Clean up
-Set-Location $env:USERPROFILE
-Remove-Item -Path $tempDir -Recurse -Force
-
-Write-Host "Container updated successfully. Try running your tests now." -ForegroundColor Green
+# 4) cleanup
+Remove-Item $dfPath
+Write-Host "✅ Done! Rebuilt $ImageName:$Tag with matching driver." -ForegroundColor Green

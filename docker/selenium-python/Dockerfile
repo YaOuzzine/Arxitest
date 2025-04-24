@@ -1,38 +1,27 @@
-FROM python:3.9-slim
+# Use the official Python base image
+FROM python:3.12-slim-bookworm
 
-# Install dependencies
-RUN apt-get update && apt-get install -y \
-    wget \
-    gnupg \
-    unzip \
-    curl \
-    xvfb \
-    libgconf-2-4
+# Set up Chrome and system dependencies
+RUN apt-get update -qqy \
+    && apt-get install -qqy --no-install-recommends \
+       wget \
+       gnupg \
+    && wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor > /usr/share/keyrings/googlechrome-linux-keyring.gpg \
+    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/googlechrome-linux-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
+    && apt-get update -qqy \
+    && apt-get install -qqy --no-install-recommends \
+       google-chrome-stable \
+       fonts-ipafont-gothic \
+       fonts-freefont-ttf \
+    && rm -rf /var/lib/apt/lists/* /var/cache/apt/*
 
-# Install Chrome
-RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - \
-    && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
-    && apt-get update \
-    && apt-get install -y google-chrome-stable
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Install ChromeDriver that matches Chrome version
-RUN CHROME_VERSION=$(google-chrome --version | grep -oE "[0-9]+\.[0-9]+\.[0-9]+") \
-    && CHROME_MAJOR_VERSION=$(echo $CHROME_VERSION | cut -d '.' -f 1) \
-    && wget -q "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_$CHROME_MAJOR_VERSION" -O chromedriver_version \
-    && CHROMEDRIVER_VERSION=$(cat chromedriver_version) \
-    && wget -q "https://chromedriver.storage.googleapis.com/$CHROMEDRIVER_VERSION/chromedriver_linux64.zip" -O /tmp/chromedriver.zip \
-    && unzip /tmp/chromedriver.zip -d /usr/local/bin/ \
-    && rm /tmp/chromedriver.zip \
-    && chmod +x /usr/local/bin/chromedriver
+# Copy test files and set working directory
+COPY . /tests
+WORKDIR /tests
 
-# Install Python packages
-RUN pip install --no-cache-dir selenium pytest pytest-html requests
-
-# Add Chrome startup flags to fix container execution issues
-ENV CHROME_OPTIONS="--headless --no-sandbox --disable-dev-shm-usage --disable-gpu"
-
-# Set up working directory
-WORKDIR /app
-
-# Command to run the tests (example)
-CMD ["python", "test_script.py"]
+# Set entrypoint with recommended Chrome flags
+ENTRYPOINT ["python", "-u", "your_tests.py"]
