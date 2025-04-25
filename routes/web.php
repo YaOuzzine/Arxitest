@@ -140,7 +140,6 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
         Route::post('/generate-ai', [TestSuiteController::class, 'generateWithAI'])->name('generateAI');
     });
 
-    // Global Test Cases Index (All projects/suites)
     Route::get('/dashboard/test-cases', [TestCaseController::class, 'indexAll'])
         ->name('dashboard.test-cases.indexAll');
 
@@ -153,17 +152,18 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
         Route::get('/{test_case}/edit', [TestCaseController::class, 'edit'])->name('edit');
         Route::put('/{test_case}', [TestCaseController::class, 'update'])->name('update');
         Route::delete('/{test_case}', [TestCaseController::class, 'destroy'])->name('destroy');
+        Route::post('/generate-ai', [TestCaseController::class, 'generateWithAI'])->name('generateAI');
     });
 
     // Test Suite-specific Test Cases
     Route::prefix('/dashboard/projects/{project}/test-suites/{test_suite}/test-cases')->name('dashboard.projects.test-suites.test-cases.')->group(function () {
-        Route::get('/', [TestCaseController::class, 'indexBySuite'])->name('index');
-        Route::get('/create', [TestCaseController::class, 'createForSuite'])->name('create');
-        Route::post('/', [TestCaseController::class, 'storeForSuite'])->name('store');
-        Route::get('/{test_case}', [TestCaseController::class, 'showForSuite'])->name('show');
-        Route::get('/{test_case}/edit', [TestCaseController::class, 'editForSuite'])->name('edit');
-        Route::put('/{test_case}', [TestCaseController::class, 'updateForSuite'])->name('update');
-        Route::delete('/{test_case}', [TestCaseController::class, 'destroyForSuite'])->name('destroy');
+        Route::get('/', [TestCaseController::class, 'index'])->name('index');
+        Route::get('/create', [TestCaseController::class, 'create'])->name('create');
+        Route::post('/', [TestCaseController::class, 'store'])->name('store');
+        Route::get('/{test_case}', [TestCaseController::class, 'show'])->name('show');
+        Route::get('/{test_case}/edit', [TestCaseController::class, 'edit'])->name('edit');
+        Route::put('/{test_case}', [TestCaseController::class, 'update'])->name('update');
+        Route::delete('/{test_case}', [TestCaseController::class, 'destroy'])->name('destroy');
     });
 
     // Test Scripts Routes
@@ -308,7 +308,7 @@ Route::prefix('/dashboard/executions')->name('dashboard.executions.')->middlewar
 Route::get('/emergency-stop/{id}', [TestExecutionController::class, 'emergencyStop'])
     ->name('dashboard.executions.emergency-stop');
 Route::get('/dashboard/executions/{id}/logs', [TestExecutionController::class, 'loadMoreLogs'])
-->name('dashboard.executions.logs');
+    ->name('dashboard.executions.logs');
 Route::get('/dashboard/executions/{execution}/logs/download', [TestExecutionController::class, 'downloadLogs'])
     ->name('dashboard.executions.logs.download');
 

@@ -178,8 +178,9 @@
                             {{-- Use the nav-link component --}}
                             <li> <x-nav-link :route="'dashboard'" icon="layout-dashboard">Dashboard</x-nav-link> </li>
                             <li> <x-nav-link :route="'dashboard.projects'" icon="folder-kanban">Projects</x-nav-link> </li>
-                            <li> <x-nav-link :route="'dashboard.test-suites.indexAll'" icon="layers-3">Test Suites</x-nav-link> </li>
                             <li> <x-nav-link :route="'dashboard.stories.indexAll'" icon="file-text">Stories</x-nav-link> </li>
+                            <li> <x-nav-link :route="'dashboard.test-suites.indexAll'" icon="layers-3">Test Suites</x-nav-link> </li>
+
                             {{-- Links using query parameters (adjust route if dedicated routes exist) --}}
                             <li> <x-nav-link :route="'dashboard.test-cases.indexAll'" :params="['page' => 'test-cases']" icon="check-check"
                                     :checkQueryParam="true">Test Cases</x-nav-link> </li>

@@ -77,9 +77,10 @@
                         <input type="text" placeholder="Search cases..." class="w-64 pl-9 pr-3 py-2 text-sm rounded-lg border border-zinc-300/80 dark:border-zinc-600/50 bg-white/50 dark:bg-zinc-900/30 focus:ring-1 focus:ring-blue-500 focus:border-blue-500/50">
                         <i data-lucide="search" class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-zinc-400"></i>
                     </div>
-                    <button class="btn-primary inline-flex items-center px-4 py-2">
+                    <a href="{{ route('dashboard.projects.test-suites.test-cases.create', [ $project->id, $testSuite->id ]) }}"
+                        class="btn-primary inline-flex items-center px-4 py-2">
                         <i data-lucide="plus" class="w-4 h-4 mr-2"></i> New Test Case
-                    </button>
+                    </a>
                 </div>
             </div>
 

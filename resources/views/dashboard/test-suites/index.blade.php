@@ -7,7 +7,12 @@
      */
 
     // Determine context: Are we viewing all suites (generic) or suites for a specific project?
-    $isGenericIndex = !isset($project);
+    $selectedProjectId = null;
+    $isGenericIndex = true;
+    if (isset($project)) {
+        $isGenericIndex = false;
+        $selectedProjectId = $project->id;
+    }
 
     // Set Page Title based on context
     $pageTitle = $isGenericIndex ? 'All Test Suites' : 'Test Suites for: ' . $project->name;
@@ -71,12 +76,10 @@
             {{-- "New Test Suite" Button --}}
             <div class="flex-shrink-0">
                 {{-- Link to create route only if project context exists, otherwise suggest selecting a project --}}
-                @if (!$isGenericIndex)
-                    <a id="add-suite-button"
-                        href="{{ $selectedProjectId ? route('dashboard.projects.test-suites.create', $selectedProjectId) : '#' }}"
-                        class="btn-primary {{ !$selectedProjectId ? 'opacity-50 cursor-not-allowed' : '' }}"
-                        {{ !$selectedProjectId ? 'disabled' : '' }}>
-                        {{ $selectedProjectId ? 'Add Test Suite' : 'Select Project to Add Suite' }}
+                @if ($currentProjectId || $selectedProjectId)
+                    <a id="add-suite-button" href="{{ route('dashboard.projects.test-suites.create', [$currentProjectId ?: $selectedProjectId]) }}"
+                        class="btn-primary">
+                        Add Test Suite
                     </a>
                 @else
                     <span
@@ -593,8 +596,8 @@
                     }
 
                     // Debug logs
-                    console.log('Filter initialized with project ID:', this.selectedProjectId);
-                    console.log('Available projects:', this.allProjects);
+                    // console.log('Filter initialized with project ID:', this.selectedProjectId);
+                    // console.log('Available projects:', this.allProjects);
                 },
 
                 toggleDropdown() {
@@ -630,9 +633,9 @@
                     document.querySelector('input[name="project_id"]').value = projectId;
 
                     // Submit the form with a slight delay to ensure the value is set
-                    setTimeout(() => {
-                        document.getElementById('project-filter-form').submit();
-                    }, 50);
+
+                    document.getElementById('project-filter-form').submit();
+
                 }
             }));
         });

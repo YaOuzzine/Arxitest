@@ -2,19 +2,27 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\TestCaseRequest;
 use App\Models\Project;
+use App\Models\Team;
 use App\Models\TestCase;
 use App\Models\TestSuite;
-use App\Models\Team;
+use App\Services\TestCaseService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 
 class TestCaseController extends Controller
 {
+    protected $testCaseService;
+
+    public function __construct(TestCaseService $testCaseService)
+    {
+        $this->testCaseService = $testCaseService;
+    }
+
     /**
      * Authorization check (temporarily disabled like other controllers)
      */
@@ -33,251 +41,283 @@ class TestCaseController extends Controller
             return redirect()->route('dashboard.select-team')->with('error', 'Please select a team first.');
         }
 
-        $team = Team::find($currentTeamId);
-        if (!$team) {
-            Log::warning(
-                'TestCase indexAll access failed: Session team invalid.',
-                ['user_id' => Auth::id(), 'session_current_team' => $currentTeamId]
+        try {
+            $data = $this->testCaseService->getAllTestCasesForTeam(
+                $currentTeamId,
+                [
+                    'project_id' => $request->input('project_id'),
+                    'suite_id' => $request->input('suite_id'),
+                    'search' => $request->input('search'),
+                    'sort' => $request->input('sort', 'updated_at'),
+                    'direction' => $request->input('direction', 'desc')
+                ]
             );
+
+            return view('dashboard.test-cases.index', array_merge($data, [
+                'selectedProjectId' => $request->input('project_id'),
+                'selectedSuiteId' => $request->input('suite_id'),
+                'searchTerm' => $request->search ?? '',
+                'sortField' => $request->input('sort', 'updated_at'),
+                'sortDirection' => $request->input('direction', 'desc')
+            ]));
+        } catch (\Exception $e) {
             session()->forget('current_team');
-            return redirect()->route('dashboard.select-team')->with('error', 'Invalid team selection. Please re-select.');
+            return redirect()->route('dashboard.select-team')->with('error', $e->getMessage());
         }
+    }
 
-        // Get project IDs the current user belongs to within this team
-        $userProjectIds = Auth::user()->teams()
-            ->where('teams.id', $currentTeamId)
-            ->first()?->projects()
-            ->pluck('id');
+    /**
+     * Display a listing of the test cases for a specific project or test suite.
+     */
+    public function index(Request $request, Project $project, ?TestSuite $test_suite = null)
+    {
+        $this->authorizeAccess($project);
 
-        if (is_null($userProjectIds) || $userProjectIds->isEmpty()) {
-            return view('dashboard.test-cases.index', [
-                'testCases' => collect(),
-                'projects' => collect(),
-                'testSuites' => collect(),
-                'team' => $team,
-                'selectedProjectId' => null,
-                'selectedSuiteId' => null
-            ]);
-        }
+        try {
+            if ($test_suite) {
+                $data = $this->testCaseService->getTestCasesForSuite(
+                    $project,
+                    $test_suite,
+                    [
+                        'search' => $request->input('search'),
+                        'sort' => $request->input('sort', 'updated_at'),
+                        'direction' => $request->input('direction', 'desc')
+                    ]
+                );
 
-        // Get projects for filter dropdown
-        $projects = Project::whereIn('id', $userProjectIds)
-            ->orderBy('name')
-            ->get(['id', 'name']);
+                return view('dashboard.test-cases.index', array_merge($data, [
+                    'project' => $project,
+                    'testSuite' => $test_suite,
+                    'searchTerm' => $request->search ?? '',
+                    'sortField' => $request->input('sort', 'updated_at'),
+                    'sortDirection' => $request->input('direction', 'desc')
+                ]));
+            } else {
+                $data = $this->testCaseService->getTestCasesForProject(
+                    $project,
+                    [
+                        'suite_id' => $request->input('suite_id'),
+                        'search' => $request->input('search'),
+                        'sort' => $request->input('sort', 'updated_at'),
+                        'direction' => $request->input('direction', 'desc')
+                    ]
+                );
 
-        // Handle project filter
-        $selectedProjectId = $request->input('project_id');
-        $selectedSuiteId = $request->input('suite_id');
-        $testSuites = collect();
-
-        // Base query for test cases
-        $query = TestCase::query()
-            ->join('test_suites', 'test_cases.suite_id', '=', 'test_suites.id')
-            ->join('projects', 'test_suites.project_id', '=', 'projects.id')
-            ->whereIn('projects.id', $userProjectIds)
-            ->select(
-                'test_cases.*',
-                'test_suites.name as suite_name',
-                'projects.name as project_name',
-                'projects.id as project_id'  // Make sure project_id is explicitly selected
-            );
-
-        // Apply filters if provided
-        if ($selectedProjectId && $projects->contains('id', $selectedProjectId)) {
-            $query->where('projects.id', $selectedProjectId);
-
-            // Get test suites for the selected project
-            $testSuites = TestSuite::where('project_id', $selectedProjectId)
-                ->orderBy('name')
-                ->get(['id', 'name']);
-
-            if ($selectedSuiteId && $testSuites->contains('id', $selectedSuiteId)) {
-                $query->where('test_cases.suite_id', $selectedSuiteId);
+                return view('dashboard.test-cases.index', array_merge($data, [
+                    'project' => $project,
+                    'selectedSuiteId' => $request->input('suite_id'),
+                    'searchTerm' => $request->search ?? '',
+                    'sortField' => $request->input('sort', 'updated_at'),
+                    'sortDirection' => $request->input('direction', 'desc')
+                ]));
             }
+        } catch (\Exception $e) {
+            return back()->with('error', $e->getMessage());
         }
-
-        // Add search query if provided
-        if ($request->has('search') && !empty($request->search)) {
-            $searchTerm = '%' . $request->search . '%';
-            $query->where(function ($q) use ($searchTerm) {
-                $q->where('test_cases.title', 'like', $searchTerm)
-                    ->orWhere('test_cases.expected_results', 'like', $searchTerm);
-            });
-        }
-
-        // Sort options
-        $sortField = $request->input('sort', 'updated_at');
-        $sortDirection = $request->input('direction', 'desc');
-        $allowedSortFields = ['title', 'created_at', 'updated_at'];
-
-        if (in_array($sortField, $allowedSortFields)) {
-            $query->orderBy("test_cases.{$sortField}", $sortDirection);
-        } else {
-            $query->orderBy('test_cases.updated_at', 'desc');
-        }
-
-        // Get paginated results
-        $testCases = $query->paginate(10)->withQueryString();
-
-        return view('dashboard.test-cases.index', [
-            'testCases' => $testCases,
-            'projects' => $projects,
-            'testSuites' => $testSuites,
-            'team' => $team,
-            'selectedProjectId' => $selectedProjectId,
-            'selectedSuiteId' => $selectedSuiteId,
-            'searchTerm' => $request->search ?? '',
-            'sortField' => $sortField,
-            'sortDirection' => $sortDirection
-        ]);
-    }
-
-    /**
-     * Display a listing of the test cases for a specific project.
-     */
-    public function index(Project $project, Request $request)
-    {
-        $this->authorizeAccess($project);
-
-        $testSuites = $project->testSuites()->orderBy('name')->get(['id', 'name']);
-        $selectedSuiteId = $request->input('suite_id');
-
-        $query = TestCase::query()
-            ->join('test_suites', 'test_cases.suite_id', '=', 'test_suites.id')
-            ->where('test_suites.project_id', $project->id)
-            ->select('test_cases.*', 'test_suites.name as suite_name');
-
-        if ($selectedSuiteId && $testSuites->contains('id', $selectedSuiteId)) {
-            $query->where('test_suites.suite_id', $selectedSuiteId);
-        }
-
-        // Add search functionality
-        if ($request->has('search') && !empty($request->search)) {
-            $searchTerm = '%' . $request->search . '%';
-            $query->where(function ($q) use ($searchTerm) {
-                $q->where('test_cases.title', 'like', $searchTerm)
-                    ->orWhere('test_cases.expected_results', 'like', $searchTerm);
-            });
-        }
-
-        // Sorting
-        $sortField = $request->input('sort', 'updated_at');
-        $sortDirection = $request->input('direction', 'desc');
-        $allowedSortFields = ['title', 'created_at', 'updated_at'];
-
-        if (in_array($sortField, $allowedSortFields)) {
-            $query->orderBy("test_cases.{$sortField}", $sortDirection);
-        } else {
-            $query->orderBy('test_cases.updated_at', 'desc');
-        }
-
-        $testCases = $query->paginate(10)->withQueryString();
-
-        return view('dashboard.test-cases.index', [
-            'testCases' => $testCases,
-            'project' => $project,
-            'testSuites' => $testSuites,
-            'selectedSuiteId' => $selectedSuiteId,
-            'searchTerm' => $request->search ?? '',
-            'sortField' => $sortField,
-            'sortDirection' => $sortDirection
-        ]);
-    }
-
-    /**
-     * Display a listing of the test cases for a specific test suite.
-     */
-    public function indexBySuite(Project $project, TestSuite $test_suite, Request $request)
-    {
-        $this->authorizeAccess($project);
-
-        // Ensure the test suite belongs to the project
-        if ($test_suite->project_id !== $project->id) {
-            abort(404, 'Test suite not found in this project.');
-        }
-
-        $query = TestCase::where('suite_id', $test_suite->id);
-
-        // Add search functionality
-        if ($request->has('search') && !empty($request->search)) {
-            $searchTerm = '%' . $request->search . '%';
-            $query->where(function ($q) use ($searchTerm) {
-                $q->where('title', 'like', $searchTerm)
-                    ->orWhere('expected_results', 'like', $searchTerm);
-            });
-        }
-
-        // Sorting
-        $sortField = $request->input('sort', 'updated_at');
-        $sortDirection = $request->input('direction', 'desc');
-        $allowedSortFields = ['title', 'created_at', 'updated_at'];
-
-        if (in_array($sortField, $allowedSortFields)) {
-            $query->orderBy($sortField, $sortDirection);
-        } else {
-            $query->orderBy('updated_at', 'desc');
-        }
-
-        $testCases = $query->paginate(10)->withQueryString();
-
-        return view('dashboard.test-cases.index', [
-            'testCases' => $testCases,
-            'project' => $project,
-            'testSuite' => $test_suite,
-            'searchTerm' => $request->search ?? '',
-            'sortField' => $sortField,
-            'sortDirection' => $sortDirection
-        ]);
     }
 
     /**
      * Show the form for creating a new test case.
      */
-    public function create(Project $project, Request $request)
+    public function create(Project $project, Request $request, ?TestSuite $test_suite = null)
     {
         $this->authorizeAccess($project);
 
-        $testSuites = $project->testSuites()->orderBy('name')->get();
-        $selectedSuiteId = $request->input('suite_id');
+        try {
+            // If a test suite is provided, validate it belongs to the project
+            if ($test_suite) {
+                $this->testCaseService->validateProjectSuiteRelationship($project, $test_suite);
+            }
 
-        $suite = null;
-        if ($selectedSuiteId && $testSuites->contains('id', $selectedSuiteId)) {
-            $suite = $testSuites->firstWhere('id', $selectedSuiteId);
+            $testSuites = $test_suite
+                ? collect([$test_suite])
+                : $project->testSuites()->orderBy('name')->get();
+
+            $selectedSuite = $test_suite ?? null;
+
+            if (!$test_suite) {
+                $selectedSuiteId = $request->input('suite_id');
+                if ($selectedSuiteId) {
+                    $selectedSuite = $testSuites->firstWhere('id', $selectedSuiteId);
+                }
+            }
+
+            return view('dashboard.test-cases.create', [
+                'project' => $project,
+                'testSuites' => $testSuites,
+                'selectedSuite' => $selectedSuite,
+                'priorityOptions' => ['low', 'medium', 'high'],
+                'statusOptions' => ['draft', 'active', 'deprecated', 'archived']
+            ]);
+        } catch (\Exception $e) {
+            return back()->with('error', $e->getMessage());
         }
-
-        return view('dashboard.test-cases.create', [
-            'project' => $project,
-            'testSuites' => $testSuites,
-            'selectedSuite' => $suite,
-            'priorityOptions' => ['low', 'medium', 'high'],
-            'statusOptions' => ['draft', 'active', 'deprecated', 'archived']
-        ]);
     }
 
     /**
-     * Show the form for creating a new test case for a specific suite.
+     * Store a newly created test case.
      */
-    public function createForSuite(Project $project, TestSuite $test_suite)
+    public function store(TestCaseRequest $request, Project $project, ?TestSuite $test_suite = null)
     {
         $this->authorizeAccess($project);
 
-        // Ensure the test suite belongs to the project
-        if ($test_suite->project_id !== $project->id) {
-            abort(404, 'Test suite not found in this project.');
-        }
+        // Get validated data
+        $validatedData = $request->validated();
 
-        return view('dashboard.test-cases.create', [
-            'project' => $project,
-            'testSuites' => collect([$test_suite]),
-            'selectedSuite' => $test_suite,
-            'priorityOptions' => ['low', 'medium', 'high'],
-            'statusOptions' => ['draft', 'active', 'deprecated', 'archived']
-        ]);
+        try {
+            // Use service to store the test case
+            $testCase = $this->testCaseService->store($validatedData, $project, $test_suite);
+
+            // Determine redirect based on context
+            if ($test_suite || $request->has('from_suite')) {
+                return redirect()->route('dashboard.projects.test-suites.test-cases.index', [
+                    $project->id,
+                    $test_suite ? $test_suite->id : $request->input('suite_id')
+                ])->with('success', 'Test case created successfully.');
+            }
+
+            return redirect()->route('dashboard.projects.test-cases.index', $project->id)
+                ->with('success', 'Test case created successfully.');
+        } catch (\Exception $e) {
+            return redirect()->back()->withInput()
+                ->with('error', 'Error creating test case: ' . $e->getMessage());
+        }
     }
 
     /**
-     * Generate test case details using AI.
+     * Display the specified test case.
      */
+    public function show(Project $project, TestCase $test_case, ?TestSuite $test_suite = null)
+    {
+        $this->authorizeAccess($project);
+
+        try {
+            // Get the test case, ensuring it belongs to the project/suite
+            $testCase = $this->testCaseService->getTestCase($project, $test_suite, $test_case);
+
+            // Get the suite (either from parameter or from the test case)
+            $suite = $test_suite ?? $testCase->testSuite;
+
+            // Get related data
+            $relatedCases = TestCase::where('suite_id', $suite->id)
+                ->where('id', '!=', $testCase->id)
+                ->limit(5)
+                ->get();
+
+            return view('dashboard.test-cases.show', [
+                'project' => $project,
+                'testSuite' => $suite,
+                'testCase' => $testCase,
+                'relatedCases' => $relatedCases
+            ]);
+        } catch (\Exception $e) {
+            return back()->with('error', $e->getMessage());
+        }
+    }
+
+    /**
+     * Show the form for editing the specified test case.
+     */
+    public function edit(Project $project, TestCase $test_case, ?TestSuite $test_suite = null)
+    {
+        $this->authorizeAccess($project);
+
+        try {
+            // Get the test case, ensuring it belongs to the project/suite
+            $testCase = $this->testCaseService->getTestCase($project, $test_suite, $test_case);
+
+            // Get the suite (either from parameter or from the test case)
+            $suite = $test_suite ?? $testCase->testSuite;
+
+            $testSuites = $project->testSuites()->orderBy('name')->get();
+
+            return view('dashboard.test-cases.edit', [
+                'project' => $project,
+                'testSuites' => $testSuites,
+                'testCase' => $testCase,
+                'selectedSuite' => $suite,
+                'priorityOptions' => ['low', 'medium', 'high'],
+                'statusOptions' => ['draft', 'active', 'deprecated', 'archived']
+            ]);
+        } catch (\Exception $e) {
+            return back()->with('error', $e->getMessage());
+        }
+    }
+
+    /**
+     * Update the specified test case.
+     */
+    public function update(TestCaseRequest $request, Project $project, TestCase $test_case, ?TestSuite $test_suite = null)
+    {
+        $this->authorizeAccess($project);
+
+        // Get validated data
+        $validatedData = $request->validated();
+
+        try {
+            // Use service to update the test case
+            $testCase = $this->testCaseService->update($test_case, $validatedData, $project, $test_suite);
+
+            // Determine redirect based on context
+            if ($test_suite || $request->input('from_suite')) {
+                return redirect()->route('dashboard.projects.test-suites.test-cases.index', [
+                    $project->id,
+                    $test_suite ? $test_suite->id : $testCase->suite_id
+                ])->with('success', 'Test case updated successfully.');
+            }
+
+            return redirect()->route('dashboard.projects.test-cases.index', $project->id)
+                ->with('success', 'Test case updated successfully.');
+        } catch (\Exception $e) {
+            return redirect()->back()->withInput()
+                ->with('error', 'Error updating test case: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Remove the specified test case.
+     */
+    public function destroy(Project $project, TestCase $test_case, ?TestSuite $test_suite = null)
+    {
+        $this->authorizeAccess($project);
+
+        try {
+            // Get test case title before deletion
+            $testCaseName = $test_case->title;
+
+            // Use service to delete the test case
+            $this->testCaseService->destroy($test_case, $project, $test_suite);
+
+            if (request()->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => "Test case \"{$testCaseName}\" deleted successfully."
+                ]);
+            }
+
+            // Determine redirect based on context
+            if ($test_suite) {
+                return redirect()->route('dashboard.projects.test-suites.test-cases.index', [
+                    $project->id,
+                    $test_suite->id
+                ])->with('success', "Test case \"{$testCaseName}\" deleted successfully.");
+            }
+
+            return redirect()->route('dashboard.projects.test-cases.index', $project->id)
+                ->with('success', "Test case \"{$testCaseName}\" deleted successfully.");
+        } catch (\Exception $e) {
+            if (request()->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Error deleting test case: ' . $e->getMessage()
+                ], 400);
+            }
+
+            return redirect()->back()
+                ->with('error', 'Error deleting test case: ' . $e->getMessage());
+        }
+    }
+
     /**
      * Generate test case details using AI.
      */
@@ -453,314 +493,5 @@ PROMPT;
                 'message' => 'An unexpected error occurred during AI generation: ' . $e->getMessage()
             ], 500);
         }
-    }
-
-    /**
-     * Store a newly created test case.
-     */
-    public function store(Request $request, Project $project)
-    {
-        $this->authorizeAccess($project);
-
-        $validator = Validator::make($request->all(), [
-            'title' => 'required|string|max:200',
-            'description' => 'nullable|string|max:1000',
-            'expected_results' => 'required|string',
-            'steps' => 'required|array|min:1',
-            'steps.*' => 'required|string|max:500',
-            'suite_id' => [
-                'required',
-                function ($attribute, $value, $fail) use ($project) {
-                    $suite = TestSuite::find($value);
-                    if (!$suite || $suite->project_id !== $project->id) {
-                        $fail('The selected test suite is invalid.');
-                    }
-                }
-            ],
-            'priority' => 'required|in:low,medium,high',
-            'status' => 'required|in:draft,active,deprecated,archived',
-            'tags' => 'nullable|array',
-            'tags.*' => 'string|max:50'
-        ]);
-
-        if ($validator->fails()) {
-            return redirect()->back()
-                ->withErrors($validator)
-                ->withInput();
-        }
-
-        // Create the test case
-        $testCase = new TestCase();
-        $testCase->title = $request->input('title');
-        $testCase->description = $request->input('description');
-        $testCase->expected_results = $request->input('expected_results');
-        $testCase->steps = json_encode($request->input('steps')); // JSON encode the steps array
-        $testCase->suite_id = $request->input('suite_id');
-        $testCase->priority = $request->input('priority');
-        $testCase->status = $request->input('status');
-        $testCase->tags = json_encode($request->input('tags', [])); // JSON encode the tags array
-        $testCase->save();
-
-        // Determine where to redirect based on context
-        if ($request->has('from_suite')) {
-            return redirect()->route('dashboard.projects.test-suites.test-cases.index', [
-                $project->id,
-                $request->input('suite_id')
-            ])->with('success', 'Test case created successfully.');
-        }
-
-        return redirect()->route('dashboard.projects.test-cases.index', $project->id)
-            ->with('success', 'Test case created successfully.');
-    }
-
-    /**
-     * Store a test case for a specific suite.
-     */
-    public function storeForSuite(Request $request, Project $project, TestSuite $test_suite)
-    {
-        $this->authorizeAccess($project);
-
-        // Ensure the suite belongs to the project
-        if ($test_suite->project_id !== $project->id) {
-            abort(404, 'Test suite not found in this project.');
-        }
-
-        // Set the suite_id in the request
-        $request->merge(['suite_id' => $test_suite->id]);
-
-        return $this->store($request, $project);
-    }
-
-    /**
-     * Display the specified test case.
-     */
-    public function show(Project $project, TestCase $test_case)
-    {
-        $this->authorizeAccess($project);
-
-        // Ensure test case belongs to a suite in this project
-        $suite = $test_case->testSuite;
-        if (!$suite || $suite->project_id !== $project->id) {
-            abort(404, 'Test case not found in this project.');
-        }
-
-        // Get related data
-        $relatedCases = TestCase::where('suite_id', $suite->id)
-            ->where('id', '!=', $test_case->id)
-            ->limit(5)
-            ->get();
-
-        return view('dashboard.test-cases.show', [
-            'project' => $project,
-            'testSuite' => $suite,
-            'testCase' => $test_case,
-            'relatedCases' => $relatedCases
-        ]);
-    }
-
-    /**
-     * Display the specified test case within a suite context.
-     */
-    public function showForSuite(Project $project, TestSuite $test_suite, TestCase $test_case)
-    {
-        $this->authorizeAccess($project);
-
-        // Ensure test suite belongs to project
-        if ($test_suite->project_id !== $project->id) {
-            abort(404, 'Test suite not found in this project.');
-        }
-
-        // Ensure test case belongs to the suite
-        if ($test_case->suite_id !== $test_suite->id) {
-            abort(404, 'Test case not found in this test suite.');
-        }
-
-        // Get related data
-        $relatedCases = TestCase::where('suite_id', $test_suite->id)
-            ->where('id', '!=', $test_case->id)
-            ->limit(5)
-            ->get();
-
-        return view('dashboard.test-cases.show', [
-            'project' => $project,
-            'testSuite' => $test_suite,
-            'testCase' => $test_case,
-            'relatedCases' => $relatedCases
-        ]);
-    }
-
-    /**
-     * Show the form for editing the specified test case.
-     */
-    public function edit(Project $project, TestCase $test_case)
-    {
-        $this->authorizeAccess($project);
-
-        // Ensure test case belongs to a suite in this project
-        $suite = $test_case->testSuite;
-        if (!$suite || $suite->project_id !== $project->id) {
-            abort(404, 'Test case not found in this project.');
-        }
-
-        $testSuites = $project->testSuites()->orderBy('name')->get();
-
-        return view('dashboard.test-cases.edit', [
-            'project' => $project,
-            'testSuites' => $testSuites,
-            'testCase' => $test_case,
-            'selectedSuite' => $suite,
-            'priorityOptions' => ['low', 'medium', 'high'],
-            'statusOptions' => ['draft', 'active', 'deprecated', 'archived']
-        ]);
-    }
-
-    /**
-     * Update the specified test case.
-     */
-    public function update(Request $request, Project $project, TestCase $test_case)
-    {
-        $this->authorizeAccess($project);
-
-        // Ensure test case belongs to a suite in this project
-        $suite = $test_case->testSuite;
-        if (!$suite || $suite->project_id !== $project->id) {
-            abort(404, 'Test case not found in this project.');
-        }
-
-        $validator = Validator::make($request->all(), [
-            'title' => 'required|string|max:200',
-            'description' => 'nullable|string|max:1000',
-            'expected_results' => 'required|string',
-            'steps' => 'required|array|min:1',
-            'steps.*' => 'required|string|max:500',
-            'suite_id' => [
-                'required',
-                function ($attribute, $value, $fail) use ($project) {
-                    $suite = TestSuite::find($value);
-                    if (!$suite || $suite->project_id !== $project->id) {
-                        $fail('The selected test suite is invalid.');
-                    }
-                }
-            ],
-            'priority' => 'required|in:low,medium,high',
-            'status' => 'required|in:draft,active,deprecated,archived',
-            'tags' => 'nullable|array',
-            'tags.*' => 'string|max:50'
-        ]);
-
-        if ($validator->fails()) {
-            return redirect()->back()
-                ->withErrors($validator)
-                ->withInput();
-        }
-
-        // Update the test case
-        $test_case->title = $request->input('title');
-        $test_case->description = $request->input('description');
-        $test_case->expected_results = $request->input('expected_results');
-        $test_case->steps = $request->input('steps');
-        $test_case->suite_id = $request->input('suite_id');
-        $test_case->priority = $request->input('priority');
-        $test_case->status = $request->input('status');
-        $test_case->tags = $request->input('tags', []);
-        $test_case->save();
-
-        // Determine where to redirect based on context
-        if ($request->input('from_suite')) {
-            return redirect()->route('dashboard.projects.test-suites.test-cases.index', [
-                $project->id,
-                $test_case->suite_id
-            ])->with('success', 'Test case updated successfully.');
-        }
-
-        return redirect()->route('dashboard.projects.test-cases.index', $project->id)
-            ->with('success', 'Test case updated successfully.');
-    }
-
-    /**
-     * Update a test case within a suite context.
-     */
-    public function updateForSuite(Request $request, Project $project, TestSuite $test_suite, TestCase $test_case)
-    {
-        $this->authorizeAccess($project);
-
-        // Ensure test suite belongs to project
-        if ($test_suite->project_id !== $project->id) {
-            abort(404, 'Test suite not found in this project.');
-        }
-
-        // Ensure test case belongs to the suite
-        if ($test_case->suite_id !== $test_suite->id) {
-            abort(404, 'Test case not found in this test suite.');
-        }
-
-        // Pass to main update method with suite context
-        $request->merge(['from_suite' => true]);
-        return $this->update($request, $project, $test_case);
-    }
-
-    /**
-     * Remove the specified test case.
-     */
-    public function destroy(Project $project, TestCase $test_case)
-    {
-        $this->authorizeAccess($project);
-
-        // Ensure test case belongs to a suite in this project
-        $suite = $test_case->testSuite;
-        if (!$suite || $suite->project_id !== $project->id) {
-            abort(404, 'Test case not found in this project.');
-        }
-
-        $testCaseName = $test_case->title;
-        $suiteId = $test_case->suite_id;
-
-        // Delete the test case
-        $test_case->delete();
-
-        if (request()->expectsJson()) {
-            return response()->json([
-                'success' => true,
-                'message' => "Test case \"$testCaseName\" deleted successfully."
-            ]);
-        }
-
-        return redirect()->route('dashboard.projects.test-cases.index', $project->id)
-            ->with('success', "Test case \"$testCaseName\" deleted successfully.");
-    }
-
-    /**
-     * Remove a test case within a suite context.
-     */
-    public function destroyForSuite(Project $project, TestSuite $test_suite, TestCase $test_case)
-    {
-        $this->authorizeAccess($project);
-
-        // Ensure test suite belongs to project
-        if ($test_suite->project_id !== $project->id) {
-            abort(404, 'Test suite not found in this project.');
-        }
-
-        // Ensure test case belongs to the suite
-        if ($test_case->suite_id !== $test_suite->id) {
-            abort(404, 'Test case not found in this test suite.');
-        }
-
-        $testCaseName = $test_case->title;
-
-        // Delete the test case
-        $test_case->delete();
-
-        if (request()->expectsJson()) {
-            return response()->json([
-                'success' => true,
-                'message' => "Test case \"$testCaseName\" deleted successfully."
-            ]);
-        }
-
-        return redirect()->route('dashboard.projects.test-suites.test-cases.index', [
-            $project->id,
-            $test_suite->id
-        ])->with('success', "Test case \"$testCaseName\" deleted successfully.");
     }
 }

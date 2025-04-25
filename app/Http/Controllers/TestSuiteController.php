@@ -68,15 +68,6 @@ class TestSuiteController extends Controller
                              ->where('teams.id', $currentTeamId)
                              ->first()?->projects()->pluck('id'); // Use optional chaining
 
-         if (is_null($userProjectIds)) { // Check if user is not in the team or team has no projects
-            return view('dashboard.test-suites.index', [
-                'testSuites' => $testSuites,
-                'projects' => $projectsForFilter,
-                'team' => $team,
-                'selectedProjectId' => $filterProjectId  // Make sure this is passed
-            ]);
-         }
-
         $projectsForFilter = Project::whereIn('id', $userProjectIds)->orderBy('name')->get(['id', 'name']);
 
         $query = TestSuite::query()

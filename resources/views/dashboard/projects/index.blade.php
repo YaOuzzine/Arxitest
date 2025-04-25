@@ -78,7 +78,7 @@
                                 <button class="project-menu-btn text-zinc-400 dark:text-zinc-500 hover:text-zinc-500 dark:hover:text-zinc-400 p-1 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-700">
                                     <i data-lucide="more-vertical" class="h-5 w-5"></i>
                                 </button>
-                                <div class="dropdown-menu w-40">
+                                <div class="dropdown-menu hidden w-40">
                                     <a href="{{ route('dashboard.projects.show', $project->id) }}" class="block px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700/50">
                                         View Project
                                     </a>
