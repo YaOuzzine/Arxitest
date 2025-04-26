@@ -36,10 +36,8 @@ class TestCaseController extends Controller
      */
     public function indexAll(Request $request)
     {
-        $currentTeamId = session('current_team');
-        if (!$currentTeamId) {
-            return redirect()->route('dashboard.select-team')->with('error', 'Please select a team first.');
-        }
+        $team = $this->getCurrentTeam($request);
+        $currentTeamId = $team->id;
 
         try {
             $data = $this->testCaseService->getAllTestCasesForTeam(

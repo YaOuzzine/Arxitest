@@ -8,34 +8,29 @@ use Illuminate\Support\Facades\DB;
 use App\Models\Team;
 use App\Models\UserSetting;
 use Illuminate\Support\Facades\Log;
+use stdClass;
 
 class SettingsController extends Controller
 {
     /**
      * Show the main settings dashboard.
      */
-    public function index()
+    public function index(Request $request)
     {
         $user = Auth::user();
         if (!$user) {
             return redirect()->route('login');
         }
 
-        $currentTeamId = session('current_team');
-        if (!$currentTeamId) {
-            return redirect()->route('dashboard.select-team')->with('error', 'Please select a team first.');
-        }
+        // Try to get the team from the request (set by middleware)
+        $team = $request->attributes->get('currentTeam');
 
-        // Load team information
-        $team = $user->teams()->find($currentTeamId);
-
+        // If no team is selected or team validation failed in middleware
         if (!$team) {
-            Log::warning('Settings access failed: Session team invalid or user not member.', [
-                'user_id' => $user->id,
-                'session_current_team' => $currentTeamId
+            // Create a view with limited functionality
+            return view('dashboard.settings.no-team', [
+                'user' => $user
             ]);
-            session()->forget('current_team');
-            return redirect()->route('dashboard.select-team')->with('error', 'Invalid team selection. Please re-select.');
         }
 
         // Load stats for the settings dashboard
@@ -53,67 +48,85 @@ class SettingsController extends Controller
     }
 
     /**
- * Update application settings.
- */
-public function updateAppSettings(Request $request)
-{
-    $user = Auth::user();
-    $teamId = session('current_team');
+     * Update application settings.
+     */
+    public function updateAppSettings(Request $request)
+    {
+        $user = Auth::user();
 
-    $validated = $request->validate([
-        'theme' => 'required|in:light,dark,system',
-        'aiEnabled' => 'required|boolean',
-        'defaultTestFramework' => 'required|string',
-        'defaultTestPriority' => 'required|in:low,medium,high',
-        'defaultExecutionMode' => 'required|in:sequential,parallel',
-    ]);
+        // Try to get the team from the request
+        $team = $request->attributes->get('currentTeam');
 
-    // Store in database
-    foreach ($validated as $key => $value) {
-        UserSetting::getOrSet($user->id, $key, $value, $teamId);
+        if (!$team) {
+            return redirect()->route('dashboard.select-team')
+                ->with('error', 'Please select a team before updating settings.');
+        }
+
+        $teamId = $team->id;
+
+        $validated = $request->validate([
+            'theme' => 'required|in:light,dark,system',
+            'aiEnabled' => 'required|boolean',
+            'defaultTestFramework' => 'required|string',
+            'defaultTestPriority' => 'required|in:low,medium,high',
+            'defaultExecutionMode' => 'required|in:sequential,parallel',
+        ]);
+
+        // Store in database
+        foreach ($validated as $key => $value) {
+            UserSetting::getOrSet($user->id, $key, $value, $teamId);
+        }
+
+        // Apply theme immediately via cookie
+        if ($validated['theme'] != 'system') {
+            cookie()->queue('theme', $validated['theme'], 60*24*365); // 1 year
+        } else {
+            cookie()->queue(cookie()->forget('theme'));
+        }
+
+        return redirect()->route('dashboard.settings.index')
+            ->with('success', 'Application settings updated successfully');
     }
-
-    // Apply theme immediately via cookie
-    if ($validated['theme'] != 'system') {
-        cookie()->queue('theme', $validated['theme'], 60*24*365); // 1 year
-    } else {
-        cookie()->queue(cookie()->forget('theme'));
-    }
-
-    return redirect()->route('dashboard.settings.index')
-        ->with('success', 'Application settings updated successfully');
-}
 
     /**
- * Update test execution settings.
- */
-public function updateTestExecutionSettings(Request $request)
-{
-    $user = Auth::user();
-    $teamId = session('current_team');
+     * Update test execution settings.
+     */
+    public function updateTestExecutionSettings(Request $request)
+    {
+        $user = Auth::user();
 
-    $validated = $request->validate([
-        'containerTimeout' => 'required|integer|min:60|max:3600',
-        'defaultPageTimeout' => 'required|integer|min:5|max:300',
-        'screenshotCapture' => 'required|in:always,failures-only,never',
-        'defaultEnvironment' => 'required|string',
-    ]);
+        // Try to get the team from the request
+        $team = $request->attributes->get('currentTeam');
 
-    // Store in database
-    foreach ($validated as $key => $value) {
-        UserSetting::getOrSet($user->id, $key, $value, $teamId);
+        if (!$team) {
+            return redirect()->route('dashboard.select-team')
+                ->with('error', 'Please select a team before updating settings.');
+        }
+
+        $teamId = $team->id;
+
+        $validated = $request->validate([
+            'containerTimeout' => 'required|integer|min:60|max:3600',
+            'defaultPageTimeout' => 'required|integer|min:5|max:300',
+            'screenshotCapture' => 'required|in:always,failures-only,never',
+            'defaultEnvironment' => 'required|string',
+        ]);
+
+        // Store in database
+        foreach ($validated as $key => $value) {
+            UserSetting::getOrSet($user->id, $key, $value, $teamId);
+        }
+
+        return redirect()->route('dashboard.settings.index')
+            ->with('success', 'Test execution settings updated successfully');
     }
-
-    return redirect()->route('dashboard.settings.index')
-        ->with('success', 'Test execution settings updated successfully');
-}
 
     /**
      * Get team statistics for the settings dashboard.
      */
     private function getTeamStats($team)
     {
-        $stats = new \stdClass();
+        $stats = new stdClass();
 
         // Get project count
         $stats->projectCount = $team->projects()->count();
@@ -147,29 +160,29 @@ public function updateTestExecutionSettings(Request $request)
     }
 
     /**
- * Get user preferences from database or use defaults.
- */
-private function getUserPreferences($user, $team)
-{
-    // Get all settings for this user and team
-    $storedSettings = UserSetting::getAllForUser($user->id, $team->id);
+     * Get user preferences from database or use defaults.
+     */
+    private function getUserPreferences($user, $team)
+    {
+        // Get all settings for this user and team
+        $storedSettings = UserSetting::getAllForUser($user->id, $team->id);
 
-    // Define defaults
-    $defaults = [
-        'defaultTestFramework' => 'selenium-python',
-        'defaultExecutionMode' => 'sequential',
-        'defaultEnvironment' => 'development',
-        'containerTimeout' => 600,
-        'theme' => 'system',
-        'aiEnabled' => true,
-        'screenshotCapture' => 'failures-only',
-        'defaultPageTimeout' => 30,
-        'defaultTestPriority' => 'medium',
-    ];
+        // Define defaults
+        $defaults = [
+            'defaultTestFramework' => 'selenium-python',
+            'defaultExecutionMode' => 'sequential',
+            'defaultEnvironment' => 'development',
+            'containerTimeout' => 600,
+            'theme' => 'system',
+            'aiEnabled' => true,
+            'screenshotCapture' => 'failures-only',
+            'defaultPageTimeout' => 30,
+            'defaultTestPriority' => 'medium',
+        ];
 
-    // Merge stored settings with defaults
-    $preferences = array_merge($defaults, $storedSettings);
+        // Merge stored settings with defaults
+        $preferences = array_merge($defaults, $storedSettings);
 
-    return $preferences;
-}
+        return $preferences;
+    }
 }

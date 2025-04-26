@@ -27,13 +27,11 @@ class JiraImportController extends Controller
      */
     public function showImportOptions(Request $request)
     {
-        $teamId = session('current_team');
-        if (! $teamId) {
-            return redirect()->route('dashboard.select-team')->with('error', 'Please select a team first.');
-        }
+        $team = $this->getCurrentTeam($request);
+        $teamId = $team->id;
 
-        $jiraConnected = ProjectIntegration::whereHas('project', fn($q)=>$q->where('team_id',$teamId))
-            ->whereHas('integration', fn($q)=>$q->where('type', Integration::TYPE_JIRA))
+        $jiraConnected = ProjectIntegration::whereHas('project', fn($q) => $q->where('team_id', $teamId))
+            ->whereHas('integration', fn($q) => $q->where('type', Integration::TYPE_JIRA))
             ->where('is_active', true)
             ->exists();
 
@@ -46,14 +44,14 @@ class JiraImportController extends Controller
             $jiraService    = new JiraService($teamId);
             $jiraProjects   = $jiraService->getProjects();
         } catch (\Exception $e) {
-            Log::error('Error fetching Jira projects for import options', ['error'=>$e->getMessage(),'team_id'=>$teamId]);
+            Log::error('Error fetching Jira projects for import options', ['error' => $e->getMessage(), 'team_id' => $teamId]);
             return redirect()->route('dashboard.integrations.index')
-                ->with('error','Could not access Jira projects: '.$e->getMessage());
+                ->with('error', 'Could not access Jira projects: ' . $e->getMessage());
         }
 
-        $existingProjects = $team->projects()->get(['id','name']);
+        $existingProjects = $team->projects()->get(['id', 'name']);
 
-        return view('dashboard.integrations.jira-import-options', compact('jiraProjects','existingProjects','team'));
+        return view('dashboard.integrations.jira-import-options', compact('jiraProjects', 'existingProjects', 'team'));
     }
 
     /**
@@ -76,7 +74,7 @@ class JiraImportController extends Controller
 
         $teamId = session('current_team');
         if (! $teamId) {
-            return redirect()->route('dashboard.select-team')->with('error','Team selection required.');
+            return redirect()->route('dashboard.select-team')->with('error', 'Team selection required.');
         }
 
         if ($request->wantsJson() && $request->input('check_progress')) {
@@ -90,11 +88,11 @@ class JiraImportController extends Controller
                 $name    = $validated['new_project_name'];
                 $project = Project::create([
                     'name'        => $name,
-                    'description' => "Imported from Jira: ".$validated['jira_project_name'],
+                    'description' => "Imported from Jira: " . $validated['jira_project_name'],
                     'team_id'     => $teamId,
-                    'settings'    => ['jira_import'=>['source'=>$validated['jira_project_key'],'date'=>now()->toDateTimeString()]],
+                    'settings'    => ['jira_import' => ['source' => $validated['jira_project_key'], 'date' => now()->toDateTimeString()]],
                 ]);
-                Log::info('Created new project for Jira import',['project_id'=>$project->id,'jira_key'=>$validated['jira_project_key']]);
+                Log::info('Created new project for Jira import', ['project_id' => $project->id, 'jira_key' => $validated['jira_project_key']]);
             } else {
                 $project = Project::findOrFail($validated['arxitest_project_id']);
                 if ($project->team_id !== $teamId) {
@@ -105,27 +103,36 @@ class JiraImportController extends Controller
             $jiraService = new JiraService($teamId);
 
             // Build JQL
-            $jqlParts = ['project = "' . str_replace('"','\"',$validated['jira_project_key']) . '"'];
+            $jqlParts = ['project = "' . str_replace('"', '\"', $validated['jira_project_key']) . '"'];
             $types = [];
             if ($request->boolean('import_epics', true))   $types[] = 'Epic';
-            if ($request->boolean('import_stories',true))  $types = array_merge($types,['Story','Task','Bug']);
+            if ($request->boolean('import_stories', true))  $types = array_merge($types, ['Story', 'Task', 'Bug']);
             if ($types) {
-                $jqlParts[] = 'issueType IN ("'.implode('","',$types).'")';
+                $jqlParts[] = 'issueType IN ("' . implode('","', $types) . '")';
             }
             if ($validated['jql_filter']) {
-                $jqlParts[] = '('.$validated['jql_filter'].')';
+                $jqlParts[] = '(' . $validated['jql_filter'] . ')';
             }
-            $jql = implode(' AND ',$jqlParts) . ' ORDER BY created DESC';
+            $jql = implode(' AND ', $jqlParts) . ' ORDER BY created DESC';
 
             $this->initializeImportProgress($project->id);
 
             $fields = [
-                'summary','description','issuetype','parent',
-                'status','created','updated','labels','priority',
-                'assignee','components','customfield_10005'
+                'summary',
+                'description',
+                'issuetype',
+                'parent',
+                'status',
+                'created',
+                'updated',
+                'labels',
+                'priority',
+                'assignee',
+                'components',
+                'customfield_10005'
             ];
 
-            $issues = $jiraService->getIssuesWithJql($jql,$fields,$validated['max_issues'] ?? 50);
+            $issues = $jiraService->getIssuesWithJql($jql, $fields, $validated['max_issues'] ?? 50);
 
             $result = $this->processJiraImport(
                 $issues,
@@ -144,29 +151,29 @@ class JiraImportController extends Controller
                 true,
                 $result,
                 null,
-                ['attempted'=>$validated['generate_test_scripts']??false,'count'=>$result['testScriptCount']??0]
+                ['attempted' => $validated['generate_test_scripts'] ?? false, 'count' => $result['testScriptCount'] ?? 0]
             );
 
             if ($request->wantsJson()) {
-                return response()->json(['success'=>true,'data'=>$result]);
+                return response()->json(['success' => true, 'data' => $result]);
             }
 
-            return redirect()->route('dashboard.projects.show',$project->id)
-                ->with('success','Imported '.$result['epicCount'].' epics, '.$result['storyCount'].' stories.');
+            return redirect()->route('dashboard.projects.show', $project->id)
+                ->with('success', 'Imported ' . $result['epicCount'] . ' epics, ' . $result['storyCount'] . ' stories.');
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Jira import failed',['error'=>$e->getMessage()]);
+            Log::error('Jira import failed', ['error' => $e->getMessage()]);
 
             if (isset($project)) {
-                $this->setImportCompleted($project->id,false,null,$e->getMessage());
+                $this->setImportCompleted($project->id, false, null, $e->getMessage());
             }
 
             if ($request->wantsJson()) {
-                return response()->json(['success'=>false,'message'=>$e->getMessage()],500);
+                return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
             }
 
             return redirect()->route('dashboard.integrations.index')
-                ->with('error','Import failed: '.$e->getMessage());
+                ->with('error', 'Import failed: ' . $e->getMessage());
         }
     }
 
@@ -174,44 +181,54 @@ class JiraImportController extends Controller
     {
         $projectId = $projectId ?: $request->input('project_id');
         if (! $projectId) {
-            return response()->json(['success'=>true,'progress'=>[
-                'epics'=>0,'stories'=>0,'testCases'=>0,'testScripts'=>0,
-                'completed'=>false,'success'=>null,'error'=>null
+            return response()->json(['success' => true, 'progress' => [
+                'epics' => 0,
+                'stories' => 0,
+                'testCases' => 0,
+                'testScripts' => 0,
+                'completed' => false,
+                'success' => null,
+                'error' => null
             ]]);
         }
 
         $progress = cache()->get("jira_import_progress_{$projectId}", []);
-        return response()->json(['success'=>true,'progress'=>$progress]);
+        return response()->json(['success' => true, 'progress' => $progress]);
     }
 
     protected function initializeImportProgress(string $projectId): void
     {
-        cache()->put("jira_import_progress_{$projectId}",[
-            'epics'=>0,'stories'=>0,'testCases'=>0,'testScripts'=>0,
-            'completed'=>false,'success'=>null,'error'=>null,
-            'start_time'=>now()->timestamp
-        ],3600);
+        cache()->put("jira_import_progress_{$projectId}", [
+            'epics' => 0,
+            'stories' => 0,
+            'testCases' => 0,
+            'testScripts' => 0,
+            'completed' => false,
+            'success' => null,
+            'error' => null,
+            'start_time' => now()->timestamp
+        ], 3600);
     }
 
-    protected function updateImportProgress(string $projectId, string $key, int $inc=1): void
+    protected function updateImportProgress(string $projectId, string $key, int $inc = 1): void
     {
         $keyFull = "jira_import_progress_{$projectId}";
-        $prog = cache()->get($keyFull,[]);
+        $prog = cache()->get($keyFull, []);
         $prog[$key] = ($prog[$key] ?? 0) + $inc;
-        cache()->put($keyFull,$prog,3600);
+        cache()->put($keyFull, $prog, 3600);
     }
 
-    protected function setImportCompleted(string $projectId, bool $success, $stats=null, ?string $error=null, ?array $scriptStatus=null): void
+    protected function setImportCompleted(string $projectId, bool $success, $stats = null, ?string $error = null, ?array $scriptStatus = null): void
     {
         $keyFull = "jira_import_progress_{$projectId}";
-        $prog = cache()->get($keyFull,[]);
+        $prog = cache()->get($keyFull, []);
         $prog['completed'] = true;
         $prog['success']   = $success;
         if ($error     !== null) $prog['error']   = $error;
         if ($stats     !== null) $prog['stats']   = $stats;
-        if ($scriptStatus!==null)$prog['script_generation'] = $scriptStatus;
+        if ($scriptStatus !== null) $prog['script_generation'] = $scriptStatus;
         $prog['end_time'] = now()->timestamp;
-        cache()->put($keyFull,$prog,3600);
+        cache()->put($keyFull, $prog, 3600);
     }
 
     public function extractPlainTextFromAdf(array $doc): string

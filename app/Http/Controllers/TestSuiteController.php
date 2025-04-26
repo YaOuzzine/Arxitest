@@ -31,16 +31,8 @@ class TestSuiteController extends Controller
     // --- indexAll ---
     public function indexAll(Request $request)
     {
-        $currentTeamId = session('current_team');
-        if (!$currentTeamId) {
-             return redirect()->route('dashboard.select-team')->with('error', 'Please select a team first.');
-        }
-        $team = Team::find($currentTeamId); // Find instead of fail to handle invalid session better
-        if (!$team) {
-             Log::warning('TestSuite indexAll access failed: Session team invalid.', ['user_id' => Auth::id(), 'session_current_team' => $currentTeamId]);
-             session()->forget('current_team');
-             return redirect()->route('dashboard.select-team')->with('error', 'Invalid team selection. Please re-select.');
-        }
+        $team = $this->getCurrentTeam($request);
+        $currentTeamId = $team->id;
 
         // Get project IDs the current user actually belongs to within this team
          $userProjectIds = Auth::user()->teams()

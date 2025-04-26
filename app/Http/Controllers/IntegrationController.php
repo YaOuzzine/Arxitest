@@ -25,16 +25,8 @@ class IntegrationController extends Controller
 
     public function index(Request $request)
     {
-        $currentTeamId = session('current_team');
-        if (! $currentTeamId) {
-            return redirect()->route('dashboard.select-team')->with('error', 'Please select a team first.');
-        }
-
-        $team = Team::find($currentTeamId);
-        if (! $team) {
-            session()->forget('current_team');
-            return redirect()->route('dashboard.select-team')->with('error', 'Selected team not found.');
-        }
+        $team = $this->getCurrentTeam($request);
+        $currentTeamId = $team->id;
 
         $jiraConnected = ProjectIntegration::whereHas('project', fn($q) => $q->where('team_id', $currentTeamId))
             ->whereHas('integration', fn($q) => $q->where('type', Integration::TYPE_JIRA))
@@ -51,13 +43,9 @@ class IntegrationController extends Controller
 
     public function jiraRedirect(Request $request)
     {
-        $userId       = Auth::id();
-        $currentTeamId = session('current_team');
-
-        if (! $userId || ! $currentTeamId) {
-            Log::error('Jira redirect without auth or team', ['user' => $userId, 'team' => $currentTeamId]);
-            return redirect()->route('login')->with('error', 'Authentication and team selection required.');
-        }
+        $userId = Auth::id();
+        $team = $this->getCurrentTeam($request);
+        $currentTeamId = $team->id;
 
         $state = OAuthState::generateState($userId, $currentTeamId);
 

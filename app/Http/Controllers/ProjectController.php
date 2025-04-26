@@ -46,25 +46,16 @@ class ProjectController extends Controller
     /**
      * Display a listing of the projects for the current team.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $currentTeamId = session('current_team');
-        if (!$currentTeamId) {
-            return redirect()->route('dashboard.select-team')->with('error', 'Please select a team first.');
-        }
-        $team = Auth::user()?->teams()->find($currentTeamId); // Use optional chaining
-        if (!$team) {
-            Log::warning('Project index access failed: Session team invalid or user not member.', ['user_id' => Auth::id(), 'session_current_team' => $currentTeamId]);
-            session()->forget('current_team');
-            return redirect()->route('dashboard.select-team')->with('error', 'Invalid team selection. Please re-select.');
-        }
+        $team = $this->getCurrentTeam($request);
 
         $projects = $team->projects()->withCount('testSuites')->orderBy('updated_at', 'desc')->get();
         $projects->each(function ($project) {
             // Load test suites with test case counts - more efficient way
             $project->test_cases_count = $project->testSuites()->withCount('testCases')->get(['id', 'project_id'])->sum('test_cases_count');
             // If you have a direct relationship defined (e.g., hasManyThrough testCases):
-            // $project->loadCount('testCases'); // Simpler if relationship exists
+            // $proje ct->loadCount('testCases'); // Simpler if relationship exists
         });
         return view('dashboard.projects.index', compact('projects', 'team'));
     }
@@ -72,18 +63,10 @@ class ProjectController extends Controller
     /**
      * Show the form for creating a new project.
      */
-    public function create()
+    public function create(Request $request)
     {
-        $currentTeamId = session('current_team');
-        if (!$currentTeamId) {
-            return redirect()->route('dashboard.select-team')->with('error', 'Please select a team first.');
-        }
-        $team = Team::find($currentTeamId);
-        if (!$team || !Auth::user()?->teams()->where('teams.id', $currentTeamId)->exists()) { // Use optional chaining
-            Log::warning('Project create form access failed: Session team invalid or user not member.', ['user_id' => Auth::id(), 'session_current_team' => $currentTeamId]);
-            session()->forget('current_team');
-            return redirect()->route('dashboard.select-team')->with('error', 'Invalid team selection. Please re-select.');
-        }
+        $team = $this->getCurrentTeam($request);
+
         return view('dashboard.projects.create', compact('team'));
     }
 
@@ -92,20 +75,11 @@ class ProjectController extends Controller
      */
     public function store(Request $request)
     {
-        $currentTeamId = session('current_team');
+        $team = $this->getCurrentTeam($request);
         $userId = Auth::id();
+        $currentTeamId = $team->id;
 
-        Log::debug('Attempting to store Project.', ['user_id' => $userId, 'session_current_team_at_start' => $currentTeamId ?? 'NOT SET']);
-        if (!$currentTeamId) {
-            Log::error('Project store failed: No current_team found in session.', ['user_id' => $userId]);
-            return redirect()->route('dashboard.select-team')->with('error', 'No team selected. Please select or create a team first.');
-        }
-        if (!Team::where('id', $currentTeamId)->exists()) {
-            Log::error('Project store failed: Team ID from session does not exist in DB.', ['user_id' => $userId, 'session_current_team' => $currentTeamId]);
-            session()->forget('current_team');
-            $request->session()->save();
-            return redirect()->route('dashboard.select-team')->with('error', 'Invalid team data found. Please select your team again.');
-        }
+        Log::debug('Attempting to store Project.', ['user_id' => $userId, 'team_id' => $currentTeamId]);
 
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:100',

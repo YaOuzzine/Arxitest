@@ -14,9 +14,10 @@ class EnvironmentController extends Controller
     /**
      * Display a listing of environments.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $currentTeamId = session('current_team');
+        $team = $this->getCurrentTeam($request);
+        $currentTeamId = $team->id;
 
         // Get global environments
         $globalEnvironments = Environment::where('is_global', true)
@@ -41,9 +42,10 @@ class EnvironmentController extends Controller
     /**
      * Show the form for creating a new environment.
      */
-    public function create()
+    public function create(Request $request)
     {
-        $currentTeamId = session('current_team');
+        $team = $this->getCurrentTeam($request);
+        $currentTeamId = $team->id;
         $projects = Project::where('team_id', $currentTeamId)
             ->orderBy('name')
             ->get(['id', 'name']);
@@ -166,9 +168,10 @@ class EnvironmentController extends Controller
     /**
      * Show the form for editing the environment.
      */
-    public function edit(Environment $environment)
+    public function edit(Request $request, Environment $environment)
     {
-        $currentTeamId = session('current_team');
+        $team = $this->getCurrentTeam($request);
+        $currentTeamId = $team->id;
         $projects = Project::where('team_id', $currentTeamId)
             ->orderBy('name')
             ->get(['id', 'name']);

@@ -18,30 +18,14 @@ use stdClass; // Use stdClass for stats
 
 class DashboardController extends Controller
 {
-    public function showDashboard()
+    public function showDashboard(Request $request)
     {
         $user = Auth::user();
         if (!$user) {
             return redirect()->route('login');
         }
 
-        $currentTeamId = session('current_team');
-        if (!$currentTeamId) {
-            return redirect()->route('dashboard.select-team')->with('error', 'Please select a team first.');
-        }
-
-        $team = $user->teams()
-            ->with([
-                'projects' => function ($query) {
-                    $query->orderBy('updated_at', 'desc')->limit(5)
-                          ->withCount(['testSuites', 'testCases']);
-                },
-                'users' => function ($query) {
-                    // CORRECTED: Select only existing columns
-                    $query->select('users.id', 'name'); // Removed 'profile_photo_path'
-                }
-            ])
-            ->find($currentTeamId);
+        $team = $this->getCurrentTeam($request);
 
         if (!$team) {
             Log::warning('Dashboard access failed: Session team invalid or user not member.', [

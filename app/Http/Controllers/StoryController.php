@@ -24,17 +24,8 @@ class StoryController extends Controller
 
     public function indexAll(Request $request)
     {
-        $currentTeamId = session('current_team');
-        if (!$currentTeamId) {
-            return redirect()->route('dashboard.select-team')->with('error', 'Please select a team first.');
-        }
-
-        $team = Team::find($currentTeamId);
-        if (!$team) {
-            Log::warning('Story indexAll access failed: Session team invalid.', ['user_id' => Auth::id(), 'session_current_team' => $currentTeamId]);
-            session()->forget('current_team');
-            return redirect()->route('dashboard.select-team')->with('error', 'Invalid team selection. Please re-select.');
-        }
+        $team = $this->getCurrentTeam($request);
+        $currentTeamId = $team->id;
 
         // Get project IDs the current user belongs to within this team
         $userProjectIds = Auth::user()->teams()
@@ -160,10 +151,8 @@ class StoryController extends Controller
      */
     public function create(Request $request)
     {
-        $currentTeamId = session('current_team');
-        if (!$currentTeamId) {
-            return redirect()->route('dashboard.select-team')->with('error', 'Please select a team first.');
-        }
+        $team = $this->getCurrentTeam($request);
+        $currentTeamId = $team->id;
 
         // Get all projects for the team
         $projects = Project::where('team_id', $currentTeamId)->get(['id', 'name']);
