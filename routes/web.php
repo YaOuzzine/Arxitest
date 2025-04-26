@@ -106,8 +106,8 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
 
     // Team details and management
     Route::get('/dashboard/teams', [TeamController::class, 'index'])->name('dashboard.teams.index');
-    Route::get('/dashboard/teams/{id}', [TeamController::class, 'show'])->name('teams.show');
-    Route::get('/dashboard/teams/{id}/edit', [TeamController::class, 'edit'])->name('teams.edit');
+    Route::get('/dashboard/teams/{team}', [TeamController::class, 'show'])->name('teams.show');
+    Route::get('/dashboard/teams/{team}/edit', [TeamController::class, 'edit'])->name('teams.edit');
     Route::put('/teams/{id}', [TeamController::class, 'update'])->name('teams.update');
     Route::delete('/teams/{id}', [TeamController::class, 'destroy'])->name('teams.destroy');
 

@@ -27,246 +27,191 @@ class JiraImportController extends Controller
      */
     public function showImportOptions(Request $request)
     {
-        $currentTeamId = session('current_team');
-        if (!$currentTeamId) {
+        $teamId = session('current_team');
+        if (! $teamId) {
             return redirect()->route('dashboard.select-team')->with('error', 'Please select a team first.');
         }
 
-        // Check if Jira is connected for the current team
-        $jiraConnected = $this->isJiraConnectedForTeam($currentTeamId);
+        $jiraConnected = ProjectIntegration::whereHas('project', fn($q)=>$q->where('team_id',$teamId))
+            ->whereHas('integration', fn($q)=>$q->where('type', Integration::TYPE_JIRA))
+            ->where('is_active', true)
+            ->exists();
 
-        if (!$jiraConnected) {
-            return redirect()->route('dashboard.integrations.index')
-                ->with('error', 'Please connect Jira before attempting to import.');
+        if (! $jiraConnected) {
+            return redirect()->route('dashboard.integrations.index')->with('error', 'Please connect Jira before importing.');
         }
 
-        $team = Team::findOrFail($currentTeamId);
-
+        $team = Team::findOrFail($teamId);
         try {
-            // Use the first project with Jira integration to access Jira API
-            $projectWithJira = $this->findProjectWithJiraIntegration($currentTeamId);
-            $jiraService = new JiraService($projectWithJira);
-            $jiraProjects = $jiraService->getProjects();
-
-            // Get existing projects for the option to import into existing project
-            $existingProjects = $team->projects()->get(['id', 'name']);
-
-            return view('dashboard.integrations.jira-import-options', [
-                'jiraProjects' => $jiraProjects,
-                'existingProjects' => $existingProjects,
-                'teamName' => $team->name
-            ]);
+            $jiraService    = new JiraService($teamId);
+            $jiraProjects   = $jiraService->getProjects();
         } catch (\Exception $e) {
-            Log::error('Error fetching Jira projects for import options', [
-                'error' => $e->getMessage(),
-                'team_id' => $currentTeamId
-            ]);
+            Log::error('Error fetching Jira projects for import options', ['error'=>$e->getMessage(),'team_id'=>$teamId]);
             return redirect()->route('dashboard.integrations.index')
-                ->with('error', 'Could not access Jira projects: ' . $e->getMessage());
+                ->with('error','Could not access Jira projects: '.$e->getMessage());
         }
+
+        $existingProjects = $team->projects()->get(['id','name']);
+
+        return view('dashboard.integrations.jira-import-options', compact('jiraProjects','existingProjects','team'));
     }
 
     /**
-     * Import a Jira project, creating a new Arxitest project or importing into existing one
+     * Import a Jira project, creating or using an Arxitest project.
      */
     public function importProject(Request $request)
     {
         $validated = $request->validate([
-            'jira_project_key' => 'required|string|max:100',
-            'jira_project_name' => 'required|string|max:255',
-            'create_new_project' => 'required|boolean',
-            'arxitest_project_id' => 'required_if:create_new_project,false|uuid|exists:projects,id|nullable',
-            'new_project_name' => 'required_if:create_new_project,true|string|max:255|nullable',
-            'import_epics' => 'sometimes|boolean',
-            'import_stories' => 'sometimes|boolean',
-            'generate_test_scripts' => 'sometimes|boolean',
-            'jql_filter' => 'nullable|string|max:1000',
-            'max_issues' => 'nullable|integer|min:0',
-            'generate_test_scripts' => 'sometimes|boolean',
+            'jira_project_key'       => 'required|string|max:100',
+            'jira_project_name'      => 'required|string|max:255',
+            'create_new_project'     => 'required|boolean',
+            'arxitest_project_id'    => 'required_if:create_new_project,false|uuid|exists:projects,id',
+            'new_project_name'       => 'required_if:create_new_project,true|string|max:255',
+            'import_epics'           => 'sometimes|boolean',
+            'import_stories'         => 'sometimes|boolean',
+            'generate_test_scripts'  => 'sometimes|boolean',
+            'jql_filter'             => 'nullable|string|max:1000',
+            'max_issues'             => 'nullable|integer|min:0',
         ]);
 
-        $jiraProjectKey = $validated['jira_project_key'];
-        $jiraProjectName = $validated['jira_project_name'];
-        $importEpics = $request->boolean('import_epics', true);
-        $importStories = $request->boolean('import_stories', true);
-        $generateTestScripts = $request->boolean('generate_test_scripts', false);
-        $jqlFilter = $validated['jql_filter'] ?? '';
-        $maxIssues = $validated['max_issues'] ?? 50;
-        $createNewProject = $request->boolean('create_new_project');
-        $currentTeamId = session('current_team');
-
-
-        if (!$currentTeamId) {
-            Log::error('Team context missing during Jira import');
-            return redirect()->route('dashboard.select-team')
-                ->with('error', 'Team selection required for Jira import.');
+        $teamId = session('current_team');
+        if (! $teamId) {
+            return redirect()->route('dashboard.select-team')->with('error','Team selection required.');
         }
 
-        $team = Team::findOrFail($currentTeamId);
-
-        // Handle AJAX requests for progress updates
         if ($request->wantsJson() && $request->input('check_progress')) {
-            $projectId = $createNewProject ? null : $validated['arxitest_project_id'];
+            $projectId = $request->boolean('create_new_project') ? null : $validated['arxitest_project_id'];
             return $this->getImportProgress($request, $projectId);
         }
 
         DB::beginTransaction();
         try {
-            // Step 1: Determine the project to import into
-            if ($createNewProject) {
-                // Create new Arxitest project
-                $newProjectName = $validated['new_project_name'] ?? $jiraProjectName;
-                $arxitestProject = Project::create([
-                    'name' => $newProjectName,
-                    'description' => "Imported from Jira project: $jiraProjectName",
-                    'team_id' => $currentTeamId,
-                    'settings' => [
-                        'jira_import' => [
-                            'source_project' => $jiraProjectKey,
-                            'import_date' => now()->toDateTimeString()
-                        ]
-                    ]
+            if ($request->boolean('create_new_project')) {
+                $name    = $validated['new_project_name'];
+                $project = Project::create([
+                    'name'        => $name,
+                    'description' => "Imported from Jira: ".$validated['jira_project_name'],
+                    'team_id'     => $teamId,
+                    'settings'    => ['jira_import'=>['source'=>$validated['jira_project_key'],'date'=>now()->toDateTimeString()]],
                 ]);
-                Log::info('Created new project for Jira import', [
-                    'jira_key' => $jiraProjectKey,
-                    'new_project_id' => $arxitestProject->id
-                ]);
+                Log::info('Created new project for Jira import',['project_id'=>$project->id,'jira_key'=>$validated['jira_project_key']]);
             } else {
-                // Use existing project
-                $arxitestProject = Project::findOrFail($validated['arxitest_project_id']);
-
-                // Security check - verify user has access to this project
-                if ($arxitestProject->team_id !== $currentTeamId) {
-                    throw new \Exception('You do not have permission to import into this project.');
+                $project = Project::findOrFail($validated['arxitest_project_id']);
+                if ($project->team_id !== $teamId) {
+                    throw new \Exception('No permission for that project.');
                 }
             }
 
-            // Step 2: Get a Jira service client
-            $projectWithJira = $this->findProjectWithJiraIntegration($currentTeamId);
-            $jiraService = new JiraService($projectWithJira);
+            $jiraService = new JiraService($teamId);
 
-            // Step 3: Build JQL query
-            $jql = 'project = "' . str_replace('"', '\"', $jiraProjectKey) . '"';
-
-            // Add issue type filter based on selection
-            $issueTypes = [];
-            if ($importEpics) $issueTypes[] = 'Epic';
-            if ($importStories) $issueTypes[] = 'Story';
-            // Add Task and Bug as common issue types people want to import
-            if ($importStories) {
-                $issueTypes[] = 'Task';
-                $issueTypes[] = 'Bug';
+            // Build JQL
+            $jqlParts = ['project = "' . str_replace('"','\"',$validated['jira_project_key']) . '"'];
+            $types = [];
+            if ($request->boolean('import_epics', true))   $types[] = 'Epic';
+            if ($request->boolean('import_stories',true))  $types = array_merge($types,['Story','Task','Bug']);
+            if ($types) {
+                $jqlParts[] = 'issueType IN ("'.implode('","',$types).'")';
             }
-
-            if (!empty($issueTypes)) {
-                $jql .= ' AND issueType IN ("' . implode('", "', $issueTypes) . '")';
-            } else {
-                throw new \Exception('No issue types selected for import.');
+            if ($validated['jql_filter']) {
+                $jqlParts[] = '('.$validated['jql_filter'].')';
             }
+            $jql = implode(' AND ',$jqlParts) . ' ORDER BY created DESC';
 
-            // Add custom JQL filter if provided
-            if (!empty($jqlFilter)) {
-                $jql .= ' AND (' . $jqlFilter . ')';
-            }
+            $this->initializeImportProgress($project->id);
 
-            $jql .= ' ORDER BY created DESC';
-
-            // Initialize progress tracking
-            $this->initializeImportProgress($arxitestProject->id);
-
-            // Step 4: Fetch issues with requested fields
             $fields = [
-                'summary',
-                'description',
-                'issuetype',
-                'parent',
-                'status',
-                'created',
-                'updated',
-                'labels',
-                'priority',
-                'assignee',
-                'components',
-                'customfield_10005' // Common field for acceptance criteria
+                'summary','description','issuetype','parent',
+                'status','created','updated','labels','priority',
+                'assignee','components','customfield_10005'
             ];
 
-            Log::info('Fetching Jira issues for import', [
-                'jql' => $jql,
-                'project_id' => $arxitestProject->id
-            ]);
+            $issues = $jiraService->getIssuesWithJql($jql,$fields,$validated['max_issues'] ?? 50);
 
-            $issues = $jiraService->getIssuesWithJql($jql, $fields, $maxIssues);
-
-            // Step 5: Process the import
-            $importResult = $this->processJiraImport($issues, $arxitestProject, [
-                'importEpics' => $importEpics,
-                'importStories' => $importStories,
-                'generateTestScripts' => $generateTestScripts
-            ]);
+            $result = $this->processJiraImport(
+                $issues,
+                $project,
+                [
+                    'importEpics'         => $request->boolean('import_epics', true),
+                    'importStories'       => $request->boolean('import_stories', true),
+                    'generateTestScripts' => $request->boolean('generate_test_scripts', false),
+                ]
+            );
 
             DB::commit();
-            $testScriptCount = $importResult['testScriptCount'] ?? 0;
 
-            $scriptGenerationStatus = [
-                'attempted' => $generateTestScripts,
-                'count' => $testScriptCount,
-                'errors' => session('script_generation_errors', 0)
-            ];
-            // Set success flag in progress tracking
-            $this->setImportCompleted($arxitestProject->id, true, $importResult, null, $scriptGenerationStatus);
-
-            Log::info('Jira project import successful', [
-                'jira_key' => $jiraProjectKey,
-                'project_id' => $arxitestProject->id,
-                'stats' => $importResult,
-                'scripts_generated' => $testScriptCount
-            ]);
+            $this->setImportCompleted(
+                $project->id,
+                true,
+                $result,
+                null,
+                ['attempted'=>$validated['generate_test_scripts']??false,'count'=>$result['testScriptCount']??0]
+            );
 
             if ($request->wantsJson()) {
-                return response()->json([
-                    'success' => true,
-                    'message' => "Import completed successfully!",
-                    'data' => $importResult,
-                    'test_scripts' => $scriptGenerationStatus
-                ]);
+                return response()->json(['success'=>true,'data'=>$result]);
             }
 
-            $successMessage = "Successfully imported {$importResult['epicCount']} epics and " .
-                "{$importResult['storyCount']} stories, creating {$importResult['testCaseCount']} test cases.";
-
-            if ($generateTestScripts) {
-                if ($testScriptCount > 0) {
-                    $successMessage .= " Generated {$testScriptCount} test scripts.";
-                } else {
-                    $successMessage .= " No test scripts could be generated. Please check the application logs or ensure your OpenAI API key is configured correctly.";
-                }
-            }
-
-
-            return redirect()->route('dashboard.projects.show', $arxitestProject->id)
-                ->with('success', $successMessage);
+            return redirect()->route('dashboard.projects.show',$project->id)
+                ->with('success','Imported '.$result['epicCount'].' epics, '.$result['storyCount'].' stories.');
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Jira import failed', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
+            Log::error('Jira import failed',['error'=>$e->getMessage()]);
 
-            // Set error flag in progress tracking
-            if (isset($arxitestProject)) {
-                $this->setImportCompleted($arxitestProject->id, false, null, $e->getMessage());
+            if (isset($project)) {
+                $this->setImportCompleted($project->id,false,null,$e->getMessage());
             }
 
             if ($request->wantsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Import failed: ' . $e->getMessage()
-                ], 500);
+                return response()->json(['success'=>false,'message'=>$e->getMessage()],500);
             }
 
             return redirect()->route('dashboard.integrations.index')
-                ->with('error', 'Import failed: ' . $e->getMessage());
+                ->with('error','Import failed: '.$e->getMessage());
         }
+    }
+
+    public function getImportProgress(Request $request, ?string $projectId = null)
+    {
+        $projectId = $projectId ?: $request->input('project_id');
+        if (! $projectId) {
+            return response()->json(['success'=>true,'progress'=>[
+                'epics'=>0,'stories'=>0,'testCases'=>0,'testScripts'=>0,
+                'completed'=>false,'success'=>null,'error'=>null
+            ]]);
+        }
+
+        $progress = cache()->get("jira_import_progress_{$projectId}", []);
+        return response()->json(['success'=>true,'progress'=>$progress]);
+    }
+
+    protected function initializeImportProgress(string $projectId): void
+    {
+        cache()->put("jira_import_progress_{$projectId}",[
+            'epics'=>0,'stories'=>0,'testCases'=>0,'testScripts'=>0,
+            'completed'=>false,'success'=>null,'error'=>null,
+            'start_time'=>now()->timestamp
+        ],3600);
+    }
+
+    protected function updateImportProgress(string $projectId, string $key, int $inc=1): void
+    {
+        $keyFull = "jira_import_progress_{$projectId}";
+        $prog = cache()->get($keyFull,[]);
+        $prog[$key] = ($prog[$key] ?? 0) + $inc;
+        cache()->put($keyFull,$prog,3600);
+    }
+
+    protected function setImportCompleted(string $projectId, bool $success, $stats=null, ?string $error=null, ?array $scriptStatus=null): void
+    {
+        $keyFull = "jira_import_progress_{$projectId}";
+        $prog = cache()->get($keyFull,[]);
+        $prog['completed'] = true;
+        $prog['success']   = $success;
+        if ($error     !== null) $prog['error']   = $error;
+        if ($stats     !== null) $prog['stats']   = $stats;
+        if ($scriptStatus!==null)$prog['script_generation'] = $scriptStatus;
+        $prog['end_time'] = now()->timestamp;
+        cache()->put($keyFull,$prog,3600);
     }
 
     public function extractPlainTextFromAdf(array $doc): string
@@ -635,122 +580,8 @@ PROMPT;
         ];
     }
 
-    /**
-     * Get the current progress of an import.
-     */
-    public function getImportProgress(Request $request, string $projectId = null)
-    {
-        // If no projectId, try to get it from the request
-        if (!$projectId) {
-            $projectId = $request->input('project_id');
-        }
 
-        // If still no projectId, return empty progress
-        if (!$projectId) {
-            return response()->json([
-                'success' => true,
-                'progress' => [
-                    'epics' => 0,
-                    'stories' => 0,
-                    'testCases' => 0,
-                    'testScripts' => 0,
-                    'completed' => false,
-                    'success' => null,
-                    'error' => null
-                ]
-            ]);
-        }
 
-        $progress = cache()->get("jira_import_progress_{$projectId}", [
-            'epics' => 0,
-            'stories' => 0,
-            'testCases' => 0,
-            'testScripts' => 0,
-            'completed' => false,
-            'success' => null,
-            'error' => null
-        ]);
-
-        return response()->json([
-            'success' => true,
-            'progress' => $progress
-        ]);
-    }
-
-    /**
-     * Initialize import progress tracking
-     */
-    private function initializeImportProgress(string $projectId)
-    {
-        $cacheKey = "jira_import_progress_{$projectId}";
-        $progress = [
-            'epics' => 0,
-            'stories' => 0,
-            'testCases' => 0,
-            'testScripts' => 0,
-            'completed' => false,
-            'success' => null,
-            'error' => null,
-            'start_time' => now()->timestamp
-        ];
-
-        cache()->put($cacheKey, $progress, now()->addHours(1));
-    }
-
-    /**
-     * Update the import progress in cache.
-     */
-    private function updateImportProgress(string $projectId, string $key, int $increment = 1)
-    {
-        $cacheKey = "jira_import_progress_{$projectId}";
-        $progress = cache()->get($cacheKey, [
-            'epics' => 0,
-            'stories' => 0,
-            'testCases' => 0,
-            'testScripts' => 0,
-            'completed' => false,
-            'success' => null,
-            'error' => null
-        ]);
-
-        if (isset($progress[$key])) {
-            $progress[$key] += $increment;
-        }
-
-        cache()->put($cacheKey, $progress, now()->addHours(1));
-    }
-
-    /**
-     * Mark the import as completed.
-     */
-    private function setImportCompleted(string $projectId, bool $success, $stats = null, string $error = null, array $scriptStatus = null)
-    {
-        $cacheKey = "jira_import_progress_{$projectId}";
-        $progress = cache()->get($cacheKey, [
-            'epics' => 0,
-            'stories' => 0,
-            'testCases' => 0,
-            'testScripts' => 0,
-            'completed' => false,
-            'success' => null,
-            'error' => null
-        ]);
-
-        $progress['completed'] = true;
-        $progress['success'] = $success;
-        $progress['error'] = $error;
-        $progress['end_time'] = now()->timestamp;
-
-        if ($stats) {
-            $progress['stats'] = $stats;
-        }
-
-        if ($scriptStatus) {
-            $progress['script_generation'] = $scriptStatus;
-        }
-
-        cache()->put($cacheKey, $progress, now()->addHours(1));
-    }
 
     /**
      * Extract acceptance criteria from Jira issue content.

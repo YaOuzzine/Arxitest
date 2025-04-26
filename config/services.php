@@ -26,13 +26,15 @@ return [
     'openai' => [
         'key' => env('OPENAI_API_KEY'),
         'model' => env('OPENAI_MODEL', 'gpt-4o'),
+        'uri'   => env('OPENAI_API_URI', 'https://api.openai.com/v1'),
     ],
 
-    // config/services.php
     'atlassian' => [
         'client_id' => env('ATLASSIAN_CLIENT_ID'),
         'client_secret' => env('ATLASSIAN_CLIENT_SECRET'),
         'redirect' => env('ATLASSIAN_OAUTH_CALLBACK'),
+        'base_uri'      => env('ATLASSIAN_BASE_URI', 'https://auth.atlassian.com'),
+        'api_uri'       => env('ATLASSIAN_API_URI', 'https://api.atlassian.com'),
     ],
     'ses' => [
         'key' => env('AWS_ACCESS_KEY_ID'),
@@ -54,6 +56,7 @@ return [
         'client_id' => env('GITHUB_OAUTH_CLIENT_ID'),
         'client_secret' => env('GITHUB_OAUTH_CLIENT_SECRET'),
         'redirect' => env('GITHUB_OAUTH_CALLBACK_URL'),
+        'api_uri'       => env('GITHUB_API_URI', 'https://api.github.com'),
     ],
     'google' => [
         'client_id' => env('GOOGLE_OAUTH_CLIENT_ID'),

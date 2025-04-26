@@ -5,787 +5,267 @@ namespace App\Services;
 use App\Models\Integration;
 use App\Models\Project;
 use App\Models\ProjectIntegration;
-use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Crypt;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
+use Exception;
 
 class JiraService
 {
-    protected string $clientId;
-    protected string $clientSecret;
-    protected string $redirectUri;
-    protected ?ProjectIntegration $projectIntegration = null;
-    protected ?array $credentials = null;
-    protected ?string $accessToken = null;
-    protected ?string $cloudId = null;
-    protected ?string $baseUrl = null;
+    protected JiraApiClient       $client;
+    protected ProjectIntegration  $integration;
+    protected string              $accessToken;
+    protected string              $refreshToken;
+    protected int                 $expiresAt;
+    protected string              $cloudId;
 
     /**
-     * Constructor - Works with either Project object or team ID
+     * Constructor - accept Project or team ID
      *
-     * @param Project|string $contextOrId Either a Project object or a team ID
-     * @throws \Exception If Jira integration is not configured
+     * @param  Project|string  $contextOrId
+     * @throws Exception
      */
     public function __construct($contextOrId)
     {
-        $this->clientId = config('services.atlassian.client_id');
-        $this->clientSecret = config('services.atlassian.client_secret');
-        $this->redirectUri = config('services.atlassian.redirect');
+        $this->client = app(JiraApiClient::class);
 
         if ($contextOrId instanceof Project) {
-            // Use the project directly
-            $this->initializeFromProject($contextOrId);
+            $this->initFromProject($contextOrId);
         } else {
-            // Assume it's a team ID, find a project with Jira integration
-            $this->initializeFromTeamId($contextOrId);
+            $this->initFromTeamId($contextOrId);
         }
 
-        // Once project integration is initialized, load credentials
         $this->loadCredentials();
     }
 
-    /**
-     * Initialize from Project object
-     */
-    private function initializeFromProject(Project $project)
+    private function initFromProject(Project $project): void
     {
-        Log::info("Initializing JiraService from project", [
-            'project_id' => $project->id,
-            'project_name' => $project->name
-        ]);
+        Log::info('Initializing JiraService from project', ['project_id' => $project->id]);
 
-        $this->projectIntegration = ProjectIntegration::where('project_id', $project->id)
+        $this->integration = ProjectIntegration::where('project_id', $project->id)
             ->whereHas('integration', fn($q) => $q->where('type', Integration::TYPE_JIRA))
             ->where('is_active', true)
             ->first();
 
-        if (!$this->projectIntegration) {
-            throw new \Exception("Jira integration is not configured for this project. Please connect Jira first.");
+        if (! $this->integration) {
+            throw new Exception('Jira integration not configured for this project.');
         }
     }
 
-    /**
-     * Initialize from Team ID
-     */
-    private function initializeFromTeamId(string $teamId)
+    private function initFromTeamId(string $teamId): void
     {
-        Log::info("Initializing JiraService from team ID", [
-            'team_id' => $teamId
-        ]);
+        Log::info('Initializing JiraService from team ID', ['team_id' => $teamId]);
 
-        // Find any active project in this team with Jira integration
-        $project = Project::where('team_id', $teamId)
-            ->whereHas('projectIntegrations', function($query) {
-                $query->whereHas('integration', fn($q) => $q->where('type', Integration::TYPE_JIRA))
-                    ->where('is_active', true);
-            })
-            ->first();
-
-        if (!$project) {
-            throw new \Exception("No project found with active Jira integration for this team. Please connect Jira first.");
-        }
-
-        $this->projectIntegration = ProjectIntegration::where('project_id', $project->id)
+        $this->integration = ProjectIntegration::whereHas('project', fn($q) => $q->where('team_id', $teamId))
             ->whereHas('integration', fn($q) => $q->where('type', Integration::TYPE_JIRA))
             ->where('is_active', true)
             ->first();
 
-        if (!$this->projectIntegration) {
-            throw new \Exception("Jira integration configuration not found for the project. Please reconnect Jira.");
+        if (! $this->integration) {
+            throw new Exception('No active Jira integration found for this team.');
         }
     }
+
     /**
-     * Load and decrypt credentials.
-     * @throws \Exception
+     * Decrypt & load tokens.
+     *
+     * @throws Exception
      */
     protected function loadCredentials(): void
     {
         try {
-            $decrypted = Crypt::decryptString($this->projectIntegration->encrypted_credentials);
-            $this->credentials = json_decode($decrypted, true);
+            $decrypted = Crypt::decryptString($this->integration->encrypted_credentials);
+            $creds     = json_decode($decrypted, true, 512, JSON_THROW_ON_ERROR);
 
-            if (!is_array($this->credentials)) {
-                Log::error('Decrypted credentials are not a valid array', [
-                    'decrypted_content' => substr($decrypted, 0, 100) . '...',
-                    'json_error' => json_last_error_msg(),
-                    'project_integration_id' => $this->projectIntegration->id
-                ]);
-                throw new \Exception("Decrypted credentials are not a valid array.");
+            $this->accessToken  = Arr::get($creds, 'access_token');
+            $this->refreshToken = Arr::get($creds, 'refresh_token');
+            $this->expiresAt    = Arr::get($creds, 'expires_at', 0);
+            $this->cloudId      = Arr::get($creds, 'cloud_id');
+
+            if (! $this->accessToken || ! $this->cloudId) {
+                throw new Exception('Incomplete Jira credentials.');
             }
-
-            $this->accessToken = Arr::get($this->credentials, 'access_token');
-            $this->cloudId = Arr::get($this->credentials, 'cloud_id');
-            $siteUrl = rtrim(Arr::get($this->credentials, 'site_url', ''), '/');
-
-            Log::debug('JiraService URL configured', [
-                'site_url' => $siteUrl,
-                'api_url' => $this->baseUrl,
-                'cloud_id' => $this->cloudId
-            ]);
-
-            $this->baseUrl = "https://api.atlassian.com/ex/jira/{$this->cloudId}";
-
-
-            // Additional detailed logging
-            Log::debug('JiraService credentials loaded', [
-                'has_access_token' => !empty($this->accessToken),
-                'access_token_preview' => $this->accessToken ? (substr($this->accessToken, 0, 10) . '...') : 'none',
-                'cloud_id' => $this->cloudId,
-                'base_url' => $this->baseUrl,
-                'expires_at' => Arr::get($this->credentials, 'expires_at'),
-                'current_time' => time(),
-                'token_expired' => (Arr::get($this->credentials, 'expires_at', 0) < time()) ? 'YES' : 'NO',
-                'has_refresh_token' => !empty($this->credentials['refresh_token'])
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Failed to decrypt or parse Jira credentials', [
-                'project_integration_id' => $this->projectIntegration->id,
-                'error' => $e->getMessage()
-            ]);
-            throw new \Exception("Could not load Jira credentials for this project: " . $e->getMessage());
-        }
-
-        if (!$this->accessToken || !$this->cloudId || !$this->baseUrl) {
-            Log::error('Incomplete Jira credentials found', [
-                'has_token' => !empty($this->accessToken),
-                'has_cloud_id' => !empty($this->cloudId),
-                'has_base_url' => !empty($this->baseUrl),
-                'project_integration_id' => $this->projectIntegration->id
-            ]);
-            throw new \Exception("Incomplete Jira credentials found. Please reconnect Jira.");
-        }
-
-        // Fix API URL if needed
-        if (Str::contains($this->baseUrl, '.atlassian.net')) {
-            Log::debug("Using Jira Cloud site URL", [
-                'base_url' => $this->baseUrl
-            ]);
-        } else {
-            // If not an atlassian.net URL, use the API endpoint with cloud ID
-            $originalUrl = $this->baseUrl;
-            $this->baseUrl = "https://api.atlassian.com/ex/jira/{$this->cloudId}";
-            Log::debug("Updated Jira API URL", [
-                'original_url' => $originalUrl,
-                'new_base_url' => $this->baseUrl
-            ]);
+        } catch (\Throwable $e) {
+            Log::error('Failed to load Jira credentials', ['error' => $e->getMessage()]);
+            throw new Exception('Could not load Jira credentials: ' . $e->getMessage());
         }
     }
 
     /**
-     * Check if the access token is expired and refresh if necessary.
+     * Ensure token is valid, refresh if near expiry.
      *
-     * @return bool True if token is valid or refreshed, false otherwise.
+     * @throws Exception
      */
-    protected function ensureValidToken(): bool
+    protected function ensureValidToken(): void
     {
-        $refreshToken = Arr::get($this->credentials, 'refresh_token');
-        $expiresAt = Arr::get($this->credentials, 'expires_at', 0);
+        if (time() >= ($this->expiresAt - 300)) {
+            Log::info('Refreshing Jira access token', ['integration_id' => $this->integration->id]);
 
-        Log::debug('Checking Jira token validity', [
-            'expires_at' => $expiresAt,
-            'current_time' => time(),
-            'time_left_seconds' => $expiresAt - time(),
-            'has_refresh_token' => !empty($refreshToken)
-        ]);
-
-        // Check if token expires within the next 5 minutes (300 seconds buffer)
-        if (time() >= ($expiresAt - 300)) {
-            Log::info('Jira access token expired or nearing expiry', [
-                'project_integration_id' => $this->projectIntegration->id,
-                'expires_at' => date('Y-m-d H:i:s', $expiresAt)
-            ]);
-
-            if (empty($refreshToken)) {
-                Log::error('Jira access token expired, but no refresh token available', [
-                    'project_integration_id' => $this->projectIntegration->id
-                ]);
-                // Deactivate the integration as we can't refresh
-                $this->projectIntegration->update(['is_active' => false]);
-                return false;
-            }
-
-            return $this->refreshToken($refreshToken);
-        }
-
-        return true; // Token is still valid
-    }
-
-    /**
-     * Refresh the access token using the refresh token.
-     *
-     * @param string $refreshToken
-     * @return bool True on success, false on failure.
-     */
-    protected function refreshToken(string $refreshToken): bool
-    {
-        Log::info('Attempting Jira token refresh', [
-            'project_integration_id' => $this->projectIntegration->id
-        ]);
-
-        try {
-            $response = Http::asForm()->post('https://auth.atlassian.com/oauth/token', [
-                'grant_type' => 'refresh_token',
-                'client_id' => $this->clientId,
-                'client_secret' => $this->clientSecret,
-                'refresh_token' => $refreshToken,
-            ]);
-
-            Log::debug('Refresh token response received', [
-                'status' => $response->status(),
-                'successful' => $response->successful(),
-                'body_preview' => Str::limit($response->body(), 200)
-            ]);
-
-            if (!$response->successful()) {
-                Log::error('Failed to refresh Jira access token', [
-                    'status' => $response->status(),
-                    'body' => $response->body(),
-                    'project_integration_id' => $this->projectIntegration->id
-                ]);
-                // Refresh token might be invalid, deactivate the integration
-                $this->projectIntegration->update(['is_active' => false]);
-                return false;
-            }
-
-            $newTokenData = $response->json();
-
-            Log::info('Jira token refreshed successfully', [
-                'project_integration_id' => $this->projectIntegration->id,
-                'new_token_preview' => isset($newTokenData['access_token']) ?
-                    substr($newTokenData['access_token'], 0, 10) . '...' : 'missing',
-                'expires_in' => $newTokenData['expires_in'] ?? 'not set'
-            ]);
-
-            // Update credentials in memory
-            $this->credentials['access_token'] = $newTokenData['access_token'];
-            $this->credentials['expires_at'] = now()->addSeconds($newTokenData['expires_in'] - 60)->timestamp;
-
-            // Atlassian might return a new refresh token
-            if (isset($newTokenData['refresh_token'])) {
-                $this->credentials['refresh_token'] = $newTokenData['refresh_token'];
-                Log::debug('New refresh token received and stored');
-            }
-
-            $this->accessToken = $this->credentials['access_token'];
-
-            // Save updated credentials back to the database
             try {
-                $this->projectIntegration->update([
-                    'encrypted_credentials' => Crypt::encryptString(json_encode($this->credentials))
-                ]);
-                Log::debug('Updated Jira credentials saved to database', [
-                    'project_integration_id' => $this->projectIntegration->id
-                ]);
-            } catch (\Exception $e) {
-                Log::error('Failed to save refreshed Jira credentials', [
-                    'project_integration_id' => $this->projectIntegration->id,
-                    'error' => $e->getMessage()
-                ]);
-                // Continue using the in-memory token for this request
-            }
+                $response = $this->client->refreshToken($this->refreshToken);
 
-            return true;
-        } catch (\Exception $e) {
-            Log::error('Exception during token refresh', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-            return false;
+                $this->accessToken  = Arr::get($response, 'access_token');
+                $this->refreshToken = Arr::get($response, 'refresh_token', $this->refreshToken);
+                $this->expiresAt    = now()->addSeconds(Arr::get($response, 'expires_in', 3600))->timestamp;
+
+                // Persist new credentials
+                $newCreds = [
+                    'access_token'  => $this->accessToken,
+                    'refresh_token' => $this->refreshToken,
+                    'expires_at'    => $this->expiresAt,
+                    'cloud_id'      => $this->cloudId,
+                ];
+
+                $this->integration->update([
+                    'encrypted_credentials' => Crypt::encryptString(json_encode($newCreds)),
+                ]);
+            } catch (ApiException $e) {
+                Log::error('Jira token refresh failed', ['error' => $e->getMessage()]);
+                $this->integration->update(['is_active' => false]);
+                throw new Exception('Jira token refresh failed: ' . $e->getMessage());
+            }
         }
     }
 
     /**
-     * Make an authenticated API request to Jira.
-     * Handles token refresh automatically.
+     * Fetch list of Jira projects.
      *
-     * @param string $method HTTP method (get, post, put, delete)
-     * @param string $endpoint API endpoint (e.g., '/rest/api/3/project')
-     * @param array $options Request options (query params, body, etc.)
-     * @return \Illuminate\Http\Client\Response
-     * @throws \Exception If the request fails after potential refresh.
-     */
-    protected function makeRequest(string $method, string $endpoint, array $options = [])
-    {
-        if (!$this->ensureValidToken()) {
-            throw new \Exception("Jira token is invalid and could not be refreshed. Please reconnect Jira.");
-        }
-
-        // Ensure endpoint starts with a slash
-        if (!Str::startsWith($endpoint, '/')) {
-            $endpoint = '/' . $endpoint;
-        }
-
-        // Construct the full URL
-        $url = $this->baseUrl . $endpoint;
-
-        Log::debug("Making Jira API Request", [
-            'method' => strtoupper($method),
-            'url' => $url,
-            'options' => $method === 'get' ? $options : [],
-            'authorization' => 'Bearer ' . substr($this->accessToken, 0, 5) . '...',
-            'project_integration_id' => $this->projectIntegration->id
-        ]);
-
-        // First attempt using standard Http::withToken
-        $response = Http::withToken($this->accessToken)
-            ->withHeaders(['Accept' => 'application/json'])
-            ->{$method}($url, $options);
-
-        // If that fails with 401, try with explicit Authorization header
-        if ($response->status() === 401) {
-            Log::warning('Jira API returned 401 with standard auth. Trying explicit header', [
-                'endpoint' => $endpoint
-            ]);
-
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $this->accessToken,
-                'Accept' => 'application/json'
-            ])->{$method}($url, $options);
-        }
-
-        // Log response details
-        Log::debug('Jira API Response', [
-            'status' => $response->status(),
-            'successful' => $response->successful(),
-            'body_preview' => Str::limit($response->body(), 200)
-        ]);
-
-        // Check if token expired during request (401 Unauthorized)
-        if ($response->status() === 401) {
-            Log::warning('Jira API returned 401 Unauthorized. Attempting token refresh', [
-                'endpoint' => $endpoint,
-                'project_integration_id' => $this->projectIntegration->id
-            ]);
-
-            // Attempt refresh again ONLY if we have a refresh token
-            if (!empty($this->credentials['refresh_token']) && $this->refreshToken($this->credentials['refresh_token'])) {
-                // Retry the request with the new token
-                Log::info('Retrying Jira API request after successful token refresh', [
-                    'endpoint' => $endpoint
-                ]);
-
-                $response = Http::withToken($this->accessToken)
-                    ->acceptJson()
-                    ->{$method}($url, $options);
-
-                // Log retry response
-                Log::debug('Jira API Retry Response', [
-                    'status' => $response->status(),
-                    'successful' => $response->successful()
-                ]);
-            } else {
-                Log::error('Jira token refresh failed or not possible after 401', [
-                    'project_integration_id' => $this->projectIntegration->id
-                ]);
-
-                // Deactivate if refresh failed
-                if (empty($this->credentials['refresh_token'])) {
-                    $this->projectIntegration->update(['is_active' => false]);
-                }
-                throw new \Exception("Jira token became invalid and could not be refreshed. Please reconnect Jira.");
-            }
-        }
-
-        if (!$response->successful()) {
-            Log::error('Jira API request failed', [
-                'status' => $response->status(),
-                'endpoint' => $endpoint,
-                'url' => $url,
-                'response_body' => $response->body(),
-                'project_integration_id' => $this->projectIntegration->id
-            ]);
-
-            $errorBody = $response->json();
-            // Jira often puts errors in 'errorMessages' or 'errors'
-            $errorMessages = Arr::get($errorBody, 'errorMessages', []);
-            $errors = Arr::get($errorBody, 'errors', []);
-
-            if (!empty($errorMessages) && is_array($errorMessages)) {
-                $errorMessage = implode(', ', $errorMessages);
-            } elseif (!empty($errors) && is_array($errors)) {
-                $errorMessage = implode(', ', array_map(
-                    fn($k, $v) => "$k: $v",
-                    array_keys($errors),
-                    array_values($errors)
-                ));
-            } else {
-                $errorMessage = 'An unknown error occurred with the Jira API.';
-            }
-
-            throw new \Exception("Jira API Error ({$response->status()}): " . $errorMessage);
-        }
-
-        Log::debug("Jira API Response Successful", [
-            'status' => $response->status(),
-            'endpoint' => $endpoint
-        ]);
-
-        return $response;
-    }
-
-    /**
-     * Get projects accessible by the user.
-     *
-     * @return array List of projects [[id, key, name, avatarUrls], ...]
-     * @throws \Exception
+     * @return array
+     * @throws Exception
      */
     public function getProjects(): array
     {
-        try {
-            Log::info('Fetching Jira projects');
+        $this->ensureValidToken();
 
-            $response = $this->makeRequest('get', '/rest/api/3/project/search', [
-                'maxResults' => 100,
-                'orderBy' => 'name',
-                'expand' => '' // No expansions needed for now
-            ]);
+        $response = $this->client->api(
+            $this->cloudId,
+            'get',
+            '/rest/api/3/project/search',
+            [
+                'headers' => ['Authorization' => "Bearer {$this->accessToken}"],
+                'query'   => ['maxResults' => 100, 'orderBy' => 'name'],
+            ]
+        );
 
-            $results = $response->json();
-            $projects = $results['values'] ?? [];
-
-            Log::info('Jira projects fetched successfully', [
-                'count' => count($projects),
-                'total' => $results['total'] ?? 'unknown'
-            ]);
-
-            return $projects;
-        } catch (\Exception $e) {
-            Log::error('Error fetching Jira projects: ' . $e->getMessage());
-            throw $e; // Rethrow to notify caller
-        }
+        return $response['values'] ?? [];
     }
 
     /**
-     * Get issues (Epics, Stories) from a specific project.
-     * Handles pagination.
+     * Fetch issues by JQL, with pagination.
      *
-     * @param string $projectKey The Jira project key (e.g., "ARX").
-     * @param array $issueTypes Array of issue types to fetch (e.g., ['Epic', 'Story']).
-     * @param array $fields Array of fields to retrieve for each issue.
-     * @return array List of issues.
-     * @throws \Exception
-     */
-    public function getIssuesInProject(string $projectKey, array $issueTypes = ['Epic', 'Story'], array $fields = ['summary', 'description', 'issuetype', 'parent', 'status', 'created', 'updated', 'priority', 'labels']): array
-    {
-        $allIssues = [];
-        $startAt = 0;
-        $maxResults = 50; // Jira's common page size
-
-        // Sanitize issue types for JQL query
-        $sanitizedIssueTypes = array_map(function ($type) {
-            // Basic sanitization: remove quotes and escape existing quotes
-            return str_replace('"', '\"', trim($type, '"'));
-        }, $issueTypes);
-        $issueTypeString = '"' . implode('", "', $sanitizedIssueTypes) . '"';
-
-        // Construct JQL query safely
-        $escapedProjectKey = str_replace('"', '\"', $projectKey);
-        $jql = sprintf('project = "%s" AND issueType IN (%s) ORDER BY created DESC', $escapedProjectKey, $issueTypeString);
-
-        Log::info('Fetching issues from Jira project', [
-            'projectKey' => $projectKey,
-            'issueTypes' => implode(', ', $issueTypes),
-            'jql' => $jql
-        ]);
-
-        $pagesRetrieved = 0;
-        $total = 0;
-
-        do {
-            try {
-                $response = $this->makeRequest('get', '/rest/api/3/search', [
-                    'jql' => $jql,
-                    'fields' => implode(',', $fields),
-                    'maxResults' => $maxResults,
-                    'startAt' => $startAt,
-                ]);
-
-                $data = $response->json();
-                $issues = $data['issues'] ?? [];
-                $allIssues = array_merge($allIssues, $issues);
-
-                $total = $data['total'] ?? 0;
-                $countCurrentPage = count($issues);
-                $startAt += $countCurrentPage;
-                $pagesRetrieved++;
-
-                Log::debug('Fetched page of Jira issues', [
-                    'projectKey' => $projectKey,
-                    'page' => $pagesRetrieved,
-                    'startAt' => $startAt - $countCurrentPage,
-                    'count' => $countCurrentPage,
-                    'total' => $total
-                ]);
-            } catch (\Exception $e) {
-                Log::error('Failed to fetch a page of Jira issues', [
-                    'projectKey' => $projectKey,
-                    'startAt' => $startAt,
-                    'error' => $e->getMessage()
-                ]);
-                throw $e; // Re-throw for now
-            }
-
-            // Ensure we don't loop infinitely if the API returns unexpected data
-        } while ($startAt < $total && $countCurrentPage > 0 && $pagesRetrieved < 10); // Added max pages safety limit
-
-        Log::info('Finished fetching Jira issues', [
-            'projectKey' => $projectKey,
-            'total_fetched' => count($allIssues),
-            'pages' => $pagesRetrieved
-        ]);
-
-        return $allIssues;
-    }
-
-    /**
-     * Enhanced method to get issues from Jira using a custom JQL query.
-     * Handles pagination and additional options.
-     *
-     * @param string $jql The Jira Query Language string
-     * @param array $fields Array of fields to retrieve for each issue
-     * @param int $maxIssues Maximum number of issues to retrieve (0 = unlimited)
-     * @return array List of issues
-     * @throws \Exception
+     * @param  string  $jql
+     * @param  array   $fields
+     * @param  int     $maxIssues
+     * @return array
+     * @throws Exception
      */
     public function getIssuesWithJql(string $jql, array $fields = [], int $maxIssues = 0): array
     {
+        $this->ensureValidToken();
+
         $allIssues = [];
-        $startAt = 0;
-        $maxResults = min($maxIssues > 0 ? $maxIssues : 50, 100); // Cap at 100 per request, Jira limit
+        $startAt   = 0;
+        $pageSize  = min($maxIssues ?: 50, 100);
 
-        Log::info('Fetching issues from Jira using JQL', [
-            'jql' => $jql,
-            'max_issues' => $maxIssues > 0 ? $maxIssues : 'unlimited'
-        ]);
-
-        // Default fields if not specified
-        if (empty($fields)) {
-            $fields = [
-                'summary',
-                'description',
-                'issuetype',
-                'parent',
-                'status',
-                'created',
-                'updated',
-                'priority',
-                'labels'
+        do {
+            $opts = [
+                'headers' => ['Authorization' => "Bearer {$this->accessToken}"],
+                'query'   => [
+                    'jql'        => $jql,
+                    'fields'     => implode(',', $fields),
+                    'maxResults' => $pageSize,
+                    'startAt'    => $startAt,
+                ],
             ];
-        }
 
-        $pagesRetrieved = 0;
-        $totalFetched = 0;
-        $hasMore = true;
-
-        try {
-            while ($hasMore) {
-                // Break if we've reached the maxIssues limit
-                if ($maxIssues > 0 && $totalFetched >= $maxIssues) {
-                    break;
-                }
-
-                // Calculate how many results to request in this batch
-                $currentBatchSize = $maxIssues > 0 ?
-                    min($maxResults, $maxIssues - $totalFetched) :
-                    $maxResults;
-
-                $response = $this->makeRequest('get', '/rest/api/3/search', [
-                    'jql' => $jql,
-                    'fields' => implode(',', $fields),
-                    'maxResults' => $currentBatchSize,
-                    'startAt' => $startAt,
-                    'validateQuery' => 'strict' // Fail on invalid JQL
-                ]);
-
-                $data = $response->json();
-                $issues = $data['issues'] ?? [];
-                $allIssues = array_merge($allIssues, $issues);
-
-                $total = $data['total'] ?? 0;
-                $countCurrentPage = count($issues);
-                $startAt += $countCurrentPage;
-                $totalFetched += $countCurrentPage;
-                $pagesRetrieved++;
-
-                // Check if we need to fetch more
-                $hasMore = $countCurrentPage > 0 && $startAt < $total;
-
-                // Safety check - don't fetch too many pages
-                if ($pagesRetrieved >= 20) {
-                    Log::warning('Jira issue fetch exceeded 20 pages, limiting results', [
-                        'jql' => $jql,
-                        'total_expected' => $total,
-                        'total_fetched' => $totalFetched
-                    ]);
-                    break;
-                }
-
-                Log::debug('Fetched page of Jira issues', [
-                    'page' => $pagesRetrieved,
-                    'batch_size' => $currentBatchSize,
-                    'count' => $countCurrentPage,
-                    'total_fetched' => $totalFetched,
-                    'total_available' => $total
-                ]);
-            }
-        } catch (\Exception $e) {
-            // Enhance error logging with JQL details
-            Log::error('Failed to fetch Jira issues with JQL', [
-                'jql' => $jql,
-                'startAt' => $startAt,
-                'error' => $e->getMessage(),
-                'pages_retrieved' => $pagesRetrieved,
-                'issues_retrieved' => count($allIssues)
-            ]);
-
-            // Add useful context to the error message
-            $errorMessage = "Error fetching Jira issues: " . $e->getMessage();
-
-            // Check for specific errors like invalid JQL syntax
-            if (strpos($e->getMessage(), 'JQL') !== false) {
-                $errorMessage = "Invalid JQL query: " . $e->getMessage();
-            }
-
-            throw new \Exception($errorMessage);
-        }
-
-        Log::info('Finished fetching Jira issues with JQL', [
-            'total_fetched' => count($allIssues),
-            'pages' => $pagesRetrieved,
-            'max_requested' => $maxIssues
-        ]);
+            $result     = $this->client->api($this->cloudId, 'get', '/rest/api/3/search', $opts);
+            $issues     = $result['issues'] ?? [];
+            $allIssues  = array_merge($allIssues, $issues);
+            $fetched    = count($issues);
+            $startAt   += $fetched;
+        } while ($fetched > 0 && (!$maxIssues || $startAt < $maxIssues));
 
         return $allIssues;
     }
 
     /**
-     * Get available issue types in a project
+     * Fetch available issue types.
+     *
+     * @return array
+     * @throws Exception
      */
-    public function getIssueTypes(string $projectKey): array
+    public function getIssueTypes(): array
     {
-        $response = $this->makeRequest('get', '/rest/api/3/issuetype');
-        return $response->json() ?? [];
+        $this->ensureValidToken();
+
+        return $this->client
+            ->api($this->cloudId, 'get', '/rest/api/3/issuetype', [
+                'headers' => ['Authorization' => "Bearer {$this->accessToken}"]
+            ]);
     }
 
     /**
-     * Get available fields for issues
+     * Fetch available fields.
+     *
+     * @return array
+     * @throws Exception
      */
     public function getFields(): array
     {
-        $response = $this->makeRequest('get', '/rest/api/3/field');
-        return $response->json() ?? [];
+        $this->ensureValidToken();
+
+        return $this->client
+            ->api($this->cloudId, 'get', '/rest/api/3/field', [
+                'headers' => ['Authorization' => "Bearer {$this->accessToken}"]
+            ]);
     }
 
     /**
-     * Get issues with flexible filtering options
-     */
-    public function getFilteredIssues(array $options = []): array
-    {
-        // Extract options with defaults
-        $projectKey = $options['projectKey'] ?? '';
-        $issueTypes = $options['issueTypes'] ?? ['Epic', 'Story'];
-        $statuses = $options['statuses'] ?? [];
-        $labels = $options['labels'] ?? [];
-        $customJql = $options['customJql'] ?? '';
-        $fields = $options['fields'] ?? ['summary', 'description', 'issuetype', 'parent', 'status', 'labels'];
-        $maxResults = $options['maxResults'] ?? 50;
-
-        // Build JQL query
-        $jqlParts = [];
-
-        if (!empty($projectKey)) {
-            $jqlParts[] = sprintf('project = "%s"', str_replace('"', '\"', $projectKey));
-        }
-
-        if (!empty($issueTypes)) {
-            $escapedTypes = implode('", "', array_map(fn($t) => str_replace('"', '\"', $t), $issueTypes));
-            $jqlParts[] = sprintf('issuetype IN ("%s")', $escapedTypes);
-        }
-
-        if (!empty($statuses)) {
-            $escapedStatuses = implode('", "', array_map(fn($s) => str_replace('"', '\"', $s), $statuses));
-            $jqlParts[] = sprintf('status IN ("%s")', $escapedStatuses);
-        }
-
-        if (!empty($labels)) {
-            $labelConditions = array_map(fn($l) => sprintf('labels = "%s"', str_replace('"', '\"', $l)), $labels);
-            $jqlParts[] = '(' . implode(' OR ', $labelConditions) . ')';
-        }
-
-        // Add custom JQL if provided
-        if (!empty($customJql)) {
-            $jqlParts[] = '(' . $customJql . ')';
-        }
-
-        $jql = implode(' AND ', $jqlParts) . ' ORDER BY created DESC';
-
-        // Same pagination logic as before
-        $allIssues = [];
-        $startAt = 0;
-        $pagesRetrieved = 0;
-
-        do {
-            $response = $this->makeRequest('get', '/rest/api/3/search', [
-                'jql' => $jql,
-                'fields' => implode(',', $fields),
-                'maxResults' => $maxResults,
-                'startAt' => $startAt,
-            ]);
-
-            $data = $response->json();
-            $issues = $data['issues'] ?? [];
-            $allIssues = array_merge($allIssues, $issues);
-
-            $total = $data['total'] ?? 0;
-            $countCurrentPage = count($issues);
-            $startAt += $countCurrentPage;
-            $pagesRetrieved++;
-        } while ($startAt < $total && $countCurrentPage > 0 && $pagesRetrieved < 10);
-
-        return $allIssues;
-    }
-
-     /**
-     * *** NEW METHOD ***
-     * Get the *count* of issues matching the filter options.
-     * This is more efficient than fetching all issues just for a count.
+     * Fetch count of issues matching custom filters.
+     *
+     * @param  array  $options
+     * @return int
      */
     public function getFilteredIssuesCount(array $options = []): int
     {
-        // Build JQL from options (same logic as getFilteredIssues)
+        $this->ensureValidToken();
+
+        // Build JQL same as in getIssuesWithJql…
         $jqlParts = [];
-        if (!empty($options['projectKey'])) { $jqlParts[] = sprintf('project = "%s"', str_replace('"', '\"', $options['projectKey'])); }
-        if (!empty($options['issueTypes'])) { $escapedTypes = implode('", "', array_map(fn($t) => str_replace('"', '\"', $t), $options['issueTypes'])); $jqlParts[] = sprintf('issuetype IN ("%s")', $escapedTypes); }
-        if (!empty($options['statuses'])) { $escapedStatuses = implode('", "', array_map(fn($s) => str_replace('"', '\"', $s), $options['statuses'])); $jqlParts[] = sprintf('status IN ("%s")', $escapedStatuses); }
-        if (!empty($options['labels'])) { $labelConditions = array_map(fn($l) => sprintf('labels = "%s"', str_replace('"', '\"', $l)), $options['labels']); $jqlParts[] = '(' . implode(' OR ', $labelConditions) . ')'; }
-        if (!empty($options['customJql'])) { $jqlParts[] = '(' . $options['customJql'] . ')'; }
+        if (!empty($options['projectKey'])) {
+            $jqlParts[] = sprintf('project = "%s"', str_replace('"','\"',$options['projectKey']));
+        }
+        if (!empty($options['issueTypes'])) {
+            $escaped = implode('","', array_map(fn($t)=>str_replace('"','\"',$t), $options['issueTypes']));
+            $jqlParts[] = "issuetype IN (\"{$escaped}\")";
+        }
+        if (!empty($options['statuses'])) {
+            $escaped = implode('","', array_map(fn($s)=>str_replace('"','\"',$s), $options['statuses']));
+            $jqlParts[] = "status IN (\"{$escaped}\")";
+        }
+        if (!empty($options['labels'])) {
+            $labels = array_map(fn($l)=>sprintf('labels = "%s"',str_replace('"','\"',$l)), $options['labels']);
+            $jqlParts[] = '(' . implode(' OR ', $labels) . ')';
+        }
+        if (!empty($options['customJql'])) {
+            $jqlParts[] = '(' . $options['customJql'] . ')';
+        }
 
         if (empty($jqlParts)) {
-            throw new \InvalidArgumentException("Cannot get issue count without filters (at least project key).");
+            throw new \InvalidArgumentException('Cannot count issues without any filter.');
         }
+
         $jql = implode(' AND ', $jqlParts);
 
-        Log::info('Fetching issue count via JQL', ['jql' => $jql]);
-
         try {
-            // Request only the total count, no actual issues needed
-            $response = $this->makeRequest('get', 'rest/api/3/search', [
-                'jql' => $jql,
-                'maxResults' => 0, // Setting maxResults to 0 tells Jira to only return the total
-                'fields' => 'id', // Request minimal fields
-                'validateQuery' => 'strict'
+            $response = $this->client->api($this->cloudId, 'get', '/rest/api/3/search', [
+                'headers' => ['Authorization' => "Bearer {$this->accessToken}"],
+                'query'   => ['jql'=>$jql,'maxResults'=>0,'fields'=>'id']
             ]);
-
-            $data = $response->json();
-            return $data['total'] ?? 0; // Return the total count
-
-        } catch (\Exception $e) {
-            Log::error('Failed to fetch Jira issue count', ['jql' => $jql, 'error' => $e->getMessage()]);
-            // Decide how to handle errors: rethrow, return 0, or return null
-            // Returning 0 might be misleading, rethrowing might be better for previews.
-            // Let's return -1 to indicate an error occurred during count fetch.
+            return $response['total'] ?? 0;
+        } catch (ApiException $e) {
+            Log::error('Error counting Jira issues', ['jql'=>$jql,'error'=>$e->getMessage()]);
             return -1;
         }
     }

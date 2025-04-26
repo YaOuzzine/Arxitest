@@ -20,9 +20,8 @@ class StoryController extends Controller
         Log::warning('AUTHORIZATION CHECK IS TEMPORARILY DISABLED in StoryController@authorizeAccess');
     }
 
-    /**
-     * Display a listing of all stories across all projects (with filtering).
-     */
+    // In StoryController@indexAll
+
     public function indexAll(Request $request)
     {
         $currentTeamId = session('current_team');
@@ -32,10 +31,7 @@ class StoryController extends Controller
 
         $team = Team::find($currentTeamId);
         if (!$team) {
-            Log::warning(
-                'Story indexAll access failed: Session team invalid.',
-                ['user_id' => Auth::id(), 'session_current_team' => $currentTeamId]
-            );
+            Log::warning('Story indexAll access failed: Session team invalid.', ['user_id' => Auth::id(), 'session_current_team' => $currentTeamId]);
             session()->forget('current_team');
             return redirect()->route('dashboard.select-team')->with('error', 'Invalid team selection. Please re-select.');
         }
@@ -59,19 +55,24 @@ class StoryController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
-        // Handle project filter
-        $filterProjectId = $request->input('project_id');
-
         // Base query for stories
         $query = Story::query()
-            ->when($filterProjectId && $projects->contains('id', $filterProjectId), function ($query) use ($filterProjectId) {
-                $query->whereHas('testCases', function ($q) use ($filterProjectId) {
-                    $q->whereHas('testSuite', function ($q) use ($filterProjectId) {
-                        $q->where('project_id', $filterProjectId);
-                    });
+            ->whereHas('testCases', function ($q) use ($userProjectIds) {
+                $q->whereHas('testSuite', function ($q) use ($userProjectIds) {
+                    $q->whereIn('project_id', $userProjectIds);
                 });
             })
             ->select('stories.*');
+
+        // Handle project filter
+        $filterProjectId = $request->input('project_id');
+        if ($filterProjectId && $projects->contains('id', $filterProjectId)) {
+            $query->whereHas('testCases', function ($q) use ($filterProjectId) {
+                $q->whereHas('testSuite', function ($q) use ($filterProjectId) {
+                    $q->where('project_id', $filterProjectId);
+                });
+            });
+        }
 
         // Add search query if provided
         if ($request->has('search') && !empty($request->search)) {

@@ -14,42 +14,37 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Support\Facades\Log;
+use App\Http\Requests\StoreTeamRequest;
+use App\Http\Requests\UpdateTeamRequest;
+use App\Services\TeamService;
 use PgSql\Lob;
 
 class TeamController extends Controller
 {
     use AuthorizesRequests;
 
-    /**
-     * Display a listing of the teams.
-     *
-     * @return \Illuminate\View\View
-     */
+    protected TeamService $teams;
+
+    public function __construct(TeamService $teams)
+    {
+
+        $this->teams = $teams;
+    }
+
     public function index()
     {
         $user = Auth::user();
-
-        // Eager load team relationships to avoid N+1 query problem
         $teams = $user->teams()
-            ->with(['users' => function($query) {
-                $query->select('users.id', 'name', 'email');
-            }])
-            ->withCount(['projects', 'users'])
-            ->get();
-
-        // Add pivot data directly to users for frontend access
-        $teams->each(function ($team) {
-            $team->users->each(function ($user) {
-                $user->role = $user->pivot->team_role;
-            });
-        });
+            ->with(['users' => fn($q) => $q->select('users.id','name','email')])
+            ->withCount(['projects','users'])
+            ->get()
+            ->each(fn($team) => $team->users->each(fn($u) => $u->role = $u->pivot->team_role));
 
         return view('dashboard.teams.index', [
-            'teams' => $teams,
-            'currentTeamId' => session('current_team')
+            'teams'         => $teams,
+            'currentTeamId' => session('current_team'),
         ]);
     }
-
     /**
      * Show the team creation form
      *
@@ -60,75 +55,22 @@ class TeamController extends Controller
         return view('dashboard.teams.create');
     }
 
-    public function store(Request $request)
+
+    public function store(StoreTeamRequest $request)
     {
-        $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:100',
-            'description' => 'nullable|string|max:200',
-            'logo' => 'nullable|image|max:2048',
-            'invites' => 'nullable|json'
-        ]);
-
-        if ($validator->fails()) {
-            // ... error handling ...
-             if ($request->expectsJson()) {
-                 return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
-             }
-             return redirect()->back()->withErrors($validator)->withInput();
-        }
-
-        // Create the team
-        $team = new Team();
-        $team->name = $request->name;
-        $team->description = $request->description;
-        $team->save();
-
-        // Add the current user as owner
-        $user = Auth::user();
-        $team->users()->attach($user->id, ['team_role' => 'owner']); // Attach to DB
-
-        // *** NEW: Re-authenticate the user to refresh their relationships in the session ***
-        Auth::login($user); // This effectively refreshes the user model stored in the session state
-
-        // Store team logo if provided
-        if ($request->hasFile('logo')) {
-            // ... logo handling ...
-             $logoPath = $request->file('logo')->store('team-logos', 'public');
-             $team->logo_path = $logoPath;
-             $team->save();
-        }
-
-        // Process invites if present
-        if ($request->filled('invites')) { // Use filled() for better check
-            try {
-                 $invites = json_decode($request->invites, true, 512, JSON_THROW_ON_ERROR);
-                 if (is_array($invites)) {
-                     $this->processTeamInvitations($team, $invites);
-                 }
-             } catch (\JsonException $e) {
-                 // Handle potential JSON decoding errors if necessary
-                 Log::error('Invalid JSON in team invites during creation: ' . $e->getMessage());
-                 // Optionally return an error back to the user
-             }
-        }
-
-
-        // Set current team in session
-        session(['current_team' => $team->id]);
-
-        // Explicitly save the session AFTER setting the team and re-logging in
-        $request->session()->save();
+        $team = $this->teams->create($request->validated());
 
         if ($request->expectsJson()) {
             return response()->json([
-                'success' => true,
-                'message' => 'Team created successfully',
-                'team' => $team->load('users'), // Optionally load users for response
-                'redirect' => route('dashboard') // Redirect to main dashboard after creation
+                'success'  => true,
+                'message'  => 'Team created successfully',
+                'team'     => $team->load('users'),
+                'redirect' => route('dashboard'),
             ]);
         }
 
-        return redirect()->route('dashboard')->with('success', 'Team created successfully');
+        return redirect()->route('dashboard')
+            ->with('success', 'Team created successfully');
     }
 
     /**
@@ -137,14 +79,10 @@ class TeamController extends Controller
      * @param string $id
      * @return \Illuminate\View\View
      */
-    public function show($id)
+    public function show(Team $team)
     {
-        $team = Team::with(['users', 'projects.testSuites.testCases'])->findOrFail($id);
-
-        // Check if user is authorized to view team
-        $this->authorize('view', $team);
-
-        return view('dashboard.teams.show', compact('team'));
+        $team->load(['users','projects.testSuites.testCases']);
+        return view('dashboard.teams.show', ['team' => $team]);
     }
 
     /**
@@ -153,13 +91,9 @@ class TeamController extends Controller
      * @param string $id
      * @return \Illuminate\View\View
      */
-    public function edit($id)
+    public function edit(Team $team)
     {
-        $team = Team::findOrFail($id);
-
-        // Check if user is authorized to edit team
-        $this->authorize('update', $team);
-
+        // $this->authorize('update', $team);
         return view('dashboard.teams.edit', compact('team'));
     }
 
@@ -170,61 +104,19 @@ class TeamController extends Controller
      * @param string $id
      * @return \Illuminate\Http\JsonResponse|\Illuminate\Http\RedirectResponse
      */
-    public function update(Request $request, $id)
+    public function update(UpdateTeamRequest $request, Team $team)
     {
-        $team = Team::findOrFail($id);
-
-        // Check if user is authorized to update team
-        $this->authorize('update', $team);
-
-        $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:100',
-            'description' => 'nullable|string|max:200',
-            'logo' => 'nullable|image|max:2048', // max 2MB
-        ]);
-
-        if ($validator->fails()) {
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'errors' => $validator->errors()
-                ], 422);
-            }
-
-            return redirect()->back()->withErrors($validator)->withInput();
-        }
-
-        // Update team details
-        $team->name = $request->name;
-        $team->description = $request->description;
-
-        // Handle logo updates
-        if ($request->hasFile('logo')) {
-            // Delete old logo if exists
-            if ($team->logo_path) {
-                Storage::disk('public')->delete($team->logo_path);
-            }
-
-            // Store new logo
-            $logoPath = $request->file('logo')->store('team-logos', 'public');
-            $team->logo_path = $logoPath;
-        } elseif ($request->boolean('remove_logo') && $team->logo_path) {
-            // Remove logo if requested
-            Storage::disk('public')->delete($team->logo_path);
-            $team->logo_path = null;
-        }
-
-        $team->save();
+        $team = $this->teams->update($team, $request->validated());
 
         if ($request->expectsJson()) {
             return response()->json([
                 'success' => true,
                 'message' => 'Team updated successfully',
-                'team' => $team
+                'team'    => $team,
             ]);
         }
 
-        return redirect()->route('teams.show', $team->id)
+        return redirect()->route('teams.show', $team)
             ->with('success', 'Team updated successfully');
     }
 
@@ -438,30 +330,20 @@ class TeamController extends Controller
      * @param string $id
      * @return \Illuminate\Http\JsonResponse
      */
-    public function destroy($id)
+    public function destroy(Request $request, Team $team)
     {
-        $team = Team::findOrFail($id);
-
-        // Check if user is authorized to delete team
         $this->authorize('delete', $team);
+        $this->teams->delete($team);
 
-        // Clear current team from session if it's this one
-        if (session('current_team') == $id) {
-            session()->forget('current_team');
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success'  => true,
+                'message'  => 'Team deleted successfully',
+                'redirect' => route('dashboard.select-team'),
+            ]);
         }
 
-        // Delete logo if exists
-        if ($team->logo_path) {
-            Storage::disk('public')->delete($team->logo_path);
-        }
-
-        // Delete team (cascade should handle related records)
-        $team->delete();
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Team deleted successfully',
-            'redirect' => route('dashboard.select-team')
-        ]);
+        return redirect()->route('dashboard.select-team')
+            ->with('success', 'Team deleted successfully');
     }
 }
