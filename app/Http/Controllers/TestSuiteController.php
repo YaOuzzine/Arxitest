@@ -10,43 +10,22 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use App\Http\Requests\StoreTestSuiteRequest;
+use App\Http\Requests\UpdateTestSuiteRequest;
+use App\Services\TestSuiteService;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB; // Needed for indexAll safety check
 
 
 class TestSuiteController extends Controller
 {
-    /**
-     * TEMPORARILY DISABLED - Simplified authorization check for Test Suites:
-     * Verifies if the currently authenticated user is a member of the team
-     * that owns the parent project.
-     *
-     * @param Project $project The parent project of the test suite.
-     * @return void
-     */
-    private function authorizeAccess(Project $project): void
-    {
-        // <<< AUTHORIZATION TEMPORARILY COMMENTED OUT FOR DEBUGGING >>>
-        /*
-        $user = Auth::user();
-        if (!$user) {
-            Log::warning('TestSuite auth failed: User not authenticated.', ['project_id' => $project->id]);
-            abort(401, 'Unauthenticated.');
-        }
+    use \App\AuthorizeResourceAccess;
 
-        if (!$user->teams()->where('teams.id', $project->team_id)->exists()) {
-            Log::warning('TestSuite auth failed: User not member of project team.', [
-                'user_id' => $user->id,
-                'project_id' => $project->id,
-                'required_team_id' => $project->team_id,
-            ]);
-            abort(403, 'You do not have access to this project\'s test suites.');
-        }
-         Log::debug('Authorization successful for TestSuite action.', [
-            'user_id' => $user->id, 'project_id' => $project->id,
-        ]);
-        */
-         Log::warning('AUTHORIZATION CHECK IS TEMPORARILY DISABLED in TestSuiteController@authorizeAccess');
+    protected TestSuiteService $suites;
+
+    public function __construct(TestSuiteService $suites)
+    {
+        $this->suites = $suites;
     }
 
     // --- indexAll ---
@@ -90,97 +69,80 @@ class TestSuiteController extends Controller
     // --- index ---
     public function index(Project $project)
     {
-        $this->authorizeAccess($project); // <-- Keep call, method body is commented out
-        $testSuites = $project->testSuites()->withCount('testCases')->orderBy('updated_at', 'desc')->get();
+        $this->authorizeAccess($project);
+        $testSuites = $project->testSuites()
+            ->withCount('testCases')
+            ->orderBy('updated_at', 'desc')
+            ->get();
+
         return view('dashboard.test-suites.index', compact('project', 'testSuites'));
     }
 
     // --- create ---
     public function create(Project $project)
     {
-        $this->authorizeAccess($project); // <-- Keep call
+        $this->authorizeAccess($project);
         return view('dashboard.test-suites.create', compact('project'));
     }
 
     // --- store ---
-    public function store(Request $request, Project $project)
+    public function store(StoreTestSuiteRequest $request, Project $project)
     {
-        $this->authorizeAccess($project); // <-- Keep call
-        $projectId = $project->id;
-        $validator = Validator::make($request->all(), [
-            'name' => ['required','string','max:100',Rule::unique('test_suites')->where(fn ($q) => $q->where('project_id', $projectId)),],
-            'description' => 'nullable|string|max:255',
-            'settings.default_priority' => 'required|string|in:low,medium,high',
-            'settings.execution_mode' => 'nullable|string|in:sequential,parallel',
-        ], ['settings.default_priority.required' => 'Priority is required.', 'settings.default_priority.in' => 'Priority must be low, medium, or high.']);
+        $this->authorizeAccess($project);
+        $suite = $this->suites->create($project, $request->validated());
 
-        if ($validator->fails()) {
-            return redirect()->route('dashboard.projects.test-suites.create', $project->id)->withErrors($validator)->withInput();
-        }
-
-        $testSuite = new TestSuite();
-        $testSuite->project_id = $project->id;
-        $testSuite->name = $request->input('name');
-        $testSuite->description = $request->input('description');
-        $settings = [];
-        $settings['default_priority'] = $request->input('settings.default_priority', 'medium');
-        $settings['execution_mode'] = $request->input('settings.execution_mode', 'sequential');
-        $testSuite->settings = $settings;
-        $testSuite->save();
-
-        return redirect()->route('dashboard.projects.test-suites.index', $project->id)->with('success', 'Test Suite "' . $testSuite->name . '" created.');
+        return redirect()
+            ->route('dashboard.projects.test-suites.index', $project->id)
+            ->with('success', 'Test Suite "' . $suite->name . '" created.');
     }
 
     // --- show ---
     public function show(Project $project, TestSuite $test_suite)
     {
-        $this->authorizeAccess($project); // <-- Keep call
+        $this->authorizeAccess($project);
         $test_suite->loadMissing('testCases');
-        return view('dashboard.test-suites.show', ['project' => $project, 'testSuite' => $test_suite]);
+
+        return view('dashboard.test-suites.show', [
+            'project'   => $project,
+            'testSuite' => $test_suite,
+        ]);
     }
 
     // --- edit ---
-     public function edit(Project $project, TestSuite $test_suite)
-     {
-         $this->authorizeAccess($project); // <-- Keep call
-         return view('dashboard.test-suites.edit', ['project' => $project, 'testSuite' => $test_suite]);
-     }
+    public function edit(Project $project, TestSuite $test_suite)
+    {
+        $this->authorizeAccess($project);
+        return view('dashboard.test-suites.edit', [
+            'project'   => $project,
+            'testSuite' => $test_suite,
+        ]);
+    }
 
     // --- update ---
-     public function update(Request $request, Project $project, TestSuite $test_suite)
-     {
-         $this->authorizeAccess($project); // <-- Keep call
-         $projectId = $project->id;
-         $validator = Validator::make($request->all(), [
-             'name' => ['required','string','max:100',Rule::unique('test_suites')->where(fn ($q) => $q->where('project_id', $projectId))->ignore($test_suite->id)],
-             'description' => 'nullable|string|max:255',
-             'settings.default_priority' => 'required|string|in:low,medium,high',
-             'settings.execution_mode' => 'nullable|string|in:sequential,parallel',
-         ]);
+    public function update(UpdateTestSuiteRequest $request, Project $project, TestSuite $test_suite)
+    {
+        $this->authorizeAccess($project);
+        $suite = $this->suites->update($test_suite, $request->validated());
 
-         if ($validator->fails()) {
-             return redirect()->route('dashboard.projects.test-suites.edit', [$project->id, $test_suite->id])->withErrors($validator)->withInput();
-         }
-
-         $test_suite->name = $request->input('name');
-         $test_suite->description = $request->input('description');
-         $settings = $test_suite->settings ?? [];
-         $settings['default_priority'] = $request->input('settings.default_priority', $settings['default_priority'] ?? 'medium');
-         $settings['execution_mode'] = $request->input('settings.execution_mode', $settings['execution_mode'] ?? 'sequential');
-         $test_suite->settings = $settings;
-         $test_suite->save();
-
-         return redirect()->route('dashboard.projects.test-suites.show', [$project->id, $test_suite->id])->with('success', 'Test Suite updated.');
-     }
+        return redirect()
+            ->route('dashboard.projects.test-suites.show', [$project->id, $suite->id])
+            ->with('success', 'Test Suite updated.');
+    }
 
     // --- destroy ---
     public function destroy(Project $project, TestSuite $test_suite)
     {
-        $this->authorizeAccess($project); // <-- Keep call
-        $suiteName = $test_suite->name;
-        $test_suite->delete();
-        if (request()->expectsJson()) { return response()->json(['success' => true, 'message' => "Suite \"$suiteName\" deleted."]); }
-        return redirect()->route('dashboard.projects.test-suites.index', $project->id)->with('success', "Suite \"$suiteName\" deleted.");
+        $this->authorizeAccess($project);
+        $name = $test_suite->name;
+        $this->suites->delete($test_suite);
+
+        if (request()->expectsJson()) {
+            return response()->json(['success' => true, 'message' => "Suite \"$name\" deleted."]);
+        }
+
+        return redirect()
+            ->route('dashboard.projects.test-suites.index', $project->id)
+            ->with('success', "Suite \"$name\" deleted.");
     }
 
     // --- generateWithAI ---
