@@ -11,21 +11,21 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Ensure doctrine/dbal is installed for change()
         Schema::table('test_cases', function (Blueprint $table) {
-            // 1) Enforce every case must belong to a story
+            // Change story_id to non-nullable and cascade
             $table->dropForeign(['story_id']);
-            $table->foreignUuid('story_id')
-                  ->constrained('stories')
-                  ->onDelete('cascade')
-                  ->change();
+            $table->uuid('story_id')->nullable(false)->change();
+            $table->foreign('story_id')
+                  ->references('id')->on('stories')
+                  ->onDelete('cascade');
 
-            // 2) Allow suite_id to be nullable for flexibility
+            // Change suite_id to nullable
             $table->dropForeign(['suite_id']);
-            $table->foreignUuid('suite_id')
-                  ->nullable()
-                  ->constrained('test_suites')
-                  ->onDelete('cascade')
-                  ->change();
+            $table->uuid('suite_id')->nullable()->change();
+            $table->foreign('suite_id')
+                  ->references('id')->on('test_suites')
+                  ->onDelete('cascade');
         });
     }
 
@@ -35,17 +35,18 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('test_cases', function (Blueprint $table) {
-            // Revert story_id back to nullable
+            // Revert story_id to nullable + set null on delete
             $table->dropForeign(['story_id']);
-            $table->foreignUuid('story_id')
-                  ->nullable()
-                  ->constrained('stories')
+            $table->uuid('story_id')->nullable()->change();
+            $table->foreign('story_id')
+                  ->references('id')->on('stories')
                   ->onDelete('set null');
 
-            // Revert suite_id back to required
+            // Revert suite_id to non-nullable
             $table->dropForeign(['suite_id']);
-            $table->foreignUuid('suite_id')
-                  ->constrained('test_suites')
+            $table->uuid('suite_id')->nullable(false)->change();
+            $table->foreign('suite_id')
+                  ->references('id')->on('test_suites')
                   ->onDelete('cascade');
         });
     }

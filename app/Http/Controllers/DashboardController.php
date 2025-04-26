@@ -27,14 +27,6 @@ class DashboardController extends Controller
 
         $team = $this->getCurrentTeam($request);
 
-        if (!$team) {
-            Log::warning('Dashboard access failed: Session team invalid or user not member.', [
-                'user_id' => $user->id, 'session_current_team' => $currentTeamId
-            ]);
-            session()->forget('current_team');
-            return redirect()->route('dashboard.select-team')->with('error', 'Invalid team selection. Please re-select.');
-        }
-
         // --- Calculate Stats ---
         $stats = new stdClass();
         $projectIds = $team->projects->pluck('id');
