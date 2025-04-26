@@ -2,98 +2,69 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreTestDataRequest;
 use App\Models\Project;
 use App\Models\TestCase;
 use App\Models\TestData;
+use App\Services\TestDataService;
+use App\AuthorizeResourceAccess;
 use App\Models\TestCaseData;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Facades\Http;
 
 class TestDataController extends Controller
 {
-    /**
-     * Authorization check (temporarily disabled like other controllers)
-     */
-    private function authorizeAccess($project): void
-    {
-        Log::warning('AUTHORIZATION CHECK IS TEMPORARILY DISABLED in TestDataController@authorizeAccess');
-    }
+    use AuthorizeResourceAccess;
 
+    protected $testDataService;
+
+    public function __construct(TestDataService $testDataService)
+    {
+        $this->testDataService = $testDataService;
+    }
     /**
      * Display a listing of test data for a test case.
      */
-    public function index(Project $project, TestCase $test_case)
-    {
-        $this->authorizeAccess($project);
+    // public function index(Project $project, TestCase $test_case)
+    // {
+    //     $this->authorizeAccess($project);
 
-        // Ensure test case belongs to a suite in this project
-        $suite = $test_case->testSuite;
-        if (!$suite || $suite->project_id !== $project->id) {
-            abort(404, 'Test case not found in this project.');
-        }
+    //     try {
+    //         $testData = $this->testDataService->getAllTestData($project, $test_case);
 
-        $testData = $test_case->testData()->get();
-
-        return view('dashboard.test-data.index', [
-            'project' => $project,
-            'testCase' => $test_case,
-            'testSuite' => $suite,
-            'testData' => $testData
-        ]);
-    }
+    //         return view('dashboard.test-data.index', [
+    //             'project' => $project,
+    //             'testCase' => $test_case,
+    //             'testSuite' => $test_case->testSuite,
+    //             'testData' => $testData
+    //         ]);
+    //     } catch (\Exception $e) {
+    //         abort(404, $e->getMessage());
+    //     }
+    // }
 
     /**
      * Store a newly created test data.
      */
-    public function store(Request $request, Project $project, TestCase $test_case)
+    public function store(StoreTestDataRequest $request, Project $project, TestCase $test_case)
     {
         $this->authorizeAccess($project);
 
-        // Ensure test case belongs to a suite in this project
-        $suite = $test_case->testSuite;
-        if (!$suite || $suite->project_id !== $project->id) {
-            abort(404, 'Test case not found in this project.');
+        try {
+            $testData = $this->testDataService->create($project, $test_case, $request->validated());
+
+            return redirect()->route('dashboard.projects.test-cases.show', [
+                'project' => $project->id,
+                'test_case' => $test_case->id
+            ])->with('success', 'Test data created successfully.');
+        } catch (\Exception $e) {
+            Log::error('Failed to create test data: ' . $e->getMessage());
+            return redirect()->back()->withInput()
+                ->with('error', 'Failed to create test data: ' . $e->getMessage());
         }
-
-        $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:100',
-            'content' => 'required|string',
-            'format' => 'required|string|in:json,csv,xml,plain,other',
-            'is_sensitive' => 'boolean',
-            'usage_context' => 'nullable|string|max:255',
-        ]);
-
-        if ($validator->fails()) {
-            return redirect()->back()
-                ->withErrors($validator)
-                ->withInput();
-        }
-
-        $testData = new TestData();
-        $testData->name = $request->input('name');
-        $testData->content = $request->input('content');
-        $testData->format = $request->input('format');
-        $testData->is_sensitive = $request->boolean('is_sensitive', false);
-        $testData->metadata = [
-            'created_by' => Auth::id(),
-            'created_through' => 'manual'
-        ];
-        $testData->save();
-
-        // Create the relationship to the test case
-        $testCaseData = new TestCaseData();
-        $testCaseData->test_case_id = $test_case->id;
-        $testCaseData->test_data_id = $testData->id;
-        $testCaseData->usage_context = $request->input('usage_context');
-        $testCaseData->save();
-
-        return redirect()->route('dashboard.projects.test-cases.show', [
-            'project' => $project->id,
-            'test_case' => $test_case->id
-        ])->with('success', 'Test data created successfully.');
     }
 
     /**
@@ -232,31 +203,25 @@ PROMPT;
         }
     }
 
-    /**
+     /**
      * Display the specified test data.
      */
     public function show(Project $project, TestCase $test_case, TestData $test_data)
     {
         $this->authorizeAccess($project);
 
-        // Ensure test case belongs to a suite in this project
-        $suite = $test_case->testSuite;
-        if (!$suite || $suite->project_id !== $project->id) {
-            abort(404, 'Test case not found in this project.');
-        }
+        try {
+            $testData = $this->testDataService->getTestData($project, $test_case, $test_data);
 
-        // Ensure test data is associated with this test case
-        $isAssociated = $test_case->testData()->where('test_data.id', $test_data->id)->exists();
-        if (!$isAssociated) {
-            abort(404, 'Test data not found for this test case.');
+            return view('dashboard.test-data.show', [
+                'project' => $project,
+                'testCase' => $test_case,
+                'testSuite' => $test_case->testSuite,
+                'testData' => $testData
+            ]);
+        } catch (\Exception $e) {
+            abort(404, $e->getMessage());
         }
-
-        return view('dashboard.test-data.show', [
-            'project' => $project,
-            'testCase' => $test_case,
-            'testSuite' => $suite,
-            'testData' => $test_data
-        ]);
     }
 
     /**
@@ -266,33 +231,32 @@ PROMPT;
     {
         $this->authorizeAccess($project);
 
-        // Ensure test case belongs to a suite in this project
-        $suite = $test_case->testSuite;
-        if (!$suite || $suite->project_id !== $project->id) {
-            abort(404, 'Test case not found in this project.');
+        try {
+            $dataName = $test_data->name;
+            $this->testDataService->detachFromTestCase($project, $test_case, $test_data);
+
+            if (request()->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => "Test data \"$dataName\" removed from this test case."
+                ]);
+            }
+
+            return redirect()->route('dashboard.projects.test-cases.show', [
+                'project' => $project->id,
+                'test_case' => $test_case->id
+            ])->with('success', "Test data \"$dataName\" removed from this test case.");
+        } catch (\Exception $e) {
+            Log::error('Failed to detach test data: ' . $e->getMessage());
+
+            if (request()->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to remove test data: ' . $e->getMessage()
+                ], 500);
+            }
+
+            return redirect()->back()->with('error', 'Failed to remove test data: ' . $e->getMessage());
         }
-
-        // Ensure test data is associated with this test case
-        $isAssociated = $test_case->testData()->where('test_data.id', $test_data->id)->exists();
-        if (!$isAssociated) {
-            abort(404, 'Test data not found for this test case.');
-        }
-
-        $dataName = $test_data->name;
-
-        // Detach the test data (but don't delete it)
-        $test_case->testData()->detach($test_data->id);
-
-        if (request()->expectsJson()) {
-            return response()->json([
-                'success' => true,
-                'message' => "Test data \"$dataName\" removed from this test case."
-            ]);
-        }
-
-        return redirect()->route('dashboard.projects.test-cases.show', [
-            'project' => $project->id,
-            'test_case' => $test_case->id
-        ])->with('success', "Test data \"$dataName\" removed from this test case.");
     }
 }

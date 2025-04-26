@@ -2,24 +2,24 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\GenerateScriptRequest;
+use App\Http\Requests\TestScriptRequest;
 use App\Models\Project;
 use App\Models\TestCase;
 use App\Models\TestScript;
-use App\Models\TestSuite;
-use Illuminate\Http\Request;
+use App\Services\TestScriptService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Request;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Facades\Http;
 
 class TestScriptController extends Controller
 {
-    /**
-     * Authorization check (temporarily disabled like other controllers)
-     */
-    private function authorizeAccess($project): void
+    protected $testScriptService;
+
+    public function __construct(TestScriptService $testScriptService)
     {
-        Log::warning('AUTHORIZATION CHECK IS TEMPORARILY DISABLED in TestScriptController@authorizeAccess');
+        $this->testScriptService = $testScriptService;
     }
 
     /**
@@ -27,65 +27,44 @@ class TestScriptController extends Controller
      */
     public function index(Project $project, TestCase $test_case)
     {
-        $this->authorizeAccess($project);
+        try {
+            $this->testScriptService->validateRelationships($project, $test_case);
+            $testScripts = $test_case->testScripts()->orderBy('created_at', 'desc')->get();
 
-        // Ensure test case belongs to a suite in this project
-        $suite = $test_case->testSuite;
-        if (!$suite || $suite->project_id !== $project->id) {
-            abort(404, 'Test case not found in this project.');
+            return view('dashboard.test-scripts.index', [
+                'project' => $project,
+                'testCase' => $test_case,
+                'testSuite' => $test_case->testSuite,
+                'testScripts' => $testScripts
+            ]);
+        } catch (\Exception $e) {
+            return back()->with('error', $e->getMessage());
         }
-
-        $testScripts = $test_case->testScripts()->orderBy('created_at', 'desc')->get();
-
-        return view('dashboard.test-scripts.index', [
-            'project' => $project,
-            'testCase' => $test_case,
-            'testSuite' => $suite,
-            'testScripts' => $testScripts
-        ]);
     }
 
     /**
      * Store a newly created test script.
      */
-    public function store(Request $request, Project $project, TestCase $test_case)
+    public function store(TestScriptRequest $request, Project $project, TestCase $test_case)
     {
-        $this->authorizeAccess($project);
+        try {
+            $this->testScriptService->validateRelationships($project, $test_case);
 
-        // Ensure test case belongs to a suite in this project
-        $suite = $test_case->testSuite;
-        if (!$suite || $suite->project_id !== $project->id) {
-            abort(404, 'Test case not found in this project.');
+            // Create script using the service
+            $testScript = $this->testScriptService->createScript(
+                $test_case,
+                $request->input('name'),
+                $request->input('framework_type'),
+                $request->input('script_content')
+            );
+
+            return redirect()->route('dashboard.projects.test-cases.show', [
+                'project' => $project->id,
+                'test_case' => $test_case->id
+            ])->with('success', 'Test script created successfully.');
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', $e->getMessage())->withInput();
         }
-
-        $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:100',
-            'framework_type' => 'required|string|in:selenium-python,cypress,other',
-            'script_content' => 'required|string',
-        ]);
-
-        if ($validator->fails()) {
-            return redirect()->back()
-                ->withErrors($validator)
-                ->withInput();
-        }
-
-        $testScript = new TestScript();
-        $testScript->test_case_id = $test_case->id;
-        $testScript->creator_id = Auth::id();
-        $testScript->name = $request->input('name');
-        $testScript->framework_type = $request->input('framework_type');
-        $testScript->script_content = $request->input('script_content');
-        $testScript->metadata = [
-            'created_through' => 'manual',
-            'source' => 'user'
-        ];
-        $testScript->save();
-
-        return redirect()->route('dashboard.projects.test-cases.show', [
-            'project' => $project->id,
-            'test_case' => $test_case->id
-        ])->with('success', 'Test script created successfully.');
     }
 
     /**
@@ -93,8 +72,6 @@ class TestScriptController extends Controller
      */
     public function generateWithAI(Request $request, Project $project, TestCase $test_case)
     {
-        $this->authorizeAccess($project);
-
         $validator = Validator::make($request->all(), [
             'framework_type' => 'required|string|in:selenium-python,cypress,other',
             'prompt' => 'nullable|string|max:1000',
@@ -107,88 +84,16 @@ class TestScriptController extends Controller
             ], 422);
         }
 
-        // Ensure test case belongs to a suite in this project
-        $suite = $test_case->testSuite;
-        if (!$suite || $suite->project_id !== $project->id) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Test case not found in this project.'
-            ], 404);
-        }
-
-        $framework = $request->input('framework_type');
-
-        // Create context for the AI
-        $steps = is_array($test_case->steps) ? $test_case->steps : json_decode($test_case->steps, true);
-        $stepsText = is_array($steps) ? implode("\n", array_map(fn($i, $step) => ($i+1) . ". $step", array_keys($steps), $steps)) : $test_case->steps;
-
-        $userPrompt = $request->input('prompt') ?: "Generate a test script based on the test case";
-
-        $systemPrompt = <<<PROMPT
-You are an AI assistant that specializes in generating test automation scripts. You'll create a test script based on the provided test case information.
-
-Test Case Details:
-- Title: {$test_case->title}
-- Description: {$test_case->description}
-- Steps:
-{$stepsText}
-- Expected Results: {$test_case->expected_results}
-
-Create a complete, working test script using the {$framework} framework. Do not abbreviate or omit parts of the code - generate a complete test script that could be executed.
-
-Follow these specific guidelines:
-1. For selenium-python:
-   - Use Selenium WebDriver with Python
-   - Include proper imports, setup, teardown
-   - Use best practices like explicit waits
-   - Structure as a proper Python test using unittest or pytest
-
-2. For cypress:
-   - Use Cypress JavaScript syntax
-   - Include proper imports, before/after hooks
-   - Follow Cypress best practices
-   - Structure as a proper Cypress test
-
-Your response should be ONLY the code for the test script, without explanations, markdown formatting, or code block markers.
-PROMPT;
-
         try {
-            $apiKey = env('OPENAI_API_KEY', config('services.openai.key'));
-            $model = env('OPENAI_MODEL', config('services.openai.model', 'gpt-4o'));
+            $this->testScriptService->validateRelationships($project, $test_case);
 
-            if (!$apiKey) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'AI service is not configured. Please check the API key.'
-                ], 500);
-            }
+            $framework = $request->input('framework_type');
+            $prompt = $request->input('prompt', '');
 
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $apiKey,
-                'Content-Type' => 'application/json',
-            ])
-                ->timeout(30)
-                ->post('https://api.openai.com/v1/chat/completions', [
-                    'model' => $model,
-                    'messages' => [
-                        ['role' => 'system', 'content' => $systemPrompt],
-                        ['role' => 'user', 'content' => $userPrompt],
-                    ],
-                    'temperature' => 0.7,
-                ]);
+            // Generate script content using the service
+            $scriptContent = $this->testScriptService->generateWithAI($test_case, $framework, $prompt);
 
-            if ($response->failed()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'AI generation failed. Error: ' . $response->status()
-                ], 500);
-            }
-
-            $scriptContent = $response->json('choices.0.message.content');
-
-            // Clean up any possible markdown code blocks
-            $scriptContent = trim(preg_replace('/^```[\w]*\n|```$/m', '', $scriptContent));
-
+            // Create a name for the script
             $scriptName = $test_case->title . ' - ' . ucfirst($framework) . ' Script';
 
             // Create and save the script
@@ -201,8 +106,7 @@ PROMPT;
             $testScript->metadata = [
                 'created_through' => 'ai',
                 'source' => 'openai',
-                'model' => $model,
-                'prompt' => $userPrompt
+                'prompt' => $prompt
             ];
             $testScript->save();
 
@@ -216,7 +120,6 @@ PROMPT;
                     'framework_type' => $testScript->framework_type
                 ]
             ]);
-
         } catch (\Exception $e) {
             Log::error('Error generating test script with AI: ' . $e->getMessage());
             return response()->json([
@@ -231,25 +134,18 @@ PROMPT;
      */
     public function show(Project $project, TestCase $test_case, TestScript $test_script)
     {
-        $this->authorizeAccess($project);
+        try {
+            $this->testScriptService->validateRelationships($project, $test_case, $test_script);
 
-        // Ensure test case belongs to a suite in this project
-        $suite = $test_case->testSuite;
-        if (!$suite || $suite->project_id !== $project->id) {
-            abort(404, 'Test case not found in this project.');
+            return view('dashboard.test-scripts.show', [
+                'project' => $project,
+                'testCase' => $test_case,
+                'testSuite' => $test_case->testSuite,
+                'testScript' => $test_script
+            ]);
+        } catch (\Exception $e) {
+            return back()->with('error', $e->getMessage());
         }
-
-        // Ensure test script belongs to this test case
-        if ($test_script->test_case_id !== $test_case->id) {
-            abort(404, 'Test script not found in this test case.');
-        }
-
-        return view('dashboard.test-scripts.show', [
-            'project' => $project,
-            'testCase' => $test_case,
-            'testSuite' => $suite,
-            'testScript' => $test_script
-        ]);
     }
 
     /**
@@ -257,32 +153,32 @@ PROMPT;
      */
     public function destroy(Project $project, TestCase $test_case, TestScript $test_script)
     {
-        $this->authorizeAccess($project);
+        try {
+            $this->testScriptService->validateRelationships($project, $test_case, $test_script);
 
-        // Ensure test case belongs to a suite in this project
-        $suite = $test_case->testSuite;
-        if (!$suite || $suite->project_id !== $project->id) {
-            abort(404, 'Test case not found in this project.');
+            $scriptName = $test_script->name;
+            $test_script->delete();
+
+            if (request()->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => "Test script \"$scriptName\" deleted successfully."
+                ]);
+            }
+
+            return redirect()->route('dashboard.projects.test-cases.show', [
+                'project' => $project->id,
+                'test_case' => $test_case->id
+            ])->with('success', "Test script \"$scriptName\" deleted successfully.");
+        } catch (\Exception $e) {
+            if (request()->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage()
+                ], 400);
+            }
+
+            return back()->with('error', $e->getMessage());
         }
-
-        // Ensure test script belongs to this test case
-        if ($test_script->test_case_id !== $test_case->id) {
-            abort(404, 'Test script not found in this test case.');
-        }
-
-        $scriptName = $test_script->name;
-        $test_script->delete();
-
-        if (request()->expectsJson()) {
-            return response()->json([
-                'success' => true,
-                'message' => "Test script \"$scriptName\" deleted successfully."
-            ]);
-        }
-
-        return redirect()->route('dashboard.projects.test-cases.show', [
-            'project' => $project->id,
-            'test_case' => $test_case->id
-        ])->with('success', "Test script \"$scriptName\" deleted successfully.");
     }
 }

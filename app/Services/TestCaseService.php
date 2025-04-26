@@ -6,11 +6,18 @@ use App\Models\Project;
 use App\Models\Team;
 use App\Models\TestCase;
 use App\Models\TestSuite;
+use App\Services\RelationshipValidationService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
 class TestCaseService
 {
+    protected $relationshipValidator;
+
+    public function __construct(RelationshipValidationService $relationshipValidator)
+    {
+        $this->relationshipValidator = $relationshipValidator;
+    }
     /**
      * Get all test cases for a team with optional filtering
      */
@@ -164,7 +171,7 @@ class TestCaseService
     public function getTestCasesForSuite(Project $project, TestSuite $testSuite, $filters = [])
     {
         // Validate project-suite relationship
-        $this->validateProjectSuiteRelationship($project, $testSuite);
+        $this->relationshipValidator->validateProjectSuiteRelationship($project, $testSuite);
 
         // Extract filters
         $search = $filters['search'] ?? null;
@@ -199,30 +206,13 @@ class TestCaseService
     }
 
     /**
-     * Validate the relationship between project and test suite.
-     */
-    public function validateProjectSuiteRelationship(Project $project, ?TestSuite $testSuite): bool
-    {
-        if ($testSuite && $testSuite->project_id !== $project->id) {
-            Log::warning('Invalid project-suite relationship', [
-                'project_id' => $project->id,
-                'suite_id' => $testSuite->id,
-                'suite_project_id' => $testSuite->project_id,
-            ]);
-            throw new \Exception('Test suite not found in this project.');
-        }
-
-        return true;
-    }
-
-    /**
      * Get a test case, ensuring it belongs to the project and optionally to a specific suite.
      */
     public function getTestCase(Project $project, ?TestSuite $testSuite, TestCase $testCase): TestCase
     {
         // First validate the project-suite relationship
         if ($testSuite) {
-            $this->validateProjectSuiteRelationship($project, $testSuite);
+            $this->relationshipValidator->validateProjectSuiteRelationship($project, $testSuite);
 
             // Ensure test case belongs to the specified suite
             if ($testCase->suite_id !== $testSuite->id) {
@@ -246,7 +236,7 @@ class TestCaseService
     {
         // If a test suite is provided, validate it belongs to the project
         if ($testSuite) {
-            $this->validateProjectSuiteRelationship($project, $testSuite);
+            $this->relationshipValidator->validateProjectSuiteRelationship($project, $testSuite);
             // Ensure suite_id is set in the data
             $data['suite_id'] = $testSuite->id;
         }
