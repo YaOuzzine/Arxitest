@@ -10,9 +10,12 @@ use App\Models\Environment;
 use App\Services\TestExecutionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use App\Traits\JsonResponse;
 
 class TestExecutionController extends Controller
 {
+    use JsonResponse;
+
     protected TestExecutionService $execService;
 
     public function __construct(TestExecutionService $execService)
@@ -75,7 +78,7 @@ class TestExecutionController extends Controller
             $request->input('offset', 0),
             $request->input('limit', 1000)
         );
-        return response()->json($data);
+        return $this->successResponse($data);
     }
 
     public function downloadLogs(TestExecution $execution)
@@ -100,14 +103,22 @@ class TestExecutionController extends Controller
     public function emergencyStop($id)
     {
         $result = $this->execService->emergencyStop($id);
-        return response()->json($result, $result['success'] ? 200 : 500);
+        if ($result['success']) {
+            return $this->successResponse([], $result['message']);
+        } else {
+            return $this->errorResponse($result['message'], 500);
+        }
     }
 
     public function abort(TestExecution $execution)
     {
         $result = $this->execService->abort($execution);
         if (request()->expectsJson()) {
-            return response()->json($result, $result['success'] ? 200 : 500);
+            if ($result['success']) {
+                return $this->successResponse([], $result['message']);
+            } else {
+                return $this->errorResponse($result['message'], 500);
+            }
         }
         return redirect()
             ->route('dashboard.executions.show', $execution->id)

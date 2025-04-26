@@ -8,9 +8,11 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use App\Traits\JsonResponse;
 
 class EnvironmentController extends Controller
 {
+    use JsonResponse;
     /**
      * Display a listing of environments.
      */
@@ -245,10 +247,7 @@ class EnvironmentController extends Controller
 
         if ($hasExecutions) {
             if (request()->expectsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "Cannot delete environment - it has associated test executions."
-                ], 422);
+                return $this->errorResponse("Cannot delete environment - it has associated test executions.", 422);
             }
 
             return redirect()->back()
@@ -262,10 +261,9 @@ class EnvironmentController extends Controller
         $environment->delete();
 
         if (request()->expectsJson()) {
-            return response()->json([
-                'success' => true,
-                'message' => "Environment \"$name\" deleted successfully."
-            ]);
+            if (request()->expectsJson()) {
+                return $this->successResponse([], "Environment \"$name\" deleted successfully.");
+            }
         }
 
         return redirect()->route('dashboard.environments.index')

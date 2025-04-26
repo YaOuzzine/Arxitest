@@ -321,8 +321,8 @@
             class="bg-white dark:bg-zinc-800 rounded-xl shadow-md border border-zinc-200 dark:border-zinc-700 overflow-hidden">
             <div class="p-6 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between">
                 <h3 class="text-lg font-semibold text-zinc-800 dark:text-white">
-                    @if ($testCases->total() > 0)
-                        {{ $testCases->total() }} {{ Str::plural('Test Case', $testCases->total()) }}
+                    @if ($testCases->count() > 0)
+                        {{ $testCases->count() }} {{ Str::plural('Test Case', $testCases->count()) }}
                     @else
                         Test Cases
                     @endif

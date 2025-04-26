@@ -12,10 +12,12 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use App\Traits\JsonResponse;
 use stdClass; // Or use array for $stats
 
 class ProjectController extends Controller
 {
+    use JsonResponse;
     /**
      * TEMPORARILY DISABLED - Authorization check.
      */
@@ -195,9 +197,8 @@ class ProjectController extends Controller
 
         if ($validator->fails()) {
             if ($request->expectsJson()) {
-                return response()->json(['success' => false, 'message' => 'Validation failed.', 'errors' => $validator->errors()], 422);
+                return $this->validationErrorResponse($validator);
             }
-            // Redirect back to edit page on validation failure
             return redirect()->route('dashboard.projects.edit', $project->id)->withErrors($validator)->withInput();
         }
 
@@ -215,7 +216,7 @@ class ProjectController extends Controller
             DB::commit();
 
             if ($request->expectsJson()) {
-                return response()->json(['success' => true, 'message' => 'Project settings updated.']);
+                return $this->successResponse([], 'Project settings updated.');
             }
             // Redirect to show page on success
             return redirect()->route('dashboard.projects.show', $project->id)->with('success', 'Project updated.');
@@ -224,7 +225,7 @@ class ProjectController extends Controller
             Log::error("Error updating project ID {$project->id}: " . $e->getMessage());
             $errorMessage = 'Failed to update project settings.';
             if ($request->expectsJson()) {
-                return response()->json(['success' => false, 'message' => $errorMessage], 500);
+                return $this->errorResponse($errorMessage, 500);
             }
             // Redirect back to edit page on error
             return redirect()->route('dashboard.projects.edit', $project->id)->with('error', $errorMessage)->withInput();
@@ -246,7 +247,7 @@ class ProjectController extends Controller
             DB::commit();
 
             if (request()->expectsJson()) {
-                return response()->json(['success' => true, 'message' => "Project \"$projectName\" deleted.", 'redirect' => route('dashboard.projects')]);
+                return $this->successResponse(['redirect' => route('dashboard.projects')], "Project \"$projectName\" deleted.");
             }
             return redirect()->route('dashboard.projects')->with('success', "Project \"$projectName\" deleted.");
         } catch (\Exception $e) {
@@ -254,7 +255,7 @@ class ProjectController extends Controller
             Log::error("Error deleting project ID {$project->id}: " . $e->getMessage());
             $errorMessage = "Failed to delete project \"$projectName\".";
             if (request()->expectsJson()) {
-                return response()->json(['success' => false, 'message' => $errorMessage], 500);
+                return $this->errorResponse($errorMessage, 500);
             }
             return redirect()->route('dashboard.projects')->with('error', $errorMessage);
         }

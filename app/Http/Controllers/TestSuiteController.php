@@ -15,11 +15,11 @@ use App\Http\Requests\UpdateTestSuiteRequest;
 use App\Services\TestSuiteService;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB; // Needed for indexAll safety check
-
+use App\Traits\JsonResponse;
 
 class TestSuiteController extends Controller
 {
-    use \App\AuthorizeResourceAccess;
+    use \App\AuthorizeResourceAccess, JsonResponse;
 
     protected TestSuiteService $suites;
 
@@ -129,7 +129,7 @@ class TestSuiteController extends Controller
         $this->suites->delete($test_suite);
 
         if (request()->expectsJson()) {
-            return response()->json(['success' => true, 'message' => "Suite \"$name\" deleted."]);
+            return $this->successResponse([], "Suite \"$name\" deleted.");
         }
 
         return redirect()

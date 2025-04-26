@@ -19,9 +19,11 @@ use App\Models\Team;
 use App\Models\TestScript;
 use App\Models\TestCase;
 use Illuminate\Support\Facades\Http;
+use App\Traits\JsonResponse;
 
 class JiraImportController extends Controller
 {
+    use JsonResponse;
     /**
      * Show options for importing from Jira.
      */
@@ -155,7 +157,7 @@ class JiraImportController extends Controller
             );
 
             if ($request->wantsJson()) {
-                return response()->json(['success' => true, 'data' => $result]);
+                return $this->successResponse($result);
             }
 
             return redirect()->route('dashboard.projects.show', $project->id)
@@ -169,7 +171,7 @@ class JiraImportController extends Controller
             }
 
             if ($request->wantsJson()) {
-                return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+                return $this->errorResponse($e->getMessage(), 500);
             }
 
             return redirect()->route('dashboard.integrations.index')
@@ -193,7 +195,7 @@ class JiraImportController extends Controller
         }
 
         $progress = cache()->get("jira_import_progress_{$projectId}", []);
-        return response()->json(['success' => true, 'progress' => $progress]);
+        return $this->successResponse(['progress' => $progress]);
     }
 
     protected function initializeImportProgress(string $projectId): void

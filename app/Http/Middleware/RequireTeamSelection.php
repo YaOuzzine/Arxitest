@@ -8,9 +8,11 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
+use App\Traits\JsonResponse;
 
 class RequireTeamSelection
 {
+    use JsonResponse;
     /**
      * Handle an incoming request.
      *
@@ -22,11 +24,9 @@ class RequireTeamSelection
         $currentTeamId = session('current_team');
         if (!$currentTeamId) {
             if ($request->expectsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Team selection is required',
+                return $this->errorResponse('Team selection is required', 403, [
                     'redirect' => route('dashboard.select-team')
-                ], 403);
+                ]);
             }
             return redirect()->route('dashboard.select-team')
                 ->with('error', 'Please select a team first.');
@@ -36,10 +36,7 @@ class RequireTeamSelection
         $user = Auth::user();
         if (!$user) {
             if ($request->expectsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Authentication required'
-                ], 401);
+                return $this->errorResponse('Authentication required', 401);
             }
             return redirect()->route('login');
         }
@@ -55,11 +52,11 @@ class RequireTeamSelection
             session()->forget('current_team');
 
             if ($request->expectsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Invalid team selection',
-                    'redirect' => route('dashboard.select-team')
-                ], 403);
+                if ($request->expectsJson()) {
+                    return $this->errorResponse('Invalid team selection', 403, [
+                        'redirect' => route('dashboard.select-team')
+                    ]);
+                }
             }
 
             return redirect()->route('dashboard.select-team')

@@ -14,10 +14,11 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use App\Traits\JsonResponse;
 
 class TestDataController extends Controller
 {
-    use AuthorizeResourceAccess;
+    use AuthorizeResourceAccess, JsonResponse;
 
     protected $testDataService;
 
@@ -236,10 +237,7 @@ PROMPT;
             $this->testDataService->detachFromTestCase($project, $test_case, $test_data);
 
             if (request()->expectsJson()) {
-                return response()->json([
-                    'success' => true,
-                    'message' => "Test data \"$dataName\" removed from this test case."
-                ]);
+                return $this->successResponse([], "Test data \"$dataName\" removed from this test case.");
             }
 
             return redirect()->route('dashboard.projects.test-cases.show', [
@@ -250,10 +248,7 @@ PROMPT;
             Log::error('Failed to detach test data: ' . $e->getMessage());
 
             if (request()->expectsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Failed to remove test data: ' . $e->getMessage()
-                ], 500);
+                return $this->errorResponse('Failed to remove test data: ' . $e->getMessage(), 500);
             }
 
             return redirect()->back()->with('error', 'Failed to remove test data: ' . $e->getMessage());

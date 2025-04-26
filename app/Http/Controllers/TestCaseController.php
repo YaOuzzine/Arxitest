@@ -13,9 +13,11 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use App\Traits\JsonResponse;
 
 class TestCaseController extends Controller
 {
+    use JsonResponse;
     protected $testCaseService;
 
     public function __construct(TestCaseService $testCaseService)
@@ -287,10 +289,7 @@ class TestCaseController extends Controller
             $this->testCaseService->destroy($test_case, $project, $test_suite);
 
             if (request()->expectsJson()) {
-                return response()->json([
-                    'success' => true,
-                    'message' => "Test case \"{$testCaseName}\" deleted successfully."
-                ]);
+                return $this->successResponse([], "Test case \"{$testCaseName}\" deleted successfully.");
             }
 
             // Determine redirect based on context
@@ -305,10 +304,7 @@ class TestCaseController extends Controller
                 ->with('success', "Test case \"{$testCaseName}\" deleted successfully.");
         } catch (\Exception $e) {
             if (request()->expectsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Error deleting test case: ' . $e->getMessage()
-                ], 400);
+                return $this->errorResponse('Error deleting test case: ' . $e->getMessage(), 400);
             }
 
             return redirect()->back()
@@ -329,10 +325,7 @@ class TestCaseController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors' => $validator->errors()
-            ], 422);
+            return $this->validationErrorResponse($validator);
         }
 
         // Add debugging
@@ -347,10 +340,7 @@ class TestCaseController extends Controller
 
         if (!$apiKey) {
             Log::error('OpenAI API Key is not configured.');
-            return response()->json([
-                'success' => false,
-                'message' => 'AI service is not configured. Please check your API key in .env file.'
-            ], 500);
+            return $this->errorResponse('AI generation failed.', 500);
         }
 
         $userPrompt = $request->input('prompt');
@@ -359,10 +349,7 @@ class TestCaseController extends Controller
         // Get the test suite to provide more context to the AI
         $suite = TestSuite::find($suiteId);
         if (!$suite || $suite->project_id !== $project->id) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Invalid test suite selected.'
-            ], 422);
+            return $this->errorResponse('Invalid test suite selected.', 422);
         }
 
         // Construct a detailed prompt for the AI
@@ -486,10 +473,7 @@ PROMPT;
             Log::error('Error calling OpenAI API: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString()
             ]);
-            return response()->json([
-                'success' => false,
-                'message' => 'An unexpected error occurred during AI generation: ' . $e->getMessage()
-            ], 500);
+            return $this->errorResponse('An unexpected error occurred during AI generation: ' . $e->getMessage(), 500);
         }
     }
 }

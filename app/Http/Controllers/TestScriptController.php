@@ -12,9 +12,11 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Request;
 use Illuminate\Support\Facades\Validator;
+use App\Traits\JsonResponse;
 
 class TestScriptController extends Controller
 {
+    use JsonResponse;
     protected $testScriptService;
 
     public function __construct(TestScriptService $testScriptService)
@@ -160,10 +162,7 @@ class TestScriptController extends Controller
             $test_script->delete();
 
             if (request()->expectsJson()) {
-                return response()->json([
-                    'success' => true,
-                    'message' => "Test script \"$scriptName\" deleted successfully."
-                ]);
+                return $this->successResponse([], "Test script \"$scriptName\" deleted successfully.");
             }
 
             return redirect()->route('dashboard.projects.test-cases.show', [
@@ -172,10 +171,7 @@ class TestScriptController extends Controller
             ])->with('success', "Test script \"$scriptName\" deleted successfully.");
         } catch (\Exception $e) {
             if (request()->expectsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => $e->getMessage()
-                ], 400);
+                return $this->errorResponse($e->getMessage(), 400);
             }
 
             return back()->with('error', $e->getMessage());

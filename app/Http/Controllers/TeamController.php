@@ -17,11 +17,12 @@ use Illuminate\Support\Facades\Log;
 use App\Http\Requests\StoreTeamRequest;
 use App\Http\Requests\UpdateTeamRequest;
 use App\Services\TeamService;
+use App\Traits\JsonResponse;
 use PgSql\Lob;
 
 class TeamController extends Controller
 {
-    use AuthorizesRequests;
+    use AuthorizesRequests, JsonResponse;
 
     protected TeamService $teams;
 
@@ -61,12 +62,10 @@ class TeamController extends Controller
         $team = $this->teams->create($request->validated());
 
         if ($request->expectsJson()) {
-            return response()->json([
-                'success'  => true,
-                'message'  => 'Team created successfully',
+            return $this->successResponse([
                 'team'     => $team->load('users'),
                 'redirect' => route('dashboard'),
-            ]);
+            ], 'Team created successfully');
         }
 
         return redirect()->route('dashboard')
@@ -109,11 +108,9 @@ class TeamController extends Controller
         $team = $this->teams->update($team, $request->validated());
 
         if ($request->expectsJson()) {
-            return response()->json([
-                'success' => true,
-                'message' => 'Team updated successfully',
-                'team'    => $team,
-            ]);
+            return $this->successResponse([
+                'team' => $team,
+            ], 'Team updated successfully');
         }
 
         return redirect()->route('teams.show', $team)
@@ -213,11 +210,7 @@ class TeamController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Invalid input',
-                'errors' => $validator->errors()
-            ], 422);
+            return $this->validationErrorResponse($validator, 'Invalid input');
         }
 
         // Format invitations for processing
@@ -231,10 +224,7 @@ class TeamController extends Controller
 
         $processed = $this->processTeamInvitations($team, $invites);
 
-        return response()->json([
-            'success' => true,
-            'message' => "{$processed} invitation(s) sent successfully"
-        ]);
+        return $this->successResponse([], "{$processed} invitation(s) sent successfully");
     }
 
     /**
@@ -258,19 +248,13 @@ class TeamController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Invalid role',
-                'errors' => $validator->errors()
-            ], 422);
+            return $this->validationErrorResponse($validator, 'Invalid role');
         }
+
 
         // Check if user is a member of the team
         if (!$team->users->contains($user->id)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'User is not a member of this team'
-            ], 404);
+            return $this->errorResponse('User is not a member of this team', 404);
         }
 
         // Update role
@@ -278,10 +262,7 @@ class TeamController extends Controller
             'team_role' => $request->role
         ]);
 
-        return response()->json([
-            'success' => true,
-            'message' => "Member role updated successfully"
-        ]);
+        return $this->successResponse([], "Member role updated successfully");
     }
 
     /**
@@ -301,27 +282,18 @@ class TeamController extends Controller
 
         // Check if user is a member of the team
         if (!$team->users->contains($user->id)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'User is not a member of this team'
-            ], 404);
+            return $this->errorResponse('User is not a member of this team', 404);
         }
 
         // Can't remove yourself
         if ($user->id === Auth::id()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'You cannot remove yourself from the team'
-            ], 403);
+            return $this->errorResponse('You cannot remove yourself from the team', 403);
         }
 
         // Remove member
         $team->users()->detach($user->id);
 
-        return response()->json([
-            'success' => true,
-            'message' => "Member removed successfully"
-        ]);
+        return $this->successResponse([], "Member removed successfully");
     }
 
     /**
@@ -336,11 +308,9 @@ class TeamController extends Controller
         $this->teams->delete($team);
 
         if ($request->expectsJson()) {
-            return response()->json([
-                'success'  => true,
-                'message'  => 'Team deleted successfully',
+            return $this->successResponse([
                 'redirect' => route('dashboard.select-team'),
-            ]);
+            ], 'Team deleted successfully');
         }
 
         return redirect()->route('dashboard.select-team')

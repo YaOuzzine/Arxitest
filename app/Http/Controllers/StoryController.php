@@ -9,9 +9,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
-
+use App\Traits\JsonResponse;
 class StoryController extends Controller
 {
+    use JsonResponse;
     /**
      * Authorization check (temporarily disabled like other controllers)
      */
@@ -272,10 +273,7 @@ class StoryController extends Controller
 
         if ($hasTestCases) {
             if (request()->expectsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "Cannot delete story - it has associated test cases."
-                ], 422);
+                return $this->errorResponse("Cannot delete story - it has associated test cases.", 422);
             }
 
             return redirect()->back()->with('error', 'Cannot delete story - it has associated test cases.');
@@ -284,10 +282,7 @@ class StoryController extends Controller
         $story->delete();
 
         if (request()->expectsJson()) {
-            return response()->json([
-                'success' => true,
-                'message' => "Story \"$storyTitle\" deleted successfully."
-            ]);
+            return $this->successResponse([], "Story \"$storyTitle\" deleted successfully.");
         }
 
         return redirect()->route('dashboard.stories.indexAll')
