@@ -126,7 +126,7 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
     Route::put('/dashboard/projects/{project}', [ProjectController::class, 'update'])->name('dashboard.projects.update');
     Route::delete('/dashboard/projects/{project}', [ProjectController::class, 'destroy'])->name('dashboard.projects.destroy');
     Route::get('/projects/{project}/epics', [StoryController::class, 'getEpics'])
-    ->name('dashboard.projects.epics');
+        ->name('dashboard.projects.epics');
 
     Route::get('/dashboard/test-suites', [TestSuiteController::class, 'indexAll'])->name('dashboard.test-suites.indexAll');
 
@@ -139,16 +139,19 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
         Route::get('/{test_suite}/edit', [TestSuiteController::class, 'edit'])->name('edit'); // Show edit form
         Route::put('/{test_suite}', [TestSuiteController::class, 'update'])->name('update'); // Update specific suite
         Route::delete('/{test_suite}', [TestSuiteController::class, 'destroy'])->name('destroy'); // Delete specific suite
-
+        Route::get('/available-test-cases', [TestSuiteController::class, 'searchAvailableTestCases'])
+            ->name('available-test-cases');
+        Route::post('/add-test-cases', [TestSuiteController::class, 'addTestCases'])
+            ->name('add-test-cases');
         // AI Generation Route (AJAX)
         Route::post('/generate-ai', [TestSuiteController::class, 'generateWithAI'])->name('generateAI');
     });
 
-    Route::prefix('dashboard/api')->name('dashboard.api.')->group(function(){
+    Route::prefix('dashboard/api')->name('dashboard.api.')->group(function () {
         Route::get('/projects/{project}/stories',  [StoryController::class,      'getJsonForProject'])->name('projects.stories');
-        Route::get('/projects/{project}/test-suites',[TestSuiteController::class, 'getJsonForProject'])->name('projects.test-suites');
+        Route::get('/projects/{project}/test-suites', [TestSuiteController::class, 'getJsonForProject'])->name('projects.test-suites');
         Route::get('/projects/{project}/test-cases', [TestCaseController::class,   'getJsonForProject'])->name('projects.test-cases');
-      });
+    });
 
     Route::get('/dashboard/test-cases', [TestCaseController::class, 'indexAll'])
         ->name('dashboard.test-cases.indexAll');

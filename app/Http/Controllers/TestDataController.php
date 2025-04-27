@@ -7,7 +7,7 @@ use App\Models\Project;
 use App\Models\TestCase;
 use App\Models\TestData;
 use App\Services\TestDataService;
-use App\AuthorizeResourceAccess;
+use App\Traits\AuthorizeResourceAccess;
 use App\Models\TestCaseData;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;

@@ -12,21 +12,28 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use App\Http\Requests\StoreTestSuiteRequest;
 use App\Http\Requests\UpdateTestSuiteRequest;
+use App\Services\RelationshipValidationService;
+use App\Services\TestCaseService;
 use App\Services\TestSuiteService;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB; // Needed for indexAll safety check
 use App\Traits\JsonResponse;
 use App\Traits\AuthorizeResourceAccess;
 
+
 class TestSuiteController extends Controller
 {
     use AuthorizeResourceAccess, JsonResponse;
 
     protected TestSuiteService $suites;
+    protected RelationshipValidationService $relationshipValidator;
+    protected TestCaseService $testCaseService;
 
-    public function __construct(TestSuiteService $suites)
+    public function __construct(TestSuiteService $suites, RelationshipValidationService $relationshipValidator, TestCaseService $testCaseService)
     {
         $this->suites = $suites;
+        $this->relationshipValidator = $relationshipValidator;
+        $this->testCaseService = $testCaseService;
     }
 
     /**
@@ -263,6 +270,84 @@ PROMPT;
         } catch (\Exception $e) {
             Log::error('Error calling Deepseek API: ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'An unexpected error occurred during AI generation.'], 500);
+        }
+    }
+
+
+
+    /**
+     * Search for test cases that can be added to this test suite.
+     */
+    public function searchAvailableTestCases(Request $request, Project $project, TestSuite $test_suite)
+    {
+        $this->authorizeAccess($project);
+
+        // Validate relationship
+        try {
+            $this->relationshipValidator->validateProjectSuiteRelationship($project, $test_suite);
+        } catch (\Exception $e) {
+            return $this->errorResponse($e->getMessage(), 400);
+        }
+
+        // Validate search parameters
+        $validator = Validator::make($request->all(), [
+            'search' => 'nullable|string|max:100',
+            'per_page' => 'nullable|integer|min:5|max:50',
+            'page' => 'nullable|integer|min:1',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->validationErrorResponse($validator);
+        }
+
+        try {
+            $result = $this->testCaseService->searchAvailableTestCases(
+                $project,
+                $test_suite,
+                $request->only(['search', 'per_page', 'page'])
+            );
+
+            return $this->successResponse($result);
+        } catch (\Exception $e) {
+            Log::error('Error searching available test cases: ' . $e->getMessage());
+            return $this->errorResponse('Failed to search test cases: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Add existing test cases to a test suite.
+     */
+    public function addTestCases(Request $request, Project $project, TestSuite $test_suite)
+    {
+        $this->authorizeAccess($project);
+
+        // Validate relationship
+        try {
+            $this->relationshipValidator->validateProjectSuiteRelationship($project, $test_suite);
+        } catch (\Exception $e) {
+            return $this->errorResponse($e->getMessage(), 400);
+        }
+
+        // Validate request
+        $validator = Validator::make($request->all(), [
+            'test_case_ids' => 'required|array',
+            'test_case_ids.*' => 'required|uuid|exists:test_cases,id',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->validationErrorResponse($validator);
+        }
+
+        try {
+            $result = $this->suites->addTestCasesToSuite(
+                $test_suite,
+                $request->input('test_case_ids')
+            );
+
+            return $this->successResponse($result, $result['message']);
+        } catch (\Exception $e) {
+            Log::error('Error adding test cases to suite: ' . $e->getMessage());
+            return $this->errorResponse('Failed to add test cases: ' . $e->getMessage(), 500);
         }
     }
 }

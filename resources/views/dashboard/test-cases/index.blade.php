@@ -85,7 +85,7 @@
         isProjectIndex: {{ $isProjectIndex ? 'true' : 'false' }},
         isSuiteIndex: {{ $isSuiteIndex ? 'true' : 'false' }},
         selectedProjectId: '{{ $selectedProjectId }}',
-        selectedStoryId: '{{ $selectedStoryId }}',
+        selectedStoryId: '{{ $selectedStoryId ?? '' }}',
         selectedSuiteId: '{{ $selectedSuiteId }}',
         searchTerm: '{{ $searchTerm }}',
         sortField: '{{ $sortField }}',
@@ -150,6 +150,11 @@
                     : ($isProjectIndex
                         ? route('dashboard.projects.test-cases.index', $project->id)
                         : route('dashboard.projects.test-suites.test-cases.index', [$project->id, $testSuite->id])) }}">
+                <input type="hidden" name="story_id" value="{{ $selectedStoryId }}">
+                <input type="hidden" name="suite_id" value="{{ $selectedSuiteId }}">
+                <input type="hidden" name="sort" value="{{ $sortField }}">
+                <input type="hidden" name="direction" value="{{ $sortDirection }}">
+
                 <div class="space-y-4">
                     <h3 class="text-lg font-medium text-zinc-800 dark:text-white mb-3">Filter Test Cases</h3>
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -189,7 +194,8 @@
                                             </li>
                                             <template x-for="project in filteredProjects" :key="project.id">
                                                 <li>
-                                                    <button type="button" @click="selectProject(project.id, project.name)"
+                                                    <button type="button"
+                                                        @click="selectProject(project.id, project.name)"
                                                         class="w-full text-left px-4 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-700"
                                                         :class="{
                                                             'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300': selectedProjectId ===
@@ -336,13 +342,14 @@
                             <div class="relative">
                                 <i data-lucide="search"
                                     class="absolute left-3 top-1/2 transform -translate-y-1/2 text-zinc-400 w-4 h-4"></i>
-                                <input type="search" id="search" name="search" value="{{ $searchTerm }}"
-                                    placeholder="Search by title or content..."
+                                <input type="search" id="search" name="search" x-model="searchTerm"
+                                    value="{{ $searchTerm }}" placeholder="Search by title or content..."
+                                    @keydown.enter.prevent="submitFilterForm()"
                                     class="w-full pl-10 pr-4 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-zinc-800">
                                 <button type="button" @click="clearSearch"
                                     class="absolute right-3 top-1/2 transform -translate-y-1/2 text-zinc-400 hover:text-zinc-500"
                                     x-show="searchTerm">
-                                    <i data-lucide="x" class="w-4 h-4"></i>
+                                    <i data-lucide="x" class="w-4 h-4"></i>zzzzzzzz
                                 </button>
                             </div>
                         </div>
@@ -405,7 +412,7 @@
                         @if ($searchTerm)
                             No test cases match your search criteria. Try adjusting your filters.
                         @elseif ($isGenericIndex && $selectedProjectId)
-                            No test cases found for the selected project. Create your first test case to get started.
+                            No test cases found for the selected project or story. Create your first test case to get started.
                         @elseif ($isProjectIndex && $selectedSuiteId)
                             No test cases found for the selected test suite. Create your first test case to get started.
                         @elseif ($isGenericIndex)
@@ -775,6 +782,12 @@
                         console.error(e);
                     }
                 },
+                clearSearch() {
+                    this.searchTerm = '';
+                    document.getElementById('search').value = '';
+                    this.submitFilterForm();
+                },
+
 
                 async fetchStoriesForProject(projectId) {
                     try {
@@ -789,7 +802,35 @@
                 selectStory(id, name) {
                     this.selectedStoryId = id;
                     this.selectedStoryName = name;
+                    // Make sure the hidden input is updated
+                    document.querySelector('input[name="story_id"]').value = id;
                     this.submitFilterForm();
+                },
+                submitFilterForm() {
+                    // Make sure all filter inputs are included in the form
+                    const form = document.getElementById('filter-form');
+
+                    // Make sure story_id is included even if unselected
+                    let storyInput = form.querySelector('input[name="story_id"]');
+                    if (!storyInput) {
+                        storyInput = document.createElement('input');
+                        storyInput.type = 'hidden';
+                        storyInput.name = 'story_id';
+                        form.appendChild(storyInput);
+                    }
+                    storyInput.value = this.selectedStoryId;
+
+                    let searchInput = form.querySelector('input[name="search"]');
+                    if (!searchInput) {
+                        searchInput = document.createElement('input');
+                        searchInput.type = 'hidden';
+                        searchInput.name = 'search';
+                        form.appendChild(searchInput);
+                    }
+                    searchInput.value = this.searchTerm;
+
+                    // Submit the form
+                    this.$nextTick(() => form.submit());
                 },
 
                 selectSuite(id, name) {

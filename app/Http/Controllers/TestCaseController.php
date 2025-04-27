@@ -96,52 +96,44 @@ class TestCaseController extends Controller
             ->orderBy('name')
             ->get(['id', 'name']);
 
+        // Get all filter parameters
+        $filters = [
+            'suite_id'  => $request->input('suite_id'),
+            'story_id'  => $request->input('story_id'),
+            'search'    => $request->input('search'),
+            'sort'      => $request->input('sort', 'updated_at'),
+            'direction' => $request->input('direction', 'desc'),
+        ];
+
         try {
+            // Get test cases with filters applied
             if ($test_suite) {
                 // Suite-specific listing
-                Log::debug("Loading test cases for specific suite", ['suite_id' => $test_suite->id]);
                 $data = $this->testCaseService->getTestCasesForSuite(
                     $project,
                     $test_suite,
-                    [
-                        'search'    => $request->input('search'),
-                        'sort'      => $request->input('sort', 'updated_at'),
-                        'direction' => $request->input('direction', 'desc'),
-                    ]
+                    $filters
                 );
-
-                return view('dashboard.test-cases.index', array_merge($data, [
-                    'project'           => $project,
-                    'testSuite'         => $test_suite,
-                    'storiesForFilter'  => $storiesForFilter,
-                    'suitesForFilter'   => $suitesForFilter,
-                    'searchTerm'        => $request->input('search', ''),
-                    'sortField'         => $request->input('sort', 'updated_at'),
-                    'sortDirection'     => $request->input('direction', 'desc'),
-                ]));
             } else {
                 // Project-wide listing
-                Log::debug("Loading test cases for entire project");
                 $data = $this->testCaseService->getTestCasesForProject(
                     $project,
-                    [
-                        'suite_id'  => $request->input('suite_id'),
-                        'search'    => $request->input('search'),
-                        'sort'      => $request->input('sort', 'updated_at'),
-                        'direction' => $request->input('direction', 'desc'),
-                    ]
+                    $filters
                 );
-
-                return view('dashboard.test-cases.index', array_merge($data, [
-                    'project'           => $project,
-                    'storiesForFilter'  => $storiesForFilter,
-                    'suitesForFilter'   => $suitesForFilter,
-                    'selectedSuiteId'   => $request->input('suite_id'),
-                    'searchTerm'        => $request->input('search', ''),
-                    'sortField'         => $request->input('sort', 'updated_at'),
-                    'sortDirection'     => $request->input('direction', 'desc'),
-                ]));
             }
+
+            // Return view with all necessary data
+            return view('dashboard.test-cases.index', array_merge($data, [
+                'project'           => $project,
+                'testSuite'         => $test_suite,
+                'storiesForFilter'  => $storiesForFilter,
+                'suitesForFilter'   => $suitesForFilter,
+                'selectedStoryId'   => $filters['story_id'],
+                'selectedSuiteId'   => $filters['suite_id'],
+                'searchTerm'        => $filters['search'],
+                'sortField'         => $filters['sort'],
+                'sortDirection'     => $filters['direction'],
+            ]));
         } catch (\Exception $e) {
             Log::error("Error in TestCaseController@index", [
                 'error' => $e->getMessage(),
