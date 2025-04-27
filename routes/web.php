@@ -139,7 +139,7 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
         Route::get('/{test_suite}/edit', [TestSuiteController::class, 'edit'])->name('edit'); // Show edit form
         Route::put('/{test_suite}', [TestSuiteController::class, 'update'])->name('update'); // Update specific suite
         Route::delete('/{test_suite}', [TestSuiteController::class, 'destroy'])->name('destroy'); // Delete specific suite
-        Route::get('/available-test-cases', [TestSuiteController::class, 'searchAvailableTestCases'])
+        Route::get('/{test_suite}/available-test-cases', [TestSuiteController::class, 'searchAvailableTestCases'])
             ->name('available-test-cases');
         Route::post('/add-test-cases', [TestSuiteController::class, 'addTestCases'])
             ->name('add-test-cases');

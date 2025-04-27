@@ -375,6 +375,7 @@ class TestCaseService
     /**
      * Search for test cases that can be added to a test suite.
      * Returns test cases in the same project that aren't already in the test suite.
+     * Modified to return all available cases when no search term is provided.
      */
     public function searchAvailableTestCases(Project $project, TestSuite $testSuite, array $filters = []): array
     {
@@ -384,7 +385,7 @@ class TestCaseService
 
         // Base query for test cases in this project that aren't in this suite
         $query = TestCase::query()
-            // Cases that belong to the project via story
+            // Include all test cases that belong to the project via story
             ->whereHas('story', function ($q) use ($project) {
                 $q->where('project_id', $project->id);
             })
@@ -406,10 +407,24 @@ class TestCaseService
         // Order by title
         $query->orderBy('title');
 
+        // For debugging when issues occur
+        Log::debug('Test case search query', [
+            'sql' => $query->toSql(),
+            'bindings' => $query->getBindings(),
+            'project_id' => $project->id,
+            'test_suite_id' => $testSuite->id
+        ]);
+
         // Get paginated results with essential fields only
         $testCases = $query->select(['id', 'title', 'story_id', 'priority', 'status'])
             ->with(['story:id,title'])
             ->paginate($perPage, ['*'], 'page', $page);
+
+        // Log the results for debugging
+        Log::debug('Available test cases result', [
+            'total' => $testCases->total(),
+            'count' => count($testCases->items())
+        ]);
 
         return [
             'test_cases' => $testCases->items(),

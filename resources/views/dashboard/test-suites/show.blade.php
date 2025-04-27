@@ -178,16 +178,16 @@
                             </p>
                             <button @click="toggleTestCaseSidebar"
                                 class="btn-primary inline-flex items-center px-4 py-2 lg:hidden">
-                                <i data-lucide="search-plus" class="w-4 h-4 mr-2"></i>
+                                <i data-lucide="search" class="w-4 h-4 mr-2"></i>
                                 Find Test Cases
                             </button>
                         </div>
 
                         <!-- Drop Overlay (Shows when dragging) -->
                         <div x-show="isDragOver"
-                            class="absolute inset-0 bg-indigo-500/10 dark:bg-indigo-500/20 backdrop-blur-sm rounded-xl flex items-center justify-center border-2 border-dashed border-indigo-500/40 dark:border-indigo-500/50">
+                            class="absolute bg-indigo-500/10 dark:bg-indigo-500/20 backdrop-blur-sm rounded-xl flex items-center justify-center border-2 border-dashed border-indigo-500/40 dark:border-indigo-500/50">
                             <div
-                                class="text-center bg-white/80 dark:bg-zinc-800/80 backdrop-blur-sm p-4 rounded-lg shadow-lg">
+                                class="text-center w-100 bg-white/80 dark:bg-zinc-800/80 backdrop-blur-sm p-4 rounded-lg shadow-lg">
                                 <i data-lucide="arrow-down-circle"
                                     class="w-10 h-10 text-indigo-600 dark:text-indigo-400 mx-auto mb-2"></i>
                                 <h3 class="text-lg font-semibold text-zinc-900 dark:text-white">Drop to Add</h3>
@@ -234,7 +234,7 @@
                     <!-- No Results State -->
                     <div x-show="!isSearching && availableTestCases.length === 0 && searchQuery" class="py-6 text-center">
                         <i data-lucide="search-x" class="w-8 h-8 text-zinc-400 mx-auto mb-2"></i>
-                        <p class="text-sm text-zinc-600 dark:text-zinc-400">No matching test cases found</p>
+                        <p class="text-sm text-zinc-600 dark:text-zinc-400">No test cases available to add. All test cases are already in this suite or no test cases exist for this project.</p>
                     </div>
 
                     <!-- Empty Initial State -->
@@ -563,7 +563,7 @@
                     } catch (error) {
                         console.error('Error loading suite test cases:', error);
                         this.showError(
-                        'Failed to load test cases. Please try refreshing the page.');
+                            'Failed to load test cases. Please try refreshing the page.');
                     }
                 },
 
@@ -572,14 +572,19 @@
                     this.isSearching = true;
 
                     try {
-                        const response = await fetch(
-                            `${this.searchUrl}?search=${encodeURIComponent(this.searchQuery)}&page=${this.pagination.current_page}&per_page=${this.pagination.per_page}`, {
-                                method: 'GET',
-                                headers: {
-                                    'Accept': 'application/json',
-                                    'X-CSRF-TOKEN': this.csrfToken
-                                }
-                            });
+                        // Fix URL construction issue by ensuring no template ID is appended
+                        const url = new URL(this.searchUrl, window.location.origin);
+                        url.searchParams.append('search', this.searchQuery);
+                        url.searchParams.append('page', this.pagination.current_page);
+                        url.searchParams.append('per_page', this.pagination.per_page);
+
+                        const response = await fetch(url.toString(), {
+                            method: 'GET',
+                            headers: {
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': this.csrfToken
+                            }
+                        });
 
                         if (!response.ok) {
                             throw new Error(`HTTP error! Status: ${response.status}`);
@@ -676,7 +681,7 @@
                         if (isDuplicate) {
                             this.showError(
                                 `Test case "${this.currentlyDragging.title}" is already in this suite.`
-                                );
+                            );
                             return;
                         }
 
@@ -804,6 +809,18 @@
                         this.showDeleteModal = false;
                         this.deleteConfirmText = '';
                     }
+                },
+
+                initDragDrop() {
+                    // Redundancy to ensure icons are loaded
+                    this.$nextTick(() => {
+                        if (typeof lucide !== 'undefined') {
+                            lucide.createIcons();
+                        }
+                    });
+
+                    // Load available test cases immediately after page loads
+                    this.searchTestCases();
                 },
 
                 // Confirm delete action
