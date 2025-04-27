@@ -2,172 +2,119 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoryRequest;
 use App\Models\Project;
 use App\Models\Story;
-use App\Models\Team;
+use App\Services\StoryService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Validator;
 use App\Traits\JsonResponse;
+
 class StoryController extends Controller
 {
     use JsonResponse;
-    /**
-     * Authorization check (temporarily disabled like other controllers)
-     */
-    private function authorizeAccess($project): void
-    {
-        Log::warning('AUTHORIZATION CHECK IS TEMPORARILY DISABLED in StoryController@authorizeAccess');
-    }
 
-    // In StoryController@indexAll
+    protected $storyService;
+
+    public function __construct(StoryService $storyService)
+    {
+        $this->storyService = $storyService;
+    }
 
     public function indexAll(Request $request)
     {
         $team = $this->getCurrentTeam($request);
-        $currentTeamId = $team->id;
-
-        // Get project IDs the current user belongs to within this team
-        $userProjectIds = Auth::user()->teams()
-            ->where('teams.id', $currentTeamId)
-            ->first()?->projects()->pluck('id');
-
-        if (is_null($userProjectIds) || $userProjectIds->isEmpty()) {
-            return view('dashboard.stories.index', [
-                'stories' => collect(),
-                'projects' => collect(),
-                'team' => $team,
-                'selectedProjectId' => null,
-            ]);
-        }
 
         // Get projects for filter dropdown
-        $projects = Project::whereIn('id', $userProjectIds)
-            ->orderBy('name')
-            ->get(['id', 'name']);
+        $projects = $this->storyService->getProjectsForTeam($team);
 
-        // Base query for stories
-        $query = Story::query()
-            ->whereHas('testCases', function ($q) use ($userProjectIds) {
-                $q->whereHas('testSuite', function ($q) use ($userProjectIds) {
-                    $q->whereIn('project_id', $userProjectIds);
-                });
-            })
-            ->select('stories.*');
+        // Get all available story sources
+        $sources = ['manual', 'jira', 'github', 'azure'];
 
-        // Handle project filter
-        $filterProjectId = $request->input('project_id');
-        if ($filterProjectId && $projects->contains('id', $filterProjectId)) {
-            $query->whereHas('testCases', function ($q) use ($filterProjectId) {
-                $q->whereHas('testSuite', function ($q) use ($filterProjectId) {
-                    $q->where('project_id', $filterProjectId);
-                });
-            });
+        // Parse selected sources from the request
+        $selectedSources = $request->has('sources') ? $request->sources : [];
+        if (!is_array($selectedSources)) {
+            $selectedSources = [$selectedSources];
         }
 
-        // Add search query if provided
-        if ($request->has('search') && !empty($request->search)) {
-            $searchTerm = '%' . $request->search . '%';
-            $query->where(function ($q) use ($searchTerm) {
-                $q->where('title', 'like', $searchTerm)
-                    ->orWhere('description', 'like', $searchTerm)
-                    ->orWhere('external_id', 'like', $searchTerm);
-            });
-        }
+        // Build filters array
+        $filters = [
+            'project_id' => $request->input('project_id'),
+            'test_case_id' => $request->input('test_case_id'),
+            'sources' => $selectedSources,
+            'search' => $request->input('search'),
+            'sort' => $request->input('sort', 'updated_at'),
+            'direction' => $request->input('direction', 'desc')
+        ];
 
-        // Sort options
-        $sortField = $request->input('sort', 'updated_at');
-        $sortDirection = $request->input('direction', 'desc');
-        $allowedSortFields = ['title', 'created_at', 'updated_at', 'source', 'external_id'];
-
-        if (in_array($sortField, $allowedSortFields)) {
-            $query->orderBy($sortField, $sortDirection);
-        } else {
-            $query->orderBy('updated_at', 'desc');
-        }
-
-        // Get paginated results
-        $stories = $query->paginate(10)->withQueryString();
+        // Get filtered stories
+        $stories = $this->storyService->getStoriesForTeam($team, $filters);
 
         return view('dashboard.stories.index', [
             'stories' => $stories,
             'projects' => $projects,
             'team' => $team,
-            'selectedProjectId' => $filterProjectId,
-            'searchTerm' => $request->search ?? '',
-            'sortField' => $sortField,
-            'sortDirection' => $sortDirection
+            'selectedProjectId' => $request->input('project_id'),
+            'sources' => $sources,
+            'selectedSources' => $selectedSources,
+            'searchTerm' => $request->input('search', ''),
+            'sortField' => $filters['sort'],
+            'sortDirection' => $filters['direction']
         ]);
     }
 
-    /**
-     * Display a listing of stories for a specific project.
-     */
     public function index(Project $project, Request $request)
     {
-        $this->authorizeAccess($project);
+        $team = $this->getCurrentTeam($request);
 
-        $query = Story::query()
-            ->whereHas('testCases', function ($q) use ($project) {
-                $q->whereHas('testSuite', function ($q) use ($project) {
-                    $q->where('project_id', $project->id);
-                });
-            });
-
-        // Add search functionality
-        if ($request->has('search') && !empty($request->search)) {
-            $searchTerm = '%' . $request->search . '%';
-            $query->where(function ($q) use ($searchTerm) {
-                $q->where('title', 'like', $searchTerm)
-                    ->orWhere('description', 'like', $searchTerm)
-                    ->orWhere('external_id', 'like', $searchTerm);
-            });
+        // Ensure project belongs to team
+        if ($project->team_id !== $team->id) {
+            return redirect()->route('dashboard.stories.indexAll')
+                ->with('error', 'Invalid project selected.');
         }
 
-        // Sorting
-        $sortField = $request->input('sort', 'updated_at');
-        $sortDirection = $request->input('direction', 'desc');
-        $allowedSortFields = ['title', 'created_at', 'updated_at', 'source', 'external_id'];
+        // Get all available story sources
+        $sources = ['manual', 'jira', 'github', 'azure'];
 
-        if (in_array($sortField, $allowedSortFields)) {
-            $query->orderBy($sortField, $sortDirection);
-        } else {
-            $query->orderBy('updated_at', 'desc');
+        // Parse selected sources from the request
+        $selectedSources = $request->has('sources') ? $request->sources : [];
+        if (!is_array($selectedSources)) {
+            $selectedSources = [$selectedSources];
         }
 
-        $stories = $query->paginate(10)->withQueryString();
+        // Build filters array
+        $filters = [
+            'project_id' => $project->id,
+            'test_case_id' => $request->input('test_case_id'),
+            'sources' => $selectedSources,
+            'search' => $request->input('search'),
+            'sort' => $request->input('sort', 'updated_at'),
+            'direction' => $request->input('direction', 'desc')
+        ];
+
+        // Get filtered stories
+        $stories = $this->storyService->getStoriesForTeam($team, $filters);
 
         return view('dashboard.stories.index', [
             'stories' => $stories,
             'project' => $project,
-            'searchTerm' => $request->search ?? '',
-            'sortField' => $sortField,
-            'sortDirection' => $sortDirection
+            'sources' => $sources,
+            'selectedSources' => $selectedSources,
+            'searchTerm' => $request->input('search', ''),
+            'sortField' => $filters['sort'],
+            'sortDirection' => $filters['direction']
         ]);
     }
 
-    /**
-     * Show the form for creating a new story.
-     */
     public function create(Request $request)
     {
         $team = $this->getCurrentTeam($request);
-        $currentTeamId = $team->id;
+        $projects = $this->storyService->getProjectsForTeam($team);
 
-        // Get all projects for the team
-        $projects = Project::where('team_id', $currentTeamId)->get(['id', 'name']);
-
-        // If a project_id is provided in the request, validate it belongs to the team
         $selectedProjectId = $request->input('project_id');
         $selectedProject = null;
 
         if ($selectedProjectId) {
             $selectedProject = $projects->firstWhere('id', $selectedProjectId);
-            if (!$selectedProject) {
-                return redirect()->route('dashboard.stories.create')
-                    ->with('error', 'Selected project is not valid for your team.');
-            }
         }
 
         return view('dashboard.stories.create', [
@@ -176,54 +123,24 @@ class StoryController extends Controller
         ]);
     }
 
-    /**
-     * Store a newly created story.
-     */
-    public function store(Request $request)
+    public function store(StoryRequest $request)
     {
-        $validator = Validator::make($request->all(), [
-            'title' => 'required|string|max:200',
-            'description' => 'nullable|string|max:2000',
-            'source' => 'required|string|in:manual,jira,github,azure',
-            'external_id' => 'nullable|string|max:100',
-            'metadata' => 'nullable|array',
-        ]);
+        $story = $this->storyService->createStory($request->validated());
 
-        if ($validator->fails()) {
-            return redirect()->back()
-                ->withErrors($validator)
-                ->withInput();
-        }
-
-        $story = new Story();
-        $story->title = $request->input('title');
-        $story->description = $request->input('description');
-        $story->source = $request->input('source');
-        $story->external_id = $request->input('external_id');
-        $story->metadata = $request->input('metadata', []);
-        $story->save();
-
-        // Redirect to stories index
         return redirect()->route('dashboard.stories.indexAll')
             ->with('success', 'Story created successfully.');
     }
 
-    /**
-     * Display the specified story.
-     */
     public function show(Story $story)
     {
-        // Load related test cases
-        $story->load('testCases.testSuite.project');
+        $testCases = $this->storyService->getTestCasesForStory($story);
 
         return view('dashboard.stories.show', [
             'story' => $story,
+            'testCases' => $testCases
         ]);
     }
 
-    /**
-     * Show the form for editing the specified story.
-     */
     public function edit(Story $story)
     {
         return view('dashboard.stories.edit', [
@@ -231,61 +148,32 @@ class StoryController extends Controller
         ]);
     }
 
-    /**
-     * Update the specified story.
-     */
-    public function update(Request $request, Story $story)
+    public function update(StoryRequest $request, Story $story)
     {
-        $validator = Validator::make($request->all(), [
-            'title' => 'required|string|max:200',
-            'description' => 'nullable|string|max:2000',
-            'source' => 'required|string|in:manual,jira,github,azure',
-            'external_id' => 'nullable|string|max:100',
-            'metadata' => 'nullable|array',
-        ]);
-
-        if ($validator->fails()) {
-            return redirect()->back()
-                ->withErrors($validator)
-                ->withInput();
-        }
-
-        $story->title = $request->input('title');
-        $story->description = $request->input('description');
-        $story->source = $request->input('source');
-        $story->external_id = $request->input('external_id');
-        $story->metadata = $request->input('metadata', $story->metadata);
-        $story->save();
+        $this->storyService->updateStory($story, $request->validated());
 
         return redirect()->route('dashboard.stories.show', $story->id)
             ->with('success', 'Story updated successfully.');
     }
 
-    /**
-     * Remove the specified story.
-     */
     public function destroy(Story $story)
     {
-        $storyTitle = $story->title;
+        try {
+            $storyTitle = $story->title;
+            $this->storyService->deleteStory($story);
 
-        // Check if there are test cases linked to this story
-        $hasTestCases = $story->testCases()->exists();
-
-        if ($hasTestCases) {
             if (request()->expectsJson()) {
-                return $this->errorResponse("Cannot delete story - it has associated test cases.", 422);
+                return $this->successResponse([], "Story \"$storyTitle\" deleted successfully.");
             }
 
-            return redirect()->back()->with('error', 'Cannot delete story - it has associated test cases.');
+            return redirect()->route('dashboard.stories.indexAll')
+                ->with('success', "Story \"$storyTitle\" deleted successfully.");
+        } catch (\Exception $e) {
+            if (request()->expectsJson()) {
+                return $this->errorResponse($e->getMessage(), 422);
+            }
+
+            return redirect()->back()->with('error', $e->getMessage());
         }
-
-        $story->delete();
-
-        if (request()->expectsJson()) {
-            return $this->successResponse([], "Story \"$storyTitle\" deleted successfully.");
-        }
-
-        return redirect()->route('dashboard.stories.indexAll')
-            ->with('success', "Story \"$storyTitle\" deleted successfully.");
     }
 }

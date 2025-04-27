@@ -1,3 +1,5 @@
+<!-- dashboard/stories/index.blade.php -->
+
 @extends('layouts.dashboard')
 
 @section('title', isset($project) ? "{$project->name} - Stories" : "All Stories")
@@ -40,97 +42,66 @@
 
     <!-- Filters -->
     <div class="bg-white dark:bg-zinc-800/50 shadow-sm rounded-xl border border-zinc-200/70 dark:border-zinc-700/50 p-4 backdrop-blur-sm relative z-10">
-        <form action="{{ isset($project) ? route('dashboard.projects.stories.index', $project->id) : route('dashboard.stories.indexAll') }}" method="GET" class="space-y-4">
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <!-- Project Filter -->
-@if(!isset($project))
-<div>
-    <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Project</label>
-    <div x-data="{ open: false, selected: '{{ request('project_id') ? $projects->firstWhere('id', request('project_id'))->name : 'All Projects' }}' }" class="relative">
-        <input type="hidden" name="project_id" :value="{{ request('project_id') ?? '' }}">
-        <button @click="open = !open" type="button" class="w-full flex items-center justify-between px-4 py-2.5 rounded-xl border border-zinc-300/80 dark:border-zinc-600 bg-white/50 dark:bg-zinc-800/50 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700/30 transition-colors duration-200">
-            <span x-text="selected"></span>
-            <i data-lucide="chevron-down" class="h-4 w-4 ml-2 transform transition-transform duration-200" :class="{ 'rotate-180': open }"></i>
-        </button>
-
-        <div x-show="open" @click.away="open = false" class="dropdown-container"
-             x-transition:enter="transition ease-out duration-100"
-             x-transition:enter-start="transform opacity-0 scale-95"
-             x-transition:enter-end="transform opacity-100 scale-100"
-             x-transition:leave="transition ease-in duration-75"
-             x-transition:leave-start="transform opacity-100 scale-100"
-             x-transition:leave-end="transform opacity-0 scale-95">
-            <div class="dropdown-menu w-full">
-                <div @click="selected = 'All Projects'; $event.target.closest('form').submit(); open = false"
-                     class="cursor-pointer px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100/50 dark:hover:bg-zinc-700/30 transition-colors duration-200">
-                    All Projects
+        <form action="{{ isset($project) ? route('dashboard.projects.stories.index', $project->id) : route('dashboard.stories.indexAll') }}" method="GET" class="space-y-4" id="filterForm">
+            <div class="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end">
+                <!-- Project Filter (only show if no project is set) -->
+                @if(!isset($project))
+                <div class="sm:col-span-3">
+                    <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Project</label>
+                    <select name="project_id" id="project_filter" class="w-full py-2.5 px-4 rounded-xl border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 shadow-sm" onchange="this.form.submit()">
+                        <option value="">All Projects</option>
+                        @foreach($projects as $p)
+                            <option value="{{ $p->id }}" {{ request('project_id') == $p->id ? 'selected' : '' }}>{{ $p->name }}</option>
+                        @endforeach
+                    </select>
                 </div>
-                @foreach($projects as $p)
-                <div @click="selected = '{{ $p->name }}'; $event.target.closest('form').submit(); open = false"
-                     class="cursor-pointer px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100/50 dark:hover:bg-zinc-700/30 transition-colors duration-200"
-                     :class="{ 'bg-indigo-50/50 dark:bg-indigo-900/20': {{ $p->id }} == {{ request('project_id') ?? 'null' }} }">
-                    {{ $p->name }}
-                </div>
-                @endforeach
-            </div>
-        </div>
-    </div>
-</div>
-@endif
+                @endif
 
-<!-- Source Filter -->
-<div>
-    <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Source</label>
-    <div x-data="{ open: false, selected: '{{ request('source') ? ucfirst(request('source')) : 'All Sources' }}' }" class="relative">
-        <button @click="open = !open" type="button" class="w-full flex items-center justify-between px-4 py-2.5 rounded-xl border border-zinc-300/80 dark:border-zinc-600 bg-white/50 dark:bg-zinc-800/50 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-700/30 transition-colors duration-200">
-            <span x-text="selected"></span>
-            <i data-lucide="chevron-down" class="h-4 w-4 ml-2 transform transition-transform duration-200" :class="{ 'rotate-180': open }"></i>
-        </button>
+                <!-- Sources Filter (Toggle Pills) -->
+                <div class="sm:col-span-{{ isset($project) ? '5' : '4' }}">
+                    <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Source</label>
+                    <div class="flex flex-wrap gap-2">
+                        <button type="button"
+                                class="source-pill px-3 py-1.5 rounded-full text-sm font-medium border"
+                                data-value="all">
+                            All Sources
+                        </button>
 
-        <div x-show="open" @click.away="open = false" class="dropdown-container"
-             x-transition:enter="transition ease-out duration-100"
-             x-transition:enter-start="transform opacity-0 scale-95"
-             x-transition:enter-end="transform opacity-100 scale-100"
-             x-transition:leave="transition ease-in duration-75"
-             x-transition:leave-start="transform opacity-100 scale-100"
-             x-transition:leave-end="transform opacity-0 scale-95">
-            <div class="dropdown-menu w-full">
-                <div @click="selected = 'All Sources'; $event.target.closest('form').submit(); open = false"
-                     class="cursor-pointer px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100/50 dark:hover:bg-zinc-700/30 transition-colors duration-200">
-                    All Sources
+                        @foreach($sources as $source)
+                            <button type="button"
+                                    class="source-pill px-3 py-1.5 rounded-full text-sm font-medium border"
+                                    data-value="{{ $source }}">
+                                {{ ucfirst($source) }}
+                            </button>
+                        @endforeach
+                    </div>
+                    <div id="sources-container">
+                        {{-- Hidden inputs for selected sources will be added here by JS --}}
+                        {{-- We need to read the initial state from the request helper --}}
+                        @foreach(request('sources', []) as $source)
+                             <input type="hidden" name="sources[]" value="{{ $source }}">
+                        @endforeach
+                    </div>
                 </div>
-                @foreach(['manual', 'jira', 'github', 'azure'] as $source)
-                <div @click="selected = '{{ ucfirst($source) }}'; $event.target.closest('form').submit(); open = false"
-                     class="cursor-pointer px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100/50 dark:hover:bg-zinc-700/30 transition-colors duration-200"
-                     :class="{ 'bg-indigo-50/50 dark:bg-indigo-900/20': '{{ $source }}' === '{{ request('source') }}' }">
-                    {{ ucfirst($source) }}
-                </div>
-                @endforeach
-            </div>
-        </div>
-        <input type="hidden" name="source" :value="selected.toLowerCase() === 'all sources' ? '' : selected.toLowerCase()">
-    </div>
-</div>
 
-                <!-- Search -->
-                <div class="sm:col-span-2">
-                    <label for="search" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2 transition-colors duration-200">Search</label>
-                    <div class="relative group">
-                        <div class="absolute  left-0 pl-3 flex items-center pointer-events-none text-zinc-400 dark:text-zinc-500 transition-colors duration-200">
-                            <i data-lucide="search" class="h-4 w-4 group-focus-within:text-indigo-600"></i>
+                <!-- Search Field -->
+                <div class="sm:col-span-{{ isset($project) ? '7' : '5' }}">
+                    <div class="relative">
+                        <div class="absolute left-0 pl-3 flex items-center pointer-events-none text-zinc-400 dark:text-zinc-500">
+                            <i data-lucide="search" class="h-4 w-4"></i>
                         </div>
-                        <input type="text" name="search" id="search" value="{{ request('search') }}"
-                               class="w-full pl-10 pr-12 py-2.5 rounded-xl border border-zinc-300/80 dark:border-zinc-600 bg-white/50 dark:bg-zinc-800/50 text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 dark:placeholder-zinc-500 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm transition-all duration-200"
+                        <input type="text" name="search" value="{{ $searchTerm }}"
+                               class="w-full pl-10 pr-12 py-2.5 rounded-xl border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 dark:placeholder-zinc-500 shadow-sm"
                                placeholder="Search title, description, or ID...">
-                        <button type="submit" class="absolute h-full right-0 px-4 flex items-center bg-indigo-600/10 dark:bg-indigo-400/10 border-l border-zinc-300/50 dark:border-zinc-600/50 hover:bg-indigo-600/20 dark:hover:bg-indigo-400/20 transition-colors duration-200 rounded-r-xl">
+                        <button type="submit" class="absolute h-full right-0 px-4 flex items-center bg-indigo-600/10 dark:bg-indigo-400/10 border-l border-zinc-300/50 dark:border-zinc-600/50 hover:bg-indigo-600/20 dark:hover:bg-indigo-400/20 rounded-r-xl">
                             <i data-lucide="arrow-right" class="h-4 w-4 text-indigo-600 dark:text-indigo-400"></i>
                         </button>
                     </div>
                 </div>
             </div>
 
-            <input type="hidden" name="sort" value="{{ request('sort', 'updated_at') }}">
-            <input type="hidden" name="direction" value="{{ request('direction', 'desc') }}">
+            <input type="hidden" name="sort" value="{{ $sortField }}">
+            <input type="hidden" name="direction" value="{{ $sortDirection }}">
         </form>
     </div>
 
@@ -142,7 +113,7 @@
                 <i data-lucide="file-question" class="h-12 w-12 text-zinc-400 dark:text-zinc-500 mb-4 animate-pulse"></i>
                 <h3 class="text-lg font-medium text-zinc-900 dark:text-white">No stories found</h3>
                 <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-                    @if(request('search') || request('project_id') || request('source'))
+                    @if(request('search') || request('project_id') || !empty($selectedSources))
                         Try adjusting your search or filters.
                     @else
                         Get started by creating your first story.
@@ -278,33 +249,100 @@
 </div>
 @endsection
 
+@push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize Lucide icons
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+
+    const sourcePills = document.querySelectorAll('.source-pill');
+    const sourcesContainer = document.getElementById('sources-container');
+    const form = document.getElementById('filterForm');
+
+    // Get initial selected sources from the hidden inputs rendered by Blade
+    let selectedSourcesState = Array.from(sourcesContainer.querySelectorAll('input[name="sources[]"]'))
+                                    .map(input => input.value);
+
+    // Set initial visual state of pills
+    updatePillVisuals();
+
+    // Add click listeners to pills
+    sourcePills.forEach(pill => {
+        pill.addEventListener('click', function(e) {
+            e.preventDefault(); // Prevent default button behavior
+            const value = this.getAttribute('data-value');
+
+            if (value === 'all') {
+                selectedSourcesState = []; // Clear all selections
+            } else {
+                // Toggle the clicked source in the state array
+                const index = selectedSourcesState.indexOf(value);
+                if (index > -1) {
+                    // Already selected, remove it
+                    selectedSourcesState.splice(index, 1);
+                } else {
+                    // Not selected, add it
+                    selectedSourcesState.push(value);
+                }
+            }
+
+            // Update the visual state of ALL pills based on the new state
+            updatePillVisuals();
+
+            // Update the hidden inputs in the form
+            updateSourceInputsElements();
+
+            // Submit the form
+            form.submit();
+        });
+    });
+
+    /**
+     * Updates the CSS classes of the source pills based on the selectedSourcesState array.
+     */
+    function updatePillVisuals() {
+        sourcePills.forEach(pill => {
+            const value = pill.getAttribute('data-value');
+            const isActive = (value === 'all' && selectedSourcesState.length === 0) || // 'All' is active if no specific sources are selected
+                             (value !== 'all' && selectedSourcesState.includes(value)); // Specific source is active if it's in the state array
+
+            if (isActive) {
+                pill.classList.add('bg-indigo-100', 'dark:bg-indigo-900/30', 'border-indigo-300', 'dark:border-indigo-700', 'text-indigo-700', 'dark:text-indigo-300');
+                pill.classList.remove('bg-white', 'dark:bg-zinc-800', 'border-zinc-300', 'dark:border-zinc-600', 'text-zinc-700', 'dark:text-zinc-300');
+            } else {
+                 pill.classList.remove('bg-indigo-100', 'dark:bg-indigo-900/30', 'border-indigo-300', 'dark:border-indigo-700', 'text-indigo-700', 'dark:text-indigo-300');
+                 pill.classList.add('bg-white', 'dark:bg-zinc-800', 'border-zinc-300', 'dark:border-zinc-600', 'text-zinc-700', 'dark:text-zinc-300');
+            }
+        });
+    }
+
+    /**
+     * Updates the hidden input elements in the sourcesContainer based on the selectedSourcesState array.
+     */
+    function updateSourceInputsElements() {
+        // Clear existing inputs
+        sourcesContainer.innerHTML = '';
+
+        // Add new inputs for each selected source (only for specific sources)
+        selectedSourcesState.forEach(source => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'sources[]';
+            input.value = source;
+            sourcesContainer.appendChild(input);
+        });
+         // If selectedSourcesState is empty, no 'sources[]' inputs are added,
+         // which correctly signals "all" to the backend filter logic.
+    }
+});
+</script>
+@endpush
+
 @push('styles')
-<link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.css" rel="stylesheet">
 <style>
-    .ts-control {
-        @apply px-3 py-2 rounded-xl border border-zinc-300/80 dark:border-zinc-600 bg-white/50 dark:bg-zinc-800/50 text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 dark:placeholder-zinc-500 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 shadow-sm transition-all duration-200;
-    }
-
-    .ts-dropdown {
-        @apply rounded-xl shadow-lg border border-zinc-200/70 dark:border-zinc-700 overflow-hidden;
-    }
-
-    .ts-dropdown .option {
-        @apply px-3 py-2 hover:bg-zinc-100/50 dark:hover:bg-zinc-700/50 transition-colors duration-200;
-    }
-
-    .ts-dropdown .active {
-        @apply bg-indigo-50/50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-300;
-    }
-
-    .dark .ts-control {
-        @apply bg-zinc-800/50 border-zinc-600 text-zinc-200;
-    }
-
-    .dark .ts-dropdown {
-        @apply bg-zinc-800 border-zinc-700;
-    }
-
     @keyframes spring {
         0% { transform: scale(1); }
         50% { transform: scale(1.2); }
@@ -315,39 +353,4 @@
         animation: spring 0.3s ease-in-out;
     }
 </style>
-@endpush
-
-@push('scripts')
-<script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        lucide.createIcons();
-
-        new TomSelect('#project_id', {
-            create: false,
-            controlInput: null,
-            render: {
-                option: function(data, escape) {
-                    return `<div class="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors duration-200">${escape(data.text)}</div>`;
-                },
-                item: function(data, escape) {
-                    return `<div class="ts-item">${escape(data.text)}</div>`;
-                }
-            }
-        });
-
-        new TomSelect('#source', {
-            create: false,
-            controlInput: null,
-            render: {
-                option: function(data, escape) {
-                    return `<div class="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors duration-200">${escape(data.text)}</div>`;
-                },
-                item: function(data, escape) {
-                    return `<div class="ts-item">${escape(data.text)}</div>`;
-                }
-            }
-        });
-    });
-</script>
 @endpush
