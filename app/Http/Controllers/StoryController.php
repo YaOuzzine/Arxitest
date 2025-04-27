@@ -214,7 +214,6 @@ class StoryController extends Controller
     public function show(Story $story)
     {
         $testCases = $this->storyService->getTestCasesForStory($story);
-
         return view('dashboard.stories.show', [
             'story' => $story,
             'testCases' => $testCases

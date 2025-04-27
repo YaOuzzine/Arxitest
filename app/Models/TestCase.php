@@ -71,4 +71,24 @@ class TestCase extends Model
     {
         return $this->hasMany(TestCaseData::class);
     }
+
+
+    public function getProjectIdAttribute()
+    {
+        return $this->testSuite
+            ? $this->testSuite->project_id
+            : $this->story->project_id;
+    }
+
+    public function getProjectNameAttribute()
+    {
+        return $this->testSuite
+            ? $this->testSuite->project->name
+            : $this->story->project->name;
+    }
+
+    public function getSuiteNameAttribute()
+    {
+        return $this->testSuite?->name;
+    }
 }

@@ -22,26 +22,26 @@ class TestCaseRequest extends FormRequest
             'steps'             => 'required|array|min:1',
             'steps.*'           => 'required|string|max:500',
 
-            // **Required story_id, must exist and belong to this project**
+            // Required story_id, must exist and belong to this project
             'story_id' => [
                 'required',
                 'uuid',
                 function ($attribute, $value, $fail) use ($project) {
                     $story = \App\Models\Story::find($value);
-                    if (! $story || $story->project_id !== $project->id) {
+                    if (!$story || $story->project_id !== $project->id) {
                         $fail('The selected story is invalid.');
                     }
                 },
             ],
 
-            // **Optional suite_id, if present must belong to this project**
+            // Optional suite_id, if present must belong to this project
             'suite_id' => [
                 'nullable',
                 'uuid',
                 function ($attribute, $value, $fail) use ($project) {
                     if ($value) {
                         $suite = \App\Models\TestSuite::find($value);
-                        if (! $suite || $suite->project_id !== $project->id) {
+                        if (!$suite || $suite->project_id !== $project->id) {
                             $fail('The selected test suite is invalid.');
                         }
                     }

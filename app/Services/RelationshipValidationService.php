@@ -33,13 +33,23 @@ class RelationshipValidationService
      */
     public function validateProjectTestCaseRelationship(Project $project, TestCase $testCase): bool
     {
+        // First check if the test case belongs to a suite in this project
         $suite = $testCase->testSuite;
-        if (!$suite || $suite->project_id !== $project->id) {
+        $suiteMatches = $suite && $suite->project_id === $project->id;
+
+        // Next check if the test case belongs to a story in this project
+        $story = $testCase->story;
+        $storyMatches = $story && $story->project_id === $project->id;
+
+        // Test case belongs to the project if either relationship is valid
+        if (!$suiteMatches && !$storyMatches) {
             Log::warning('Invalid project-test case relationship', [
                 'project_id' => $project->id,
                 'test_case_id' => $testCase->id,
                 'suite_id' => $suite->id ?? 'null',
                 'suite_project_id' => $suite->project_id ?? 'null',
+                'story_id' => $story->id ?? 'null',
+                'story_project_id' => $story->project_id ?? 'null',
             ]);
             throw new \Exception('Test case not found in this project.');
         }
@@ -111,6 +121,4 @@ class RelationshipValidationService
 
         return true;
     }
-
-
 }

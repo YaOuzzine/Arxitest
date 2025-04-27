@@ -242,11 +242,14 @@ class TestCaseController extends Controller
             $suite = $test_suite ?? $testCase->testSuite;
 
             // Get related data
-            $relatedCases = TestCase::where('suite_id', $suite->id)
-                ->where('id', '!=', $testCase->id)
-                ->limit(5)
-                ->get();
-
+            if ($suite) {
+                $relatedCases = TestCase::where('suite_id', $suite->id)
+                    ->where('id', '!=', $testCase->id)
+                    ->limit(5)
+                    ->get();
+            } else {
+                $relatedCases = collect();
+            }
             return view('dashboard.test-cases.show', [
                 'project' => $project,
                 'testSuite' => $suite,
@@ -261,28 +264,36 @@ class TestCaseController extends Controller
     /**
      * Show the form for editing the specified test case.
      */
-    public function edit(Project $project, TestCase $test_case, ?TestSuite $test_suite = null)
+    /**
+     * Show the form for editing the specified test case.
+     */
+    public function edit(Project $project, TestCase $test_case)
     {
         $this->authorizeAccess($project);
 
         try {
-            // Get the test case, ensuring it belongs to the project/suite
-            $testCase = $this->testCaseService->getTestCase($project, $test_suite, $test_case);
+            // Eager load relevant relationships to avoid N+1 queries
+            $test_case->load(['testSuite', 'story']);
 
-            // Get the suite (either from parameter or from the test case)
-            $suite = $test_suite ?? $testCase->testSuite;
-
+            // Get all test suites for this project for the dropdown
             $testSuites = $project->testSuites()->orderBy('name')->get();
+
+            // Get all stories for this project for the dropdown
+            $stories = $project->stories()->orderBy('title')->get();
 
             return view('dashboard.test-cases.edit', [
                 'project' => $project,
+                'testCase' => $test_case,
                 'testSuites' => $testSuites,
-                'testCase' => $testCase,
-                'selectedSuite' => $suite,
+                'stories' => $stories,
                 'priorityOptions' => ['low', 'medium', 'high'],
                 'statusOptions' => ['draft', 'active', 'deprecated', 'archived']
             ]);
         } catch (\Exception $e) {
+            Log::error('Error loading test case edit form: ' . $e->getMessage(), [
+                'project_id' => $project->id,
+                'test_case_id' => $test_case->id
+            ]);
             return back()->with('error', $e->getMessage());
         }
     }
@@ -290,7 +301,7 @@ class TestCaseController extends Controller
     /**
      * Update the specified test case.
      */
-    public function update(TestCaseRequest $request, Project $project, TestCase $test_case, ?TestSuite $test_suite = null)
+    public function update(TestCaseRequest $request, Project $project, TestCase $test_case)
     {
         $this->authorizeAccess($project);
 
@@ -298,20 +309,30 @@ class TestCaseController extends Controller
         $validatedData = $request->validated();
 
         try {
-            // Use service to update the test case
-            $testCase = $this->testCaseService->update($test_case, $validatedData, $project, $test_suite);
+            // Use service to update the test case, but don't pass the test_suite
+            // Instead let the service validate and handle suite/story relationships
+            $testCase = $this->testCaseService->update($test_case, $validatedData, $project);
 
-            // Determine redirect based on context
-            if ($test_suite || $request->input('from_suite')) {
-                return redirect()->route('dashboard.projects.test-suites.test-cases.index', [
+            // After successful update, determine where to redirect
+            if ($testCase->suite_id) {
+                return redirect()->route('dashboard.projects.test-suites.test-cases.show', [
                     $project->id,
-                    $test_suite ? $test_suite->id : $testCase->suite_id
+                    $testCase->suite_id,
+                    $testCase->id
                 ])->with('success', 'Test case updated successfully.');
             }
 
-            return redirect()->route('dashboard.projects.test-cases.index', $project->id)
-                ->with('success', 'Test case updated successfully.');
+            return redirect()->route('dashboard.projects.test-cases.show', [
+                'project' => $project->id,
+                'test_case' => $testCase->id
+            ])->with('success', 'Test case updated successfully.');
         } catch (\Exception $e) {
+            Log::error('Error updating test case: ' . $e->getMessage(), [
+                'project_id' => $project->id,
+                'test_case_id' => $test_case->id,
+                'input' => $validatedData
+            ]);
+
             return redirect()->back()->withInput()
                 ->with('error', 'Error updating test case: ' . $e->getMessage());
         }

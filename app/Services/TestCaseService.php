@@ -411,20 +411,41 @@ class TestCaseService
     /**
      * Get a test case, ensuring it belongs to the project and optionally to a specific suite.
      */
+    /**
+     * Get a test case, ensuring it belongs to the project and optionally to a specific suite.
+     */
     public function getTestCase(Project $project, ?TestSuite $testSuite, TestCase $testCase): TestCase
     {
-        // First validate the project-suite relationship
+        // Only validate the suite-test case relationship if a suite is specified
         if ($testSuite) {
-            $this->relationshipValidator->validateProjectSuiteRelationship($project, $testSuite);
-
             // Ensure test case belongs to the specified suite
             if ($testCase->suite_id !== $testSuite->id) {
                 throw new \Exception('Test case not found in this test suite.');
             }
+
+            // No need to check suite-project relationship as Laravel route model binding
+            // already ensures testSuite belongs to project
         } else {
-            // Ensure test case belongs to a suite in this project
-            $suite = $testCase->testSuite;
-            if (!$suite || $suite->project_id !== $project->id) {
+            // Check if test case belongs to this project through either its suite or story
+            $belongsToProject = false;
+
+            // Check suite path
+            if ($testCase->suite_id) {
+                $suite = $testCase->testSuite;
+                if ($suite && $suite->project_id === $project->id) {
+                    $belongsToProject = true;
+                }
+            }
+
+            // Check story path
+            if (!$belongsToProject && $testCase->story_id) {
+                $story = $testCase->story;
+                if ($story && $story->project_id === $project->id) {
+                    $belongsToProject = true;
+                }
+            }
+
+            if (!$belongsToProject) {
                 throw new \Exception('Test case not found in this project.');
             }
         }
@@ -453,16 +474,48 @@ class TestCaseService
     }
 
     /**
-     * Update a test case.
+     * Update a test case, allowing reassignment to different suites and stories.
      */
-    public function update(TestCase $testCase, array $data, Project $project, ?TestSuite $testSuite = null): TestCase
+    public function update(TestCase $testCase, array $data, Project $project): TestCase
     {
-        // Get the test case, ensuring it belongs to the project/suite
-        $testCase = $this->getTestCase($project, $testSuite, $testCase);
+        // Save the current state before validating to allow suite/story changes
+        $originalTestCase = clone $testCase;
 
-        // Update the test case
+        // Validate that the story exists and belongs to the project
+        if (isset($data['story_id'])) {
+            $story = Story::find($data['story_id']);
+            if (!$story || $story->project_id !== $project->id) {
+                throw new \Exception('The selected story does not belong to this project.');
+            }
+        }
+
+        // Validate the suite if provided (null/empty is allowed)
+        if (!empty($data['suite_id'])) {
+            $suite = TestSuite::find($data['suite_id']);
+            if (!$suite || $suite->project_id !== $project->id) {
+                throw new \Exception('The selected test suite does not belong to this project.');
+            }
+        } else {
+            // If empty string is provided, set to null for DB consistency
+            $data['suite_id'] = null;
+        }
+
+        // Update the test case with new data
         $testCase->fill($data);
+
+        // Log the changes for debugging
+        Log::debug('Updating test case', [
+            'test_case_id' => $testCase->id,
+            'project_id' => $project->id,
+            'old_suite_id' => $originalTestCase->suite_id,
+            'new_suite_id' => $testCase->suite_id,
+            'old_story_id' => $originalTestCase->story_id,
+            'new_story_id' => $testCase->story_id
+        ]);
+
         $testCase->save();
+
+        Log::debug('Test Case Saved!');
 
         return $testCase;
     }

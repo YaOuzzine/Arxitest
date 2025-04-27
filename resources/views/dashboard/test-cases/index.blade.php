@@ -349,12 +349,12 @@
                     </div>
 
                     {{-- Reset --}}
-                    <div class="flex justify-end space-x-3 pt-2">
+                    {{-- <div class="flex justify-end space-x-3 pt-2">
                         <button type="button" @click="resetFilters"
                             class="px-4 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700">
                             Reset Filters
                         </button>
-                    </div>
+                    </div> --}}
                 </div>
             </form>
         </div>
