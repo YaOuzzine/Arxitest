@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use App\Http\Requests\StoreTestSuiteRequest;
 use App\Http\Requests\UpdateTestSuiteRequest;
+use App\Services\AI\AIGenerationService;
 use App\Services\RelationshipValidationService;
 use App\Services\TestCaseService;
 use App\Services\TestSuiteService;
@@ -164,116 +165,48 @@ class TestSuiteController extends Controller
             ->with('success', "Suite \"$name\" deleted.");
     }
 
-    // --- generateWithAI ---
     /**
-     * Generate Test Suite details using Deepseek AI.
-     * (Called via AJAX from the create form)
-     *
-     * @param Request $request
-     * @param Project $project Passed via Route Model Binding
-     * @return \Illuminate\Http\JsonResponse
+     * Generate Test Suite details using AI.
      */
     public function generateWithAI(Request $request, Project $project)
     {
         $this->authorizeAccess($project);
 
         $validator = Validator::make($request->all(), [
-            'prompt' => 'required|string|min:20|max:2000', // Adjust max length as needed
+            'prompt' => 'required|string|min:20|max:2000',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
         }
 
-        $apiKey = config('services.deepseek.key');
-        $apiUrl = config('services.deepseek.chat_url');
-
-        if (!$apiKey) {
-            Log::error('Deepseek API Key is not configured.');
-            return response()->json(['success' => false, 'message' => 'AI service is not configured. Please contact support.'], 500);
-        }
-
-        $userPrompt = $request->input('prompt');
-
-        // Construct a detailed prompt for the AI
-        $systemPrompt = <<<PROMPT
-You are an AI assistant designed to generate Test Suite details in a specific JSON format based on user requirements.
-The user will provide requirements for a software feature or component.
-Your task is to generate a JSON object containing ONLY the following keys: "name", "description", and "settings".
-- "name": A concise, descriptive name for the Test Suite (max 100 chars).
-- "description": A brief summary of what the Test Suite covers (max 255 chars).
-- "settings": A JSON object with AT LEAST the key "default_priority" set to one of "low", "medium", or "high". You can optionally add other relevant settings like "execution_mode" ("sequential" or "parallel") if implied by the requirements.
-
-Example Input Requirements:
-"Create tests for user login functionality. Include positive cases with valid credentials, negative cases with invalid passwords, password recovery link check, and remember me functionality."
-
-Example Output JSON:
-{
-  "name": "User Login and Authentication",
-  "description": "Covers login scenarios including valid/invalid credentials and password recovery.",
-  "settings": {
-    "default_priority": "high",
-    "execution_mode": "sequential"
-  }
-}
-
-Ensure the output is **strictly** a single JSON object with no extra text, explanations, or markdown formatting.
-PROMPT;
-
-
         try {
-            $response = Http::withToken($apiKey)
-                ->timeout(60) // Set a timeout (e.g., 60 seconds)
-                ->post($apiUrl, [
-                    'model' => 'deepseek-chat', // Or the specific model you want to use
-                    'messages' => [
-                        ['role' => 'system', 'content' => $systemPrompt],
-                        ['role' => 'user', 'content' => $userPrompt],
-                    ],
-                    'temperature' => 0.6, // Adjust creativity
-                    'max_tokens' => 300,  // Limit response size
-                    'response_format' => ['type' => 'json_object'] // Request JSON output if API supports it
-                ]);
+            // Set up context with project info
+            $context = [
+                'project_id' => $project->id,
+                'project_name' => $project->name
+            ];
 
-            if ($response->failed()) {
-                Log::error('Deepseek API Error: ' . $response->status() . ' - ' . $response->body());
-                return response()->json(['success' => false, 'message' => 'AI generation failed. Error: ' . $response->status()], 500);
-            }
+            // Generate the test suite
+            $aiService = app(AIGenerationService::class);
+            $testSuite = $aiService->generateTestSuite($request->input('prompt'), $context);
 
-            $aiContent = $response->json('choices.0.message.content');
-
-            // Attempt to clean and parse the JSON
-            // Remove potential markdown fences and trim whitespace
-            $jsonString = trim(str_replace(['```json', '```'], '', $aiContent));
-            $generatedData = json_decode($jsonString, true);
-
-            if (json_last_error() !== JSON_ERROR_NONE || !is_array($generatedData)) {
-                Log::error('Deepseek API returned invalid JSON: ' . $jsonString . ' | Original: ' . $aiContent);
-                return response()->json(['success' => false, 'message' => 'AI returned an invalid format. Please try again or refine your prompt.'], 500);
-            }
-
-            // Basic validation of the returned structure
-            if (!isset($generatedData['name']) || !isset($generatedData['description']) || !isset($generatedData['settings']['default_priority'])) {
-                Log::error('Deepseek API JSON missing required keys: ' . json_encode($generatedData));
-                return response()->json(['success' => false, 'message' => 'AI response missing required fields. Please try again.'], 500);
-            }
-
-            // Further validate settings if needed
-            if (!in_array($generatedData['settings']['default_priority'], ['low', 'medium', 'high'])) {
-                $generatedData['settings']['default_priority'] = 'medium'; // Default if invalid
-            }
-            if (isset($generatedData['settings']['execution_mode']) && !in_array($generatedData['settings']['execution_mode'], ['sequential', 'parallel'])) {
-                unset($generatedData['settings']['execution_mode']); // Remove if invalid
-            }
-
-            return response()->json(['success' => true, 'data' => $generatedData]);
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'name' => $testSuite->name,
+                    'description' => $testSuite->description,
+                    'settings' => $testSuite->settings
+                ]
+            ]);
         } catch (\Exception $e) {
-            Log::error('Error calling Deepseek API: ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'An unexpected error occurred during AI generation.'], 500);
+            Log::error('Error generating test suite with AI: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'An unexpected error occurred during AI generation.'
+            ], 500);
         }
     }
-
-
 
     /**
      * Search for test cases that can be added to this test suite.
@@ -335,6 +268,7 @@ PROMPT;
         ]);
 
         if ($validator->fails()) {
+            Log::error('Test case addition validation failed: ' . json_encode($validator->errors()->toArray()));
             return $this->validationErrorResponse($validator);
         }
 
@@ -346,7 +280,11 @@ PROMPT;
 
             return $this->successResponse($result, $result['message']);
         } catch (\Exception $e) {
-            Log::error('Error adding test cases to suite: ' . $e->getMessage());
+            Log::error('Error adding test cases to suite: ' . $e->getMessage(), [
+                'project_id' => $project->id,
+                'test_suite_id' => $test_suite->id,
+                'test_case_ids' => $request->input('test_case_ids')
+            ]);
             return $this->errorResponse('Failed to add test cases: ' . $e->getMessage(), 500);
         }
     }

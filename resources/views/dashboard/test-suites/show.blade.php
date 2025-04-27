@@ -103,7 +103,7 @@
                         </div>
                     </div>
 
-                    <div id="suite-test-cases-container" class="min-h-[200px] max-h-[600px] overflow-y-auto p-2"
+                    <div id="suite-test-cases-container" class="min-h-[200px] max-h-[600px] overflow-y-auto p-2 relative"
                         x-bind:class="{ 'drop-target': isDragOver }" @dragover.prevent="isDragOver = true"
                         @dragleave.prevent="isDragOver = false" @drop.prevent="handleDrop($event)">
 
@@ -185,9 +185,9 @@
 
                         <!-- Drop Overlay (Shows when dragging) -->
                         <div x-show="isDragOver"
-                            class="absolute bg-indigo-500/10 dark:bg-indigo-500/20 backdrop-blur-sm rounded-xl flex items-center justify-center border-2 border-dashed border-indigo-500/40 dark:border-indigo-500/50">
+                            class="">
                             <div
-                                class="text-center w-100 bg-white/80 dark:bg-zinc-800/80 backdrop-blur-sm p-4 rounded-lg shadow-lg">
+                                class="text-center bg-white/80 dark:bg-zinc-800/80 backdrop-blur-sm p-4 rounded-lg shadow-lg">
                                 <i data-lucide="arrow-down-circle"
                                     class="w-10 h-10 text-indigo-600 dark:text-indigo-400 mx-auto mb-2"></i>
                                 <h3 class="text-lg font-semibold text-zinc-900 dark:text-white">Drop to Add</h3>
@@ -234,7 +234,8 @@
                     <!-- No Results State -->
                     <div x-show="!isSearching && availableTestCases.length === 0 && searchQuery" class="py-6 text-center">
                         <i data-lucide="search-x" class="w-8 h-8 text-zinc-400 mx-auto mb-2"></i>
-                        <p class="text-sm text-zinc-600 dark:text-zinc-400">No test cases available to add. All test cases are already in this suite or no test cases exist for this project.</p>
+                        <p class="text-sm text-zinc-600 dark:text-zinc-400">No test cases available to add. All test cases
+                            are already in this suite or no test cases exist for this project.</p>
                     </div>
 
                     <!-- Empty Initial State -->
@@ -476,6 +477,24 @@
                 @apply fixed inset-0 bg-zinc-900/20 backdrop-blur-sm z-40;
             }
         }
+
+
+        /* Updated styles for drop overlay */
+        #suite-test-cases-container {
+            position: relative;
+        }
+
+        #suite-test-cases-container>div[x-show="isDragOver"] {
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            left: 0;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
     </style>
 @endpush
 
@@ -685,8 +704,12 @@
                             return;
                         }
 
+                        // Fix: Use the correct URL with the test suite ID included
+                        const addCasesUrl =
+                            `/dashboard/projects/${this.projectId}/test-suites/${this.suiteId}/add-test-cases`;
+
                         // Add the test case to the suite via API
-                        const response = await fetch(this.addCasesUrl, {
+                        const response = await fetch(addCasesUrl, {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -733,35 +756,41 @@
                     if (!testCase) return;
 
                     try {
-                        // Implement API call to remove test case from suite
-                        // In a real application, you would have an endpoint for this
-                        const response = await fetch(
-                            `/dashboard/projects/${this.projectId}/test-cases/${testCaseId}/remove-from-suite`, {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    'Accept': 'application/json',
-                                    'X-CSRF-TOKEN': this.csrfToken
-                                },
-                                body: JSON.stringify({
-                                    suite_id: this.suiteId
-                                })
-                            });
+                        // Construct the correct URL for removing a test case from a suite
+                        const url =
+                            `/dashboard/projects/${this.projectId}/test-cases/${testCaseId}/remove-from-suite`;
 
-                        // If API call succeeds
-                        if (response.ok) {
+                        const response = await fetch(url, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json',
+                                'X-CSRF-TOKEN': this.csrfToken
+                            },
+                            body: JSON.stringify({
+                                suite_id: this.suiteId
+                            })
+                        });
+
+                        if (!response.ok) {
+                            const errorData = await response.json();
+                            throw new Error(errorData.message ||
+                                `HTTP error! Status: ${response.status}`);
+                        }
+
+                        const result = await response.json();
+
+                        if (result.success) {
                             // Remove from our local array
                             this.suiteTestCases.splice(index, 1);
 
                             // Show success message
-                            this.showSuccess(`Removed "${testCase.title}" from this suite`);
+                            this.showSuccess(result.message ||
+                                `Removed "${testCase.title}" from this suite`);
 
-                            // If we have an active search, refresh to show the removed item
-                            if (this.searchQuery) {
-                                this.searchTestCases();
-                            }
+
+                            this.searchTestCases();
                         } else {
-                            const result = await response.json();
                             throw new Error(result.message ||
                                 'Failed to remove test case from suite');
                         }

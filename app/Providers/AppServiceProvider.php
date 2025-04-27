@@ -10,6 +10,7 @@ use Laravel\Passport\Passport;
 use SocialiteProviders\Manager\SocialiteWasCalled;
 use SocialiteProviders\Microsoft\Provider;
 use SocialiteProviders\Atlassian\AtlassianExtendSocialite;
+use App\Services\AI\AIGenerationService;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -18,7 +19,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(AIGenerationService::class, function ($app) {
+            return new AIGenerationService();
+        });
     }
 
     /**

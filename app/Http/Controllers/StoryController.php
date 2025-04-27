@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use App\Traits\JsonResponse;
 use App\Http\Requests\StoreStoryRequest;
 use Illuminate\Support\Facades\Validator;
+use App\Services\AI\AIGenerationService;
 
 class StoryController extends Controller
 {
@@ -24,17 +25,17 @@ class StoryController extends Controller
     }
 
     public function getJsonForProject(Project $project)
-{
-    $stories = $project
-       ->stories()
-       ->orderBy('title')
-       ->get(['id','title']);
+    {
+        $stories = $project
+            ->stories()
+            ->orderBy('title')
+            ->get(['id', 'title']);
 
-    return response()->json([
-       'success'  => true,
-       'stories'  => $stories,
-    ]);
-}
+        return response()->json([
+            'success'  => true,
+            'stories'  => $stories,
+        ]);
+    }
 
     public function indexAll(Request $request)
     {
@@ -186,7 +187,7 @@ class StoryController extends Controller
     }
 
     /**
-     * Generate a story using AI (placeholder for AJAX request)
+     * Generate a story using AI
      */
     public function generateWithAI(Request $request)
     {
@@ -200,12 +201,27 @@ class StoryController extends Controller
         }
 
         try {
-            $result = $this->storyService->generateWithAI(
-                $request->input('prompt'),
-                $request->input('project_id')
-            );
+            // Set up context
+            $context = [
+                'project_id' => $request->input('project_id'),
+                'epic_id' => $request->input('epic_id'),
+            ];
 
-            return response()->json($result);
+            // Generate the story using the service
+            $aiService = app(AIGenerationService::class);
+            $story = $aiService->generateStory($request->input('prompt'), $context);
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'id' => $story->id,
+                    'title' => $story->title,
+                    'description' => $story->description,
+                    'acceptance_criteria' => $story->metadata['acceptance_criteria'] ?? [],
+                    'priority' => $story->metadata['priority'] ?? 'medium',
+                    'tags' => $story->metadata['tags'] ?? [],
+                ]
+            ]);
         } catch (\Exception $e) {
             return $this->errorResponse('Failed to generate story: ' . $e->getMessage(), 500);
         }

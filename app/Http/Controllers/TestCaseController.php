@@ -8,6 +8,7 @@ use App\Models\Project;
 use App\Models\Team;
 use App\Models\TestCase;
 use App\Models\TestSuite;
+use App\Services\AI\AIGenerationService;
 use App\Services\TestCaseService;
 use App\Services\RelationshipValidationService;
 use Illuminate\Http\Request;
@@ -140,6 +141,68 @@ class TestCaseController extends Controller
                 'trace' => $e->getTraceAsString()
             ]);
             return back()->with('error', $e->getMessage());
+        }
+    }
+
+    /**
+     * Remove a test case from a test suite.
+     *
+     * @param \Illuminate\Http\Request $request
+     * @param \App\Models\Project $project
+     * @param \App\Models\TestCase $test_case
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function removeFromSuite(Request $request, Project $project, TestCase $test_case)
+    {
+        $this->authorizeAccess($project);
+
+        try {
+            // Validate that the test case belongs to a suite in this project
+            $suite = $test_case->testSuite;
+
+            if (!$suite) {
+                return $this->errorResponse('This test case is not associated with any test suite.', 400);
+            }
+
+            if ($suite->project_id !== $project->id) {
+                return $this->errorResponse('Test case not found in this project.', 404);
+            }
+
+            // Optional: Validate a specific suite ID if provided in the request
+            if ($request->has('suite_id') && $suite->id !== $request->input('suite_id')) {
+                return $this->errorResponse('Test case is not in the specified suite.', 400);
+            }
+
+            // Save the original data for response
+            $caseName = $test_case->title;
+            $suiteName = $suite->name;
+
+            // Set the suite_id to null to remove from suite (doesn't delete the test case)
+            $test_case->suite_id = null;
+            $test_case->save();
+
+            // Log the action for auditing purposes
+            Log::info('Test case removed from suite', [
+                'test_case_id' => $test_case->id,
+                'test_case_name' => $caseName,
+                'suite_id' => $suite->id,
+                'suite_name' => $suiteName,
+                'user_id' => Auth::id()
+            ]);
+
+            return $this->successResponse([
+                'test_case_id' => $test_case->id,
+                'test_case_name' => $caseName,
+                'suite_id' => $suite->id,
+                'suite_name' => $suiteName
+            ], "Test case \"$caseName\" removed from \"$suiteName\" suite.");
+        } catch (\Exception $e) {
+            Log::error('Failed to remove test case from suite: ' . $e->getMessage(), [
+                'test_case_id' => $test_case->id,
+                'project_id' => $project->id
+            ]);
+
+            return $this->errorResponse('Failed to remove test case from suite: ' . $e->getMessage(), 500);
         }
     }
 
@@ -397,151 +460,40 @@ class TestCaseController extends Controller
             return $this->validationErrorResponse($validator);
         }
 
-        // Add debugging
-        Log::info('Starting AI generation', [
-            'project_id' => $project->id,
-            'suite_id' => $request->input('suite_id'),
-            'prompt_length' => strlen($request->input('prompt'))
-        ]);
-
-        $apiKey = env('OPENAI_API_KEY', config('services.openai.key'));
-        $model = env('OPENAI_MODEL', config('services.openai.model', 'gpt-4o'));
-
-        if (!$apiKey) {
-            Log::error('OpenAI API Key is not configured.');
-            return $this->errorResponse('AI generation failed.', 500);
-        }
-
-        $userPrompt = $request->input('prompt');
-        $suiteId = $request->input('suite_id');
-
-        // Get the test suite to provide more context to the AI
-        $suite = TestSuite::find($suiteId);
+        // Get the test suite for context
+        $suite = TestSuite::find($request->input('suite_id'));
         if (!$suite || $suite->project_id !== $project->id) {
             return $this->errorResponse('Invalid test suite selected.', 422);
         }
 
-        // Construct a detailed prompt for the AI
-        $systemPrompt = <<<PROMPT
-You are an AI assistant designed to generate detailed test case specifications in JSON format based on user requirements.
-You are helping create a test case within the test suite: "{$suite->name}" for project: "{$project->name}".
-
-The user will provide requirements for a feature, functionality, or scenario to test.
-Your task is to generate a JSON object containing the following keys:
-- "title": A concise, descriptive title for the test case (max 100 chars)
-- "description": A more detailed explanation of what the test case verifies (max 255 chars)
-- "steps": An array of strings, each representing a single step in the test case procedure
-- "expected_results": A detailed description of what should happen when the test is executed correctly
-- "priority": One of "low", "medium", or "high" depending on criticality
-- "status": "draft" (always use draft for new test cases)
-- "tags": An array of relevant tags/keywords for categorization
-
-Example output format:
-{
-  "title": "Verify User Login with Valid Credentials",
-  "description": "Tests that a registered user can log in successfully with valid username and password",
-  "steps": [
-    "Navigate to login page",
-    "Enter valid username",
-    "Enter valid password",
-    "Click on login button"
-  ],
-  "expected_results": "User should be logged in successfully and redirected to the dashboard page. The username should be displayed in the header.",
-  "priority": "high",
-  "status": "draft",
-  "tags": ["login", "authentication", "positive-test"]
-}
-
-Ensure the output is a valid JSON object with no additional text or explanations.
-Make the steps clear, concise, and executable by a human tester.
-PROMPT;
-
         try {
-            Log::info('Sending request to OpenAI', [
-                'model' => $model,
-                'system_prompt_length' => strlen($systemPrompt),
-                'user_prompt_length' => strlen($userPrompt)
-            ]);
+            // Set up context with project and suite info
+            $context = [
+                'project_id' => $project->id,
+                'project_name' => $project->name,
+                'suite_id' => $suite->id,
+                'suite_name' => $suite->name
+            ];
 
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $apiKey,
-                'Content-Type' => 'application/json',
-            ])
-                ->timeout(30)
-                ->post('https://api.openai.com/v1/chat/completions', [
-                    'model' => $model,
-                    'messages' => [
-                        ['role' => 'system', 'content' => $systemPrompt],
-                        ['role' => 'user', 'content' => $userPrompt],
-                    ],
-                    'temperature' => 0.7,
-                    'response_format' => ['type' => 'json_object'],
-                ]);
-
-            if ($response->failed()) {
-                Log::error('OpenAI API Error: ' . $response->status() . ' - ' . $response->body());
-                return response()->json([
-                    'success' => false,
-                    'message' => 'AI generation failed. Error: ' . $response->status() . ' - ' . $response->body()
-                ], 500);
-            }
-
-            $aiContent = $response->json('choices.0.message.content');
-            Log::info('Received response from OpenAI', ['content_length' => strlen($aiContent)]);
-
-            // Clean and parse the JSON
-            $jsonString = trim(str_replace(['```json', '```'], '', $aiContent));
-            $generatedData = json_decode($jsonString, true);
-
-            if (json_last_error() !== JSON_ERROR_NONE || !is_array($generatedData)) {
-                Log::error('AI returned invalid JSON: ' . $jsonString);
-                return response()->json([
-                    'success' => false,
-                    'message' => 'AI returned an invalid format. Please try again or refine your prompt.'
-                ], 500);
-            }
-
-            // Basic validation of the returned structure
-            if (!isset($generatedData['title']) || !isset($generatedData['steps']) || !isset($generatedData['expected_results'])) {
-                Log::error('AI JSON missing required keys: ' . json_encode($generatedData));
-                return response()->json([
-                    'success' => false,
-                    'message' => 'AI response missing required fields. Please try again.'
-                ], 500);
-            }
-
-            // Ensure steps is an array
-            if (!is_array($generatedData['steps'])) {
-                $generatedData['steps'] = [];
-            }
-
-            // Ensure tags is an array
-            if (!isset($generatedData['tags']) || !is_array($generatedData['tags'])) {
-                $generatedData['tags'] = [];
-            }
-
-            // Set priority if not set or invalid
-            if (!isset($generatedData['priority']) || !in_array($generatedData['priority'], ['low', 'medium', 'high'])) {
-                $generatedData['priority'] = 'medium';
-            }
-
-            // Always set status to draft
-            $generatedData['status'] = 'draft';
-
-            Log::info('Successfully generated test case with AI', [
-                'title' => $generatedData['title'],
-                'steps_count' => count($generatedData['steps']),
-                'tags_count' => count($generatedData['tags'])
-            ]);
+            // Generate the test case
+            $aiService = app(AIGenerationService::class);
+            $testCase = $aiService->generateTestCase($request->input('prompt'), $context);
 
             return response()->json([
                 'success' => true,
-                'data' => $generatedData
+                'data' => [
+                    'id' => $testCase->id,
+                    'title' => $testCase->title,
+                    'description' => $testCase->description,
+                    'steps' => $testCase->steps,
+                    'expected_results' => $testCase->expected_results,
+                    'priority' => $testCase->priority,
+                    'status' => $testCase->status,
+                    'tags' => $testCase->tags,
+                ]
             ]);
         } catch (\Exception $e) {
-            Log::error('Error calling OpenAI API: ' . $e->getMessage(), [
-                'trace' => $e->getTraceAsString()
-            ]);
+            Log::error('Error generating test case with AI: ' . $e->getMessage());
             return $this->errorResponse('An unexpected error occurred during AI generation: ' . $e->getMessage(), 500);
         }
     }

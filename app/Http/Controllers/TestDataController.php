@@ -9,6 +9,7 @@ use App\Models\TestData;
 use App\Services\TestDataService;
 use App\Traits\AuthorizeResourceAccess;
 use App\Models\TestCaseData;
+use App\Services\AI\AIGenerationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
@@ -96,93 +97,32 @@ class TestDataController extends Controller
             ], 404);
         }
 
-        $format = $request->input('format');
-        $userPrompt = $request->input('prompt') ?: "Generate test data for this test case";
-
-        // Create context for the AI
-        $steps = is_array($test_case->steps) ? $test_case->steps : json_decode($test_case->steps, true);
-        $stepsText = is_array($steps) ? implode("\n", array_map(fn($i, $step) => ($i+1) . ". $step", array_keys($steps), $steps)) : $test_case->steps;
-
-        $systemPrompt = <<<PROMPT
-You are an AI assistant that generates test data for software testing. Create realistic test data in {$format} format based on the following test case information:
-
-Test Case Details:
-- Title: {$test_case->title}
-- Description: {$test_case->description}
-- Steps:
-{$stepsText}
-- Expected Results: {$test_case->expected_results}
-
-Guidelines:
-1. Generate realistic, varied test data that would be useful for this test case
-2. For JSON: Create a valid JSON structure with appropriate fields
-3. For CSV: Format as comma-separated values with a header row
-4. For XML: Create a well-formed XML document
-5. For plain: Generate readable, structured text data
-
-Your response should ONLY contain the test data in the requested format, with no explanations or markdown formatting.
-PROMPT;
-
         try {
-            $apiKey = env('OPENAI_API_KEY', config('services.openai.key'));
-            $model = env('OPENAI_MODEL', config('services.openai.model', 'gpt-4o'));
+            // Get script if available for additional context
+            $latestScript = $test_case->testScripts()->latest()->first();
 
-            if (!$apiKey) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'AI service is not configured. Please check the API key.'
-                ], 500);
-            }
-
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $apiKey,
-                'Content-Type' => 'application/json',
-            ])
-                ->timeout(30)
-                ->post('https://api.openai.com/v1/chat/completions', [
-                    'model' => $model,
-                    'messages' => [
-                        ['role' => 'system', 'content' => $systemPrompt],
-                        ['role' => 'user', 'content' => $userPrompt],
-                    ],
-                    'temperature' => 0.7,
-                ]);
-
-            if ($response->failed()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'AI generation failed. Error: ' . $response->status()
-                ], 500);
-            }
-
-            $dataContent = $response->json('choices.0.message.content');
-
-            // Clean up any possible markdown code blocks
-            $dataContent = trim(preg_replace('/^```[\w]*\n|```$/m', '', $dataContent));
-
-            $dataName = $test_case->title . ' - Test Data (' . strtoupper($format) . ')';
-
-            // Create the test data
-            $testData = new TestData();
-            $testData->name = $dataName;
-            $testData->content = $dataContent;
-            $testData->format = $format;
-            $testData->is_sensitive = false; // Default to non-sensitive
-            $testData->metadata = [
-                'created_by' => Auth::id(),
-                'created_through' => 'ai',
-                'source' => 'openai',
-                'model' => $model,
-                'prompt' => $userPrompt
+            // Set up context for generation
+            $context = [
+                'project_id' => $project->id,
+                'test_case_id' => $test_case->id,
+                'test_case_title' => $test_case->title,
+                'test_case_steps' => $test_case->steps,
+                'test_case_expected_results' => $test_case->expected_results,
+                'format' => $request->input('format')
             ];
-            $testData->save();
 
-            // Create the relationship to the test case
-            $testCaseData = new TestCaseData();
-            $testCaseData->test_case_id = $test_case->id;
-            $testCaseData->test_data_id = $testData->id;
-            $testCaseData->usage_context = 'Generated from AI';
-            $testCaseData->save();
+            // Add script context if available
+            if ($latestScript) {
+                $context['script_id'] = $latestScript->id;
+                $context['script_content'] = $latestScript->script_content;
+            }
+
+            // Generate the test data
+            $aiService = app(AIGenerationService::class);
+            $testData = $aiService->generateTestData(
+                $request->input('prompt', 'Generate test data for this test case'),
+                $context
+            );
 
             return response()->json([
                 'success' => true,
@@ -194,7 +134,6 @@ PROMPT;
                     'format' => $testData->format
                 ]
             ]);
-
         } catch (\Exception $e) {
             Log::error('Error generating test data with AI: ' . $e->getMessage());
             return response()->json([
@@ -204,7 +143,7 @@ PROMPT;
         }
     }
 
-     /**
+    /**
      * Display the specified test data.
      */
     public function show(Project $project, TestCase $test_case, TestData $test_data)

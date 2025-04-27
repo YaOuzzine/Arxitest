@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AIGenerationController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EmailRegistrationController;
 use App\Http\Controllers\EnvironmentController;
@@ -141,10 +142,9 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
         Route::delete('/{test_suite}', [TestSuiteController::class, 'destroy'])->name('destroy'); // Delete specific suite
         Route::get('/{test_suite}/available-test-cases', [TestSuiteController::class, 'searchAvailableTestCases'])
             ->name('available-test-cases');
-        Route::post('/add-test-cases', [TestSuiteController::class, 'addTestCases'])
+        Route::post('/{test_suite}/add-test-cases', [TestSuiteController::class, 'addTestCases'])
             ->name('add-test-cases');
-        // AI Generation Route (AJAX)
-        Route::post('/generate-ai', [TestSuiteController::class, 'generateWithAI'])->name('generateAI');
+
     });
 
     Route::prefix('dashboard/api')->name('dashboard.api.')->group(function () {
@@ -165,7 +165,8 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
         Route::get('/{test_case}/edit', [TestCaseController::class, 'edit'])->name('edit');
         Route::put('/{test_case}', [TestCaseController::class, 'update'])->name('update');
         Route::delete('/{test_case}', [TestCaseController::class, 'destroy'])->name('destroy');
-        Route::post('/generate-ai', [TestCaseController::class, 'generateWithAI'])->name('generateAI');
+        Route::post('/{test_case}/remove-from-suite', [TestCaseController::class, 'removeFromSuite'])
+        ->name('remove-from-suite');
     });
 
     // Test Suite-specific Test Cases
@@ -185,7 +186,6 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
         Route::post('/', [TestScriptController::class, 'store'])->name('store');
         Route::get('/{test_script}', [TestScriptController::class, 'show'])->name('show');
         Route::delete('/{test_script}', [TestScriptController::class, 'destroy'])->name('destroy');
-        Route::post('/generate-ai', [TestScriptController::class, 'generateWithAI'])->name('generateAI');
     });
 
     // Test Data Routes
@@ -194,7 +194,6 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
         Route::post('/', [TestDataController::class, 'store'])->name('store');
         Route::get('/{test_data}', [TestDataController::class, 'show'])->name('show');
         Route::delete('/{test_data}', [TestDataController::class, 'detach'])->name('detach');
-        Route::post('/generate-ai', [TestDataController::class, 'generateWithAI'])->name('generateAI');
     });
 
     // Global Stories Index (All projects)
@@ -207,7 +206,6 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
         Route::post('/', [StoryController::class, 'store'])->name('store');
         Route::get('/{story}', [StoryController::class, 'show'])->name('show');
         Route::get('/{story}/edit', [StoryController::class, 'edit'])->name('edit');
-        Route::post('/generateWithAI', [StoryController::class, 'generateWithAI'])->name('generateWithAI');
         Route::put('/{story}', [StoryController::class, 'update'])->name('update');
         Route::delete('/{story}', [StoryController::class, 'destroy'])->name('destroy');
     });
@@ -334,6 +332,13 @@ Route::prefix('/dashboard/environments')->name('dashboard.environments.')->middl
     Route::get('/{environment}/edit', [EnvironmentController::class, 'edit'])->name('edit');
     Route::put('/{environment}', [EnvironmentController::class, 'update'])->name('update');
     Route::delete('/{environment}', [EnvironmentController::class, 'destroy'])->name('destroy');
+});
+
+
+Route::prefix('api/ai')->name('api.ai.')->middleware(['web', 'auth:web'])->group(function () {
+    Route::post('/generate/{entity_type}', [AIGenerationController::class, 'generate'])
+        ->name('generate')
+        ->where('entity_type', 'story|test-case|test-suite|test-script|test-data');
 });
 
 

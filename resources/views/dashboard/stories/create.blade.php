@@ -422,7 +422,7 @@ document.addEventListener('DOMContentLoaded', function() {
         aiLoadingIndicator.classList.remove('hidden');
 
         // Make API call to generate story
-        fetch('{{ route("dashboard.stories.generateWithAI") }}', {
+        fetch('', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

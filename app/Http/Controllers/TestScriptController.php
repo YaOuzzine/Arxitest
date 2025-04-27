@@ -7,6 +7,7 @@ use App\Http\Requests\TestScriptRequest;
 use App\Models\Project;
 use App\Models\TestCase;
 use App\Models\TestScript;
+use App\Services\AI\AIGenerationService;
 use App\Services\TestScriptService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -87,30 +88,25 @@ class TestScriptController extends Controller
         }
 
         try {
+            // Check relationships
             $this->testScriptService->validateRelationships($project, $test_case);
 
-            $framework = $request->input('framework_type');
-            $prompt = $request->input('prompt', '');
-
-            // Generate script content using the service
-            $scriptContent = $this->testScriptService->generateWithAI($test_case, $framework, $prompt);
-
-            // Create a name for the script
-            $scriptName = $test_case->title . ' - ' . ucfirst($framework) . ' Script';
-
-            // Create and save the script
-            $testScript = new TestScript();
-            $testScript->test_case_id = $test_case->id;
-            $testScript->creator_id = Auth::id();
-            $testScript->name = $scriptName;
-            $testScript->framework_type = $framework;
-            $testScript->script_content = $scriptContent;
-            $testScript->metadata = [
-                'created_through' => 'ai',
-                'source' => 'openai',
-                'prompt' => $prompt
+            // Set up context
+            $context = [
+                'project_id' => $project->id,
+                'test_case_id' => $test_case->id,
+                'test_case_title' => $test_case->title,
+                'test_case_steps' => $test_case->steps,
+                'test_case_expected_results' => $test_case->expected_results,
+                'framework_type' => $request->input('framework_type')
             ];
-            $testScript->save();
+
+            // Generate the test script
+            $aiService = app(AIGenerationService::class);
+            $testScript = $aiService->generateTestScript(
+                $request->input('prompt', ''),
+                $context
+            );
 
             return response()->json([
                 'success' => true,
