@@ -18,6 +18,7 @@ class TestCase extends Model
         'expected_results',
         'steps',
         'suite_id',
+        'story_id',
         'priority',
         'status',
         'tags'
@@ -27,6 +28,7 @@ class TestCase extends Model
         'steps' => 'array',
         'tags' => 'array'
     ];
+
     /**
      * Get the story this test case is derived from.
      */
@@ -36,7 +38,7 @@ class TestCase extends Model
     }
 
     /**
-     * Get the test suite this case belongs to.
+     * Get the test suite this case belongs to (optional).
      */
     public function testSuite()
     {
@@ -57,9 +59,9 @@ class TestCase extends Model
     public function testData()
     {
         return $this->belongsToMany(TestData::class, 'test_case_data', 'test_case_id', 'test_data_id')
-            ->withPivot('usage_context', 'created_at') // Specify existing columns
-            ->as('pivot') // Optional: Alias for pivot data access ($data->pivot->usage_context)
-            ->using(TestCaseData::class); // If you use a custom pivot model
+            ->withPivot('usage_context', 'created_at')
+            ->as('pivot')
+            ->using(TestCaseData::class);
     }
 
     /**

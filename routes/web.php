@@ -100,6 +100,8 @@ Route::middleware(['guest', 'throttle:5,1'])->group(function () {
 | ('web', 'auth:web'). Safe for accessing internal dashboard areas.
 */
 
+// Add this to your routes/web.php file
+
 Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
     // --- DASHBOARD HOME ---
     Route::get('/dashboard', [DashboardController::class, 'showDashboard'])->name('dashboard');
@@ -123,6 +125,8 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
     Route::get('/dashboard/projects/{project}/edit', [ProjectController::class, 'edit'])->name('dashboard.projects.edit');
     Route::put('/dashboard/projects/{project}', [ProjectController::class, 'update'])->name('dashboard.projects.update');
     Route::delete('/dashboard/projects/{project}', [ProjectController::class, 'destroy'])->name('dashboard.projects.destroy');
+    Route::get('/projects/{project}/epics', [StoryController::class, 'getEpics'])
+    ->name('dashboard.projects.epics');
 
     Route::get('/dashboard/test-suites', [TestSuiteController::class, 'indexAll'])->name('dashboard.test-suites.indexAll');
 
@@ -194,6 +198,7 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
         Route::post('/', [StoryController::class, 'store'])->name('store');
         Route::get('/{story}', [StoryController::class, 'show'])->name('show');
         Route::get('/{story}/edit', [StoryController::class, 'edit'])->name('edit');
+        Route::post('/generateWithAI', [StoryController::class, 'generateWithAI'])->name('generateWithAI');
         Route::put('/{story}', [StoryController::class, 'update'])->name('update');
         Route::delete('/{story}', [StoryController::class, 'destroy'])->name('destroy');
     });

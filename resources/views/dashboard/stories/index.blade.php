@@ -85,7 +85,7 @@
                 </div>
 
                 <!-- Search Field -->
-                <div class="sm:col-span-{{ isset($project) ? '7' : '5' }}">
+                <div class="sm:col-span-5">
                     <div class="relative">
                         <div class="absolute left-0 pl-3 flex items-center pointer-events-none text-zinc-400 dark:text-zinc-500">
                             <i data-lucide="search" class="h-4 w-4"></i>

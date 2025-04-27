@@ -3,11 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoryRequest;
+use App\Http\Requests\UpdateStoryRequest;
 use App\Models\Project;
 use App\Models\Story;
 use App\Services\StoryService;
 use Illuminate\Http\Request;
 use App\Traits\JsonResponse;
+use App\Http\Requests\StoreStoryRequest;
+use Illuminate\Support\Facades\Validator;
 
 class StoryController extends Controller
 {
@@ -105,6 +108,9 @@ class StoryController extends Controller
         ]);
     }
 
+    /**
+     * Show the form for creating a new story.
+     */
     public function create(Request $request)
     {
         $team = $this->getCurrentTeam($request);
@@ -112,23 +118,84 @@ class StoryController extends Controller
 
         $selectedProjectId = $request->input('project_id');
         $selectedProject = null;
+        $epics = collect();
 
         if ($selectedProjectId) {
             $selectedProject = $projects->firstWhere('id', $selectedProjectId);
+            if ($selectedProject) {
+                $epics = $this->storyService->getEpicsForProject($selectedProject);
+            }
         }
 
         return view('dashboard.stories.create', [
             'projects' => $projects,
             'selectedProject' => $selectedProject,
+            'epics' => $epics,
         ]);
     }
 
-    public function store(StoryRequest $request)
+    /**
+     * Store a newly created story in storage.
+     */
+    public function store(StoreStoryRequest $request)
     {
-        $story = $this->storyService->createStory($request->validated());
+        try {
+            $story = $this->storyService->createStory($request->validated());
 
-        return redirect()->route('dashboard.stories.indexAll')
-            ->with('success', 'Story created successfully.');
+            if ($request->expectsJson()) {
+                return $this->successResponse(
+                    ['story' => $story, 'redirect' => route('dashboard.stories.show', $story->id)],
+                    'Story created successfully'
+                );
+            }
+
+            return redirect()->route('dashboard.stories.show', $story->id)
+                ->with('success', 'Story created successfully');
+        } catch (\Exception $e) {
+            if ($request->expectsJson()) {
+                return $this->errorResponse($e->getMessage(), 422);
+            }
+
+            return redirect()->back()->withInput()->with('error', $e->getMessage());
+        }
+    }
+
+    public function getEpics(Project $project)
+    {
+        $this->authorizeAccess($project); // Your existing authorization
+
+        try {
+            $epics = $this->storyService->getEpicsForProject($project);
+            return $this->successResponse(['epics' => $epics]);
+        } catch (\Exception $e) {
+            return $this->errorResponse($e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Generate a story using AI (placeholder for AJAX request)
+     */
+    public function generateWithAI(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'prompt' => 'required|string|min:20|max:2000',
+            'project_id' => 'required|exists:projects,id',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->validationErrorResponse($validator);
+        }
+
+        try {
+            $result = $this->storyService->generateWithAI(
+                $request->input('prompt'),
+                $request->input('project_id')
+            );
+
+            return response()->json($result);
+        } catch (\Exception $e) {
+            return $this->errorResponse('Failed to generate story: ' . $e->getMessage(), 500);
+        }
     }
 
     public function show(Story $story)
@@ -141,19 +208,60 @@ class StoryController extends Controller
         ]);
     }
 
-    public function edit(Story $story)
+    /**
+     * Show the form for editing the specified story.
+     */
+    public function edit(Story $story, Request $request)
     {
+        $team = $this->getCurrentTeam($request);
+
+        // Get current project
+        $project = $story->project;
+
+        // Make sure project belongs to current team
+        if ($project->team_id !== $team->id) {
+            return redirect()->route('dashboard.stories.indexAll')
+                ->with('error', 'You do not have permission to edit this story.');
+        }
+
+        // Get available epics for the project
+        $epics = $this->storyService->getEpicsForProject($project);
+
         return view('dashboard.stories.edit', [
             'story' => $story,
+            'project' => $project,
+            'epics' => $epics,
         ]);
     }
 
-    public function update(StoryRequest $request, Story $story)
+    /**
+     * Update the specified story in storage.
+     */
+    public function update(UpdateStoryRequest $request, Story $story)
     {
-        $this->storyService->updateStory($story, $request->validated());
+        try {
+            // Get only the fields we want to update
+            $data = $request->validated();
 
-        return redirect()->route('dashboard.stories.show', $story->id)
-            ->with('success', 'Story updated successfully.');
+            // Ensure project_id is set for validation in service
+            $data['project_id'] = $story->project_id;
+
+            // Update the story via service
+            $story = $this->storyService->updateStory($story, $data);
+
+            if ($request->expectsJson()) {
+                return $this->successResponse(['story' => $story], 'Story updated successfully');
+            }
+
+            return redirect()->route('dashboard.stories.show', $story->id)
+                ->with('success', 'Story updated successfully');
+        } catch (\Exception $e) {
+            if ($request->expectsJson()) {
+                return $this->errorResponse($e->getMessage(), 422);
+            }
+
+            return redirect()->back()->withInput()->with('error', $e->getMessage());
+        }
     }
 
     public function destroy(Story $story)

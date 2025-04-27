@@ -16,10 +16,11 @@ use App\Services\TestSuiteService;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB; // Needed for indexAll safety check
 use App\Traits\JsonResponse;
+use App\Traits\AuthorizeResourceAccess;
 
 class TestSuiteController extends Controller
 {
-    use \App\AuthorizeResourceAccess, JsonResponse;
+    use AuthorizeResourceAccess, JsonResponse;
 
     protected TestSuiteService $suites;
 

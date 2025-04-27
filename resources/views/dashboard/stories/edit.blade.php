@@ -26,7 +26,7 @@
                 Edit Story
             </h1>
             <p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-                Update story details and information
+                Update story details
             </p>
         </div>
     </div>
@@ -45,6 +45,44 @@
             @method('PUT')
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Project (Read Only) -->
+                <div>
+                    <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2 flex items-center gap-1">
+                        <i data-lucide="folder" class="w-4 h-4 text-zinc-400"></i>
+                        Project
+                    </label>
+                    <div class="px-4 py-2.5 rounded-lg border border-zinc-300/70 dark:border-zinc-600/50 bg-zinc-50/50 dark:bg-zinc-700/50 text-zinc-800 dark:text-zinc-200">
+                        {{ $project->name }}
+                    </div>
+                    <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                        Stories cannot be moved between projects
+                    </p>
+                </div>
+
+                <!-- Epic Selection (Optional) -->
+                <div>
+                    <label for="epic_id" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2 flex items-center gap-1">
+                        <i data-lucide="layers" class="w-4 h-4 text-zinc-400"></i>
+                        Epic <span class="text-zinc-500 dark:text-zinc-400 text-xs font-normal">(Optional)</span>
+                    </label>
+                    <select name="epic_id" id="epic_id" class="epic-select w-full">
+                        <option value="">None - Independent Story</option>
+                        @foreach($epics as $epic)
+                            <option value="{{ $epic->id }}" {{ old('epic_id', $story->epic_id) == $epic->id ? 'selected' : '' }}>
+                                {{ $epic->name }}{{ $epic->status ? ' (' . $epic->status . ')' : '' }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                        Optional: Assign to an epic or leave as independent story
+                    </p>
+                    @error('epic_id')
+                        <p class="mt-2 text-sm text-red-600 dark:text-red-400 flex items-center gap-1">
+                            <i data-lucide="alert-circle" class="w-4 h-4"></i>{{ $message }}
+                        </p>
+                    @enderror
+                </div>
+
                 <!-- Title -->
                 <div class="md:col-span-2">
                     <label for="title" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2 flex items-center gap-1">
@@ -57,45 +95,6 @@
                                @error('title') border-red-500 dark:border-red-500 @enderror"
                         required>
                     @error('title')
-                        <p class="mt-2 text-sm text-red-600 dark:text-red-400 flex items-center gap-1">
-                            <i data-lucide="alert-circle" class="w-4 h-4"></i>{{ $message }}
-                        </p>
-                    @enderror
-                </div>
-
-                <!-- Source -->
-                <div>
-                    <label for="source" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2 flex items-center gap-1">
-                        <i data-lucide="folder" class="w-4 h-4 text-zinc-400"></i>
-                        Source <span class="text-red-600">*</span>
-                    </label>
-                    <select name="source" id="source" class="js-source-select w-full" required>
-                        <option value="manual" {{ old('source', $story->source) == 'manual' ? 'selected' : '' }}>Manual</option>
-                        <option value="jira" {{ old('source', $story->source) == 'jira' ? 'selected' : '' }}>Jira</option>
-                        <option value="github" {{ old('source', $story->source) == 'github' ? 'selected' : '' }}>GitHub</option>
-                        <option value="azure" {{ old('source', $story->source) == 'azure' ? 'selected' : '' }}>Azure</option>
-                    </select>
-                    @error('source')
-                        <p class="mt-2 text-sm text-red-600 dark:text-red-400 flex items-center gap-1">
-                            <i data-lucide="alert-circle" class="w-4 h-4"></i>{{ $message }}
-                        </p>
-                    @enderror
-                </div>
-
-                <!-- External ID -->
-                <div>
-                    <label for="external_id" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2 flex items-center gap-1">
-                        <i data-lucide="hash" class="w-4 h-4 text-zinc-400"></i>
-                        External ID
-                    </label>
-                    <input type="text" name="external_id" id="external_id" value="{{ old('external_id', $story->external_id) }}"
-                        class="w-full px-4 py-2.5 rounded-lg border border-zinc-300/70 dark:border-zinc-600/50 bg-white/50 dark:bg-zinc-700/50 text-zinc-800 dark:text-zinc-200 placeholder-zinc-400 dark:placeholder-zinc-500 shadow-sm
-                               focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
-                        @error('external_id') border-red-500 dark:border-red-500 @enderror>
-                    <p class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-                        Reference ID from external system (e.g., JIRA-123)
-                    </p>
-                    @error('external_id')
                         <p class="mt-2 text-sm text-red-600 dark:text-red-400 flex items-center gap-1">
                             <i data-lucide="alert-circle" class="w-4 h-4"></i>{{ $message }}
                         </p>
@@ -119,28 +118,26 @@
                     @enderror
                 </div>
 
-                <!-- Metadata -->
+                <!-- Metadata Info (Read-only) -->
                 @if($story->metadata && is_array($story->metadata) && count($story->metadata) > 0)
                 <div class="md:col-span-2">
                     <div class="rounded-xl bg-zinc-100/30 dark:bg-zinc-700/20 p-4 border border-zinc-200/70 dark:border-zinc-700/50">
                         <div class="flex">
                             <div class="flex-shrink-0">
-                                <i data-lucide="database" class="h-5 w-5 text-indigo-600 dark:text-indigo-400"></i>
+                                <i data-lucide="info" class="h-5 w-5 text-zinc-500 dark:text-zinc-400"></i>
                             </div>
                             <div class="ml-3">
-                                <h3 class="text-sm font-medium text-zinc-800 dark:text-zinc-200">Additional Metadata</h3>
+                                <h3 class="text-sm font-medium text-zinc-800 dark:text-zinc-200">Story Information</h3>
                                 <div class="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
                                     <ul class="list-disc pl-5 space-y-1">
-                                        @foreach($story->metadata as $key => $value)
-                                            @if(!is_array($value) && !is_object($value))
-                                                <li>{{ ucwords(str_replace('_', ' ', $key)) }}: <span class="font-mono">{{ $value }}</span></li>
-                                            @endif
-                                        @endforeach
+                                        <li>Source: <span class="font-medium">{{ ucfirst($story->source) }}</span></li>
+                                        @if($story->external_id)
+                                            <li>External ID: <span class="font-mono">{{ $story->external_id }}</span></li>
+                                        @endif
+                                        <li>Created: {{ $story->created_at->format('M d, Y H:i') }}</li>
+                                        <li>Last updated: {{ $story->updated_at->format('M d, Y H:i') }}</li>
                                     </ul>
                                 </div>
-                                <p class="mt-2 text-xs text-zinc-500 dark:text-zinc-400 italic">
-                                    Metadata is managed programmatically and cannot be edited directly.
-                                </p>
                             </div>
                         </div>
                     </div>
@@ -217,15 +214,15 @@
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        new TomSelect('#source', {
-            create: false,
-            render: {
-                option: function(data, escape) {
-                    return `<div class="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-700">${escape(data.text)}</div>`;
-                }
+document.addEventListener('DOMContentLoaded', function() {
+    new TomSelect('#epic_id', {
+        create: false,
+        render: {
+            option: function(data, escape) {
+                return `<div class="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-700">${escape(data.text)}</div>`;
             }
-        });
+        }
     });
+});
 </script>
 @endpush

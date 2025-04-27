@@ -13,6 +13,8 @@ class Story extends Model
     public $incrementing = false;
 
     protected $fillable = [
+        'project_id',
+        'epic_id',
         'source',
         'external_id',
         'title',
@@ -25,19 +27,27 @@ class Story extends Model
     ];
 
     /**
+     * Get the project this story belongs to.
+     */
+    public function project()
+    {
+        return $this->belongsTo(Project::class);
+    }
+
+    /**
+     * Get the epic this story belongs to (if any).
+     */
+    public function epic()
+    {
+        return $this->belongsTo(Epic::class);
+    }
+
+    /**
      * Get the test cases derived from this story.
      */
     public function testCases()
     {
         return $this->hasMany(TestCase::class);
-    }
-
-    /**
-     * Get the test scripts that reference this story.
-     */
-    public function testScripts()
-    {
-        return $this->hasMany(TestScript::class);
     }
 
     /**
