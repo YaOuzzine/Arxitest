@@ -332,3 +332,47 @@ Route::prefix('/dashboard/environments')->name('dashboard.environments.')->middl
     Route::put('/{environment}', [EnvironmentController::class, 'update'])->name('update');
     Route::delete('/{environment}', [EnvironmentController::class, 'destroy'])->name('destroy');
 });
+
+
+// DEV LOGS (REMOVE BEFORE DEPLOYMENT)
+
+Route::get('/view-logs', function () {
+    $logContent = file_get_contents(storage_path('logs/laravel.log'));
+
+    $html = <<<HTML
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Logs</title>
+        <meta charset="UTF-8">
+        <style>
+            body { font-family: monospace; background: #111; color: #eee; }
+            pre { white-space: pre-wrap; word-wrap: break-word; }
+        </style>
+    </head>
+    <body>
+        <pre id="logs"></pre>
+        <script>
+            const logsElement = document.getElementById('logs');
+
+            function fetchLogs() {
+                fetch(window.location.href + '?raw=1')
+                    .then(response => response.text())
+                    .then(data => {
+                        logsElement.textContent = data;
+                        window.scrollTo(0, document.body.scrollHeight);
+                    });
+            }
+
+            // Initial load and setup auto-refresh
+            fetchLogs();
+            setInterval(fetchLogs, 3000);
+        </script>
+    </body>
+    </html>
+    HTML;
+
+    return isset($_GET['raw'])
+        ? response($logContent, 200)->header('Content-Type', 'text/plain')
+        : response($html);
+});

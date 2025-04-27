@@ -133,104 +133,174 @@ class TestCaseService
             throw new \Exception('User not authenticated.');
         }
 
-        // 1. Fetch data for filters, scoped by team/project selections
-        // Projects: All projects the user has access to within the current team
+        // 1. Get projects for this team
         $projectsForFilter = $team->projects()
             ->orderBy('name')
             ->get(['id', 'name']);
 
-        // Stories: Only fetch if a project is selected
+        $projectIds = $projectsForFilter->pluck('id')->toArray();
+
+        // If no projects, return empty data
+        if (empty($projectIds)) {
+            return [
+                'testCases' => new \Illuminate\Pagination\LengthAwarePaginator([], 0, 15),
+                'projectsForFilter' => $projectsForFilter,
+                'storiesForFilter' => collect(),
+                'suitesForFilter' => collect(),
+                'team' => $team,
+                'filters' => $filters
+            ];
+        }
+
+        // 2. Stories and suites for filtering UI
         $storiesForFilter = collect();
+        $suitesForFilter = collect();
         if (!empty($filters['project_id'])) {
             $storiesForFilter = Story::where('project_id', $filters['project_id'])
                 ->orderBy('title')
                 ->get(['id', 'title']);
-        }
 
-        // Suites: Only fetch if a project is selected (we'll filter further based on story later if needed)
-        $suitesForFilter = collect();
-        if (!empty($filters['project_id'])) {
             $suitesForFilter = TestSuite::where('project_id', $filters['project_id'])
                 ->orderBy('name')
                 ->get(['id', 'name']);
         }
 
-        // 2. Build the Test Case Query
-        $query = TestCase::query()
-            // Select specific columns for efficiency and clarity
-            ->select([
-                'test_cases.id',
-                'test_cases.title',
-                'test_cases.priority',
-                'test_cases.status',
-                'test_cases.updated_at',
-                'test_cases.suite_id', // Needed for display/linking
-                'test_cases.story_id', // Needed for filtering
-                'test_suites.name as suite_name',
-                'stories.title as story_title',
-                'projects.id as project_id',
-                'projects.name as project_name'
-            ])
-            // Join related tables needed for filtering and display
-            ->join('test_suites', 'test_cases.suite_id', '=', 'test_suites.id')
-            ->join('projects', 'test_suites.project_id', '=', 'projects.id')
-            ->leftJoin('stories', 'test_cases.story_id', '=', 'stories.id') // Left join in case story isn't mandatory? Check model. Migration says NOT NULL, so use INNER JOIN.
-            // ->join('stories', 'test_cases.story_id', '=', 'stories.id') // Use this if story_id is required
-            ->where('projects.team_id', $team->id); // Filter by the current team
+        // 3. Base query - use a simple approach with query builder
+        $query = TestCase::query();
 
+        // 4. First, limit to test cases associated with this team's projects
+        $query->where(function ($q) use ($projectIds) {
+            // Test cases linked via test suites
+            $q->whereExists(function ($subq) use ($projectIds) {
+                $subq->select(\DB::raw(1))
+                    ->from('test_suites')
+                    ->whereRaw('test_cases.suite_id = test_suites.id')
+                    ->whereIn('test_suites.project_id', $projectIds);
+            });
 
-        // 3. Apply Filters
+            // OR test cases linked via stories
+            $q->orWhereExists(function ($subq) use ($projectIds) {
+                $subq->select(\DB::raw(1))
+                    ->from('stories')
+                    ->whereRaw('test_cases.story_id = stories.id')
+                    ->whereIn('stories.project_id', $projectIds);
+            });
+        });
+
+        // Select needed columns with proper aliases
+        $query->select([
+            'test_cases.id',
+            'test_cases.title',
+            'test_cases.description',
+            'test_cases.expected_results',
+            'test_cases.priority',
+            'test_cases.status',
+            'test_cases.created_at',
+            'test_cases.updated_at',
+            'test_cases.suite_id',
+            'test_cases.story_id',
+        ]);
+
+        // 5. Apply filters
         if (!empty($filters['project_id'])) {
-            $query->where('projects.id', $filters['project_id']);
-        }
-        if (!empty($filters['story_id'])) {
-            $query->where('test_cases.story_id', $filters['story_id']);
-        }
-        if (!empty($filters['suite_id'])) {
-            $query->where('test_cases.suite_id', $filters['suite_id']);
-        }
-        if (!empty($filters['search'])) {
-            $searchTerm = '%' . $filters['search'] . '%';
-            $query->where(function (Builder $q) use ($searchTerm) {
-                $q->where('test_cases.title', 'like', $searchTerm)
-                  ->orWhere('test_cases.description', 'like', $searchTerm); // Assuming description exists
+            $projectId = $filters['project_id'];
+            $query->where(function ($q) use ($projectId) {
+                // Test cases linked via test suites to this project
+                $q->whereExists(function ($subq) use ($projectId) {
+                    $subq->select(\DB::raw(1))
+                        ->from('test_suites')
+                        ->whereRaw('test_cases.suite_id = test_suites.id')
+                        ->where('test_suites.project_id', $projectId);
+                });
+
+                // OR test cases linked via stories to this project
+                $q->orWhereExists(function ($subq) use ($projectId) {
+                    $subq->select(\DB::raw(1))
+                        ->from('stories')
+                        ->whereRaw('test_cases.story_id = stories.id')
+                        ->where('stories.project_id', $projectId);
+                });
             });
         }
 
-        // 4. Apply Sorting
-        $sortField = $filters['sort'] ?? 'test_cases.updated_at';
+        if (!empty($filters['story_id'])) {
+            $query->where('test_cases.story_id', $filters['story_id']);
+        }
+
+        if (!empty($filters['suite_id'])) {
+            $query->where('test_cases.suite_id', $filters['suite_id']);
+        }
+
+        if (!empty($filters['search'])) {
+            $searchTerm = '%' . $filters['search'] . '%';
+            $query->where(function ($q) use ($searchTerm) {
+                $q->where('test_cases.title', 'like', $searchTerm)
+                    ->orWhere('test_cases.description', 'like', $searchTerm)
+                    ->orWhere('test_cases.expected_results', 'like', $searchTerm);
+            });
+        }
+
+        // 6. Apply sorting
+        $sortField = $filters['sort'] ?? 'updated_at';
         $sortDirection = $filters['direction'] ?? 'desc';
 
-        // Validate sort field to prevent SQL injection
         $allowedSortFields = [
             'title' => 'test_cases.title',
             'updated_at' => 'test_cases.updated_at',
             'created_at' => 'test_cases.created_at',
             'priority' => 'test_cases.priority',
-            'status' => 'test_cases.status',
-            'suite_name' => 'test_suites.name', // Example for sorting by related field
-            'project_name' => 'projects.name'   // Example
+            'status' => 'test_cases.status'
         ];
 
         if (array_key_exists($sortField, $allowedSortFields)) {
             $query->orderBy($allowedSortFields[$sortField], $sortDirection);
         } else {
-            $query->orderBy('test_cases.updated_at', 'desc'); // Default sort
+            $query->orderBy('test_cases.updated_at', 'desc');
         }
 
-        // 5. Paginate Results
-        $testCases = $query->paginate(15)->withQueryString(); // Adjust page size as needed
+        // 7. Paginate and load relationships for display
+        $testCases = $query->with([
+            'testSuite:id,name,project_id',
+            'testSuite.project:id,name',
+            'story:id,title,project_id',
+            'story.project:id,name'
+        ])->paginate(15)->withQueryString();
 
-        // 6. Return data for the view
+        // Logging for debugging - check the SQL query
+        Log::debug('TestCase query:', [
+            'sql' => $query->toSql(),
+            'bindings' => $query->getBindings(),
+            'count' => $testCases->total()
+        ]);
+
+        // After pagination but before returning:
+        $testCases->getCollection()->transform(function ($testCase) {
+            // Determine project_id from either test suite or story
+            if ($testCase->testSuite && $testCase->testSuite->project) {
+                $testCase->project_id = $testCase->testSuite->project->id;
+                $testCase->project_name = $testCase->testSuite->project->name;
+            } elseif ($testCase->story && $testCase->story->project) {
+                $testCase->project_id = $testCase->story->project->id;
+                $testCase->project_name = $testCase->story->project->name;
+            }
+
+            // Also add suite_name for consistency
+            $testCase->suite_name = $testCase->testSuite->name ?? null;
+
+            return $testCase;
+        });
+
+        // 8. Return data for the view
         return [
             'testCases' => $testCases,
             'projectsForFilter' => $projectsForFilter,
             'storiesForFilter' => $storiesForFilter,
             'suitesForFilter' => $suitesForFilter,
             'team' => $team,
-            'filters' => $filters // Pass applied filters back to view for persistence
+            'filters' => $filters
         ];
     }
+
 
     /**
      * Get test cases for a specific project with optional filtering
@@ -244,19 +314,23 @@ class TestCaseService
         $sortDirection = $filters['direction'] ?? 'desc';
 
         $query = TestCase::query()
-        ->with(['story', 'testSuite'])
-        // optional suite filter
-        ->when(isset($filters['suite_id']), fn($q,$suiteId) => $q->where('suite_id', $suiteId))
-        // include both suite-linked & suite-less cases via story
-        ->where(function($q) use ($project) {
-            $q->whereHas('testSuite', fn($q2) =>
+            ->with(['story', 'testSuite'])
+            // optional suite filter
+            ->when(isset($filters['suite_id']), fn($q, $suiteId) => $q->where('suite_id', $suiteId))
+            // include both suite-linked & suite-less cases via story
+            ->where(function ($q) use ($project) {
+                $q->whereHas(
+                    'testSuite',
+                    fn($q2) =>
                     $q2->where('project_id', $project->id)
                 )
-              ->orWhereDoesntHave('testSuite')
-              ->whereHas('story', fn($q2) =>
-                    $q2->where('project_id', $project->id)
-                );
-        });
+                    ->orWhereDoesntHave('testSuite')
+                    ->whereHas(
+                        'story',
+                        fn($q2) =>
+                        $q2->where('project_id', $project->id)
+                    );
+            });
 
         if ($selectedSuiteId) {
             $testSuites = $project->testSuites()->orderBy('name')->get(['id', 'name']);

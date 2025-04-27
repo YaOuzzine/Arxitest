@@ -43,15 +43,11 @@ class TestCaseController extends Controller
     /**
      * Display a listing of all test cases across all projects (with filtering).
      */
-    /**
-     * Display a listing of all test cases across all projects for the current team (with filtering).
-     */
-    public function indexAll(TestCaseIndexRequest $request) // Use the new request object
+    public function indexAll(TestCaseIndexRequest $request)
     {
         // Get the current team context (using the trait)
         $team = $this->getCurrentTeam($request);
         if (!$team) {
-            // This should theoretically be handled by middleware, but double-check
             return redirect()->route('dashboard.select-team')->with('error', 'Please select a team.');
         }
 
@@ -61,14 +57,14 @@ class TestCaseController extends Controller
         try {
             // Call the service to get filtered data
             $viewData = $this->testCaseService->getFilteredTestCasesForTeam($team, $filters);
-
+            // dd($viewData);
             // Pass all necessary data to the view
             return view('dashboard.test-cases.index', [
                 'testCases'         => $viewData['testCases'],
                 'projectsForFilter' => $viewData['projectsForFilter'],
-                'storiesForFilter'  => $viewData['storiesForFilter'],
-                'suitesForFilter'   => $viewData['suitesForFilter'],
-                'team'              => $viewData['team'],
+                'storiesForFilter'  => $viewData['storiesForFilter'] ?? collect(),
+                'suitesForFilter'   => $viewData['suitesForFilter'] ?? collect(),
+                'team'              => $team,
                 'isGenericIndex'    => true, // Flag for the view
                 'selectedProjectId' => $filters['project_id'] ?? null,
                 'selectedStoryId'   => $filters['story_id'] ?? null,
@@ -79,7 +75,6 @@ class TestCaseController extends Controller
             ]);
         } catch (\Exception $e) {
             Log::error("Error fetching test cases for team {$team->id}: " . $e->getMessage());
-            // Redirect back with an error message or to an error page
             return redirect()->back()->with('error', 'Could not load test cases. Please try again.');
         }
     }
@@ -104,6 +99,7 @@ class TestCaseController extends Controller
         try {
             if ($test_suite) {
                 // Suite-specific listing
+                Log::debug("Loading test cases for specific suite", ['suite_id' => $test_suite->id]);
                 $data = $this->testCaseService->getTestCasesForSuite(
                     $project,
                     $test_suite,
@@ -125,6 +121,7 @@ class TestCaseController extends Controller
                 ]));
             } else {
                 // Project-wide listing
+                Log::debug("Loading test cases for entire project");
                 $data = $this->testCaseService->getTestCasesForProject(
                     $project,
                     [
@@ -146,6 +143,10 @@ class TestCaseController extends Controller
                 ]));
             }
         } catch (\Exception $e) {
+            Log::error("Error in TestCaseController@index", [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
             return back()->with('error', $e->getMessage());
         }
     }
