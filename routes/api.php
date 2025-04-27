@@ -89,3 +89,15 @@ Route::get('/projects/{project}/test-suites/{test_suite}/test-cases', function (
         'test_cases' => $testCases
     ]);
 });
+
+Route::get('/projects/{project}/stories', function (App\Models\Project $project) {
+    $stories = $project
+        ->stories()
+        ->orderBy('title')
+        ->get(['id', 'title']);
+
+    return response()->json([
+        'success' => true,
+        'stories' => $stories,
+    ]);
+});

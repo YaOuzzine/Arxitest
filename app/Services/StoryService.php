@@ -6,6 +6,8 @@ use App\Models\Project;
 use App\Models\Story;
 use App\Models\Team;
 use App\Models\Epic;
+use App\Models\TestCase;
+use App\Models\TestSuite;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -72,6 +74,33 @@ class StoryService
 
         return $query->paginate(10)->withQueryString();
     }
+
+    /**
+     * Get all test suites for a given project
+     */
+    public function getProjectTestSuites(string $projectId)
+    {
+        return TestSuite::where('project_id', $projectId)
+                        ->orderBy('name')
+                        ->get(['id','name']);
+    }
+
+    /**
+     * Get test cases for a project, optionally filtered by suite
+     */
+    public function getProjectTestCases(string $projectId, ?string $suiteId = null)
+    {
+        $query = TestCase::whereHas('testSuite', function($q) use ($projectId) {
+            $q->where('project_id', $projectId);
+        });
+
+        if ($suiteId) {
+            $query->where('test_suite_id', $suiteId);
+        }
+
+        return $query->get(['id','title','test_suite_id']);
+    }
+
 
     /**
      * Get stories for a specific project with filtering options

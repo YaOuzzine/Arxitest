@@ -144,6 +144,12 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
         Route::post('/generate-ai', [TestSuiteController::class, 'generateWithAI'])->name('generateAI');
     });
 
+    Route::prefix('dashboard/api')->name('dashboard.api.')->group(function(){
+        Route::get('/projects/{project}/stories',  [StoryController::class,      'getJsonForProject'])->name('projects.stories');
+        Route::get('/projects/{project}/test-suites',[TestSuiteController::class, 'getJsonForProject'])->name('projects.test-suites');
+        Route::get('/projects/{project}/test-cases', [TestCaseController::class,   'getJsonForProject'])->name('projects.test-cases');
+      });
+
     Route::get('/dashboard/test-cases', [TestCaseController::class, 'indexAll'])
         ->name('dashboard.test-cases.indexAll');
 

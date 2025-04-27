@@ -29,6 +29,23 @@ class TestSuiteController extends Controller
         $this->suites = $suites;
     }
 
+    /**
+     * GET /dashboard/api/projects/{project}/test-suites
+     */
+    public function getJsonForProject(Project $project)
+    {
+        $suites = $project
+            ->testSuites()
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->map(fn($s) => ['id' => $s->id, 'name' => $s->name]);
+
+        return response()->json([
+            'success'     => true,
+            'test_suites' => $suites,
+        ]);
+    }
+
     // --- indexAll ---
     public function indexAll(Request $request)
     {
@@ -36,9 +53,9 @@ class TestSuiteController extends Controller
         $currentTeamId = $team->id;
 
         // Get project IDs the current user actually belongs to within this team
-         $userProjectIds = Auth::user()->teams()
-                             ->where('teams.id', $currentTeamId)
-                             ->first()?->projects()->pluck('id'); // Use optional chaining
+        $userProjectIds = Auth::user()->teams()
+            ->where('teams.id', $currentTeamId)
+            ->first()?->projects()->pluck('id'); // Use optional chaining
 
         $projectsForFilter = Project::whereIn('id', $userProjectIds)->orderBy('name')->get(['id', 'name']);
 
@@ -49,13 +66,15 @@ class TestSuiteController extends Controller
 
         $filterProjectId = $request->input('project_id');
         if ($filterProjectId && $projectsForFilter->contains('id', $filterProjectId)) {
-             $query->where('project_id', $filterProjectId);
+            $query->where('project_id', $filterProjectId);
         }
 
         $testSuites = $query->get();
 
         return view('dashboard.test-suites.index', [
-            'testSuites' => $testSuites, 'projects' => $projectsForFilter, 'team' => $team
+            'testSuites' => $testSuites,
+            'projects' => $projectsForFilter,
+            'team' => $team
         ]);
     }
 
@@ -139,7 +158,7 @@ class TestSuiteController extends Controller
     }
 
     // --- generateWithAI ---
-   /**
+    /**
      * Generate Test Suite details using Deepseek AI.
      * (Called via AJAX from the create form)
      *
@@ -222,30 +241,28 @@ PROMPT;
             $generatedData = json_decode($jsonString, true);
 
             if (json_last_error() !== JSON_ERROR_NONE || !is_array($generatedData)) {
-                 Log::error('Deepseek API returned invalid JSON: ' . $jsonString . ' | Original: ' . $aiContent);
+                Log::error('Deepseek API returned invalid JSON: ' . $jsonString . ' | Original: ' . $aiContent);
                 return response()->json(['success' => false, 'message' => 'AI returned an invalid format. Please try again or refine your prompt.'], 500);
             }
 
             // Basic validation of the returned structure
             if (!isset($generatedData['name']) || !isset($generatedData['description']) || !isset($generatedData['settings']['default_priority'])) {
                 Log::error('Deepseek API JSON missing required keys: ' . json_encode($generatedData));
-                 return response()->json(['success' => false, 'message' => 'AI response missing required fields. Please try again.'], 500);
+                return response()->json(['success' => false, 'message' => 'AI response missing required fields. Please try again.'], 500);
             }
 
-             // Further validate settings if needed
-             if (!in_array($generatedData['settings']['default_priority'], ['low', 'medium', 'high'])) {
+            // Further validate settings if needed
+            if (!in_array($generatedData['settings']['default_priority'], ['low', 'medium', 'high'])) {
                 $generatedData['settings']['default_priority'] = 'medium'; // Default if invalid
-             }
-              if (isset($generatedData['settings']['execution_mode']) && !in_array($generatedData['settings']['execution_mode'], ['sequential', 'parallel'])) {
-                 unset($generatedData['settings']['execution_mode']); // Remove if invalid
-             }
+            }
+            if (isset($generatedData['settings']['execution_mode']) && !in_array($generatedData['settings']['execution_mode'], ['sequential', 'parallel'])) {
+                unset($generatedData['settings']['execution_mode']); // Remove if invalid
+            }
 
             return response()->json(['success' => true, 'data' => $generatedData]);
-
         } catch (\Exception $e) {
             Log::error('Error calling Deepseek API: ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'An unexpected error occurred during AI generation.'], 500);
         }
     }
-
 }

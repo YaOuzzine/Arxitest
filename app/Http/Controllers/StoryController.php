@@ -23,6 +23,19 @@ class StoryController extends Controller
         $this->storyService = $storyService;
     }
 
+    public function getJsonForProject(Project $project)
+{
+    $stories = $project
+       ->stories()
+       ->orderBy('title')
+       ->get(['id','title']);
+
+    return response()->json([
+       'success'  => true,
+       'stories'  => $stories,
+    ]);
+}
+
     public function indexAll(Request $request)
     {
         $team = $this->getCurrentTeam($request);

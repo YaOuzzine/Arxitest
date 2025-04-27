@@ -3,12 +3,16 @@
 namespace App\Services;
 
 use App\Models\Project;
+use App\Models\Story;
 use App\Models\Team;
 use App\Models\TestCase;
 use App\Models\TestSuite;
 use App\Services\RelationshipValidationService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 
 class TestCaseService
 {
@@ -116,6 +120,119 @@ class TestCaseService
     }
 
     /**
+     * Get filtered test cases for the index view, along with filter data.
+     *
+     * @param Team $team The current team context.
+     * @param array $filters Validated filter parameters from TestCaseIndexRequest.
+     * @return array Data for the view.
+     */
+    public function getFilteredTestCasesForTeam(Team $team, array $filters): array
+    {
+        $user = Auth::user();
+        if (!$user) {
+            throw new \Exception('User not authenticated.');
+        }
+
+        // 1. Fetch data for filters, scoped by team/project selections
+        // Projects: All projects the user has access to within the current team
+        $projectsForFilter = $team->projects()
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        // Stories: Only fetch if a project is selected
+        $storiesForFilter = collect();
+        if (!empty($filters['project_id'])) {
+            $storiesForFilter = Story::where('project_id', $filters['project_id'])
+                ->orderBy('title')
+                ->get(['id', 'title']);
+        }
+
+        // Suites: Only fetch if a project is selected (we'll filter further based on story later if needed)
+        $suitesForFilter = collect();
+        if (!empty($filters['project_id'])) {
+            $suitesForFilter = TestSuite::where('project_id', $filters['project_id'])
+                ->orderBy('name')
+                ->get(['id', 'name']);
+        }
+
+        // 2. Build the Test Case Query
+        $query = TestCase::query()
+            // Select specific columns for efficiency and clarity
+            ->select([
+                'test_cases.id',
+                'test_cases.title',
+                'test_cases.priority',
+                'test_cases.status',
+                'test_cases.updated_at',
+                'test_cases.suite_id', // Needed for display/linking
+                'test_cases.story_id', // Needed for filtering
+                'test_suites.name as suite_name',
+                'stories.title as story_title',
+                'projects.id as project_id',
+                'projects.name as project_name'
+            ])
+            // Join related tables needed for filtering and display
+            ->join('test_suites', 'test_cases.suite_id', '=', 'test_suites.id')
+            ->join('projects', 'test_suites.project_id', '=', 'projects.id')
+            ->leftJoin('stories', 'test_cases.story_id', '=', 'stories.id') // Left join in case story isn't mandatory? Check model. Migration says NOT NULL, so use INNER JOIN.
+            // ->join('stories', 'test_cases.story_id', '=', 'stories.id') // Use this if story_id is required
+            ->where('projects.team_id', $team->id); // Filter by the current team
+
+
+        // 3. Apply Filters
+        if (!empty($filters['project_id'])) {
+            $query->where('projects.id', $filters['project_id']);
+        }
+        if (!empty($filters['story_id'])) {
+            $query->where('test_cases.story_id', $filters['story_id']);
+        }
+        if (!empty($filters['suite_id'])) {
+            $query->where('test_cases.suite_id', $filters['suite_id']);
+        }
+        if (!empty($filters['search'])) {
+            $searchTerm = '%' . $filters['search'] . '%';
+            $query->where(function (Builder $q) use ($searchTerm) {
+                $q->where('test_cases.title', 'like', $searchTerm)
+                  ->orWhere('test_cases.description', 'like', $searchTerm); // Assuming description exists
+            });
+        }
+
+        // 4. Apply Sorting
+        $sortField = $filters['sort'] ?? 'test_cases.updated_at';
+        $sortDirection = $filters['direction'] ?? 'desc';
+
+        // Validate sort field to prevent SQL injection
+        $allowedSortFields = [
+            'title' => 'test_cases.title',
+            'updated_at' => 'test_cases.updated_at',
+            'created_at' => 'test_cases.created_at',
+            'priority' => 'test_cases.priority',
+            'status' => 'test_cases.status',
+            'suite_name' => 'test_suites.name', // Example for sorting by related field
+            'project_name' => 'projects.name'   // Example
+        ];
+
+        if (array_key_exists($sortField, $allowedSortFields)) {
+            $query->orderBy($allowedSortFields[$sortField], $sortDirection);
+        } else {
+            $query->orderBy('test_cases.updated_at', 'desc'); // Default sort
+        }
+
+        // 5. Paginate Results
+        $testCases = $query->paginate(15)->withQueryString(); // Adjust page size as needed
+
+        // 6. Return data for the view
+        return [
+            'testCases' => $testCases,
+            'projectsForFilter' => $projectsForFilter,
+            'storiesForFilter' => $storiesForFilter,
+            'suitesForFilter' => $suitesForFilter,
+            'team' => $team,
+            'filters' => $filters // Pass applied filters back to view for persistence
+        ];
+    }
+
+    /**
      * Get test cases for a specific project with optional filtering
      */
     public function getTestCasesForProject(Project $project, $filters = [])
@@ -127,9 +244,19 @@ class TestCaseService
         $sortDirection = $filters['direction'] ?? 'desc';
 
         $query = TestCase::query()
-            ->join('test_suites', 'test_cases.suite_id', '=', 'test_suites.id')
-            ->where('test_suites.project_id', $project->id)
-            ->select('test_cases.*', 'test_suites.name as suite_name');
+        ->with(['story', 'testSuite'])
+        // optional suite filter
+        ->when(isset($filters['suite_id']), fn($q,$suiteId) => $q->where('suite_id', $suiteId))
+        // include both suite-linked & suite-less cases via story
+        ->where(function($q) use ($project) {
+            $q->whereHas('testSuite', fn($q2) =>
+                    $q2->where('project_id', $project->id)
+                )
+              ->orWhereDoesntHave('testSuite')
+              ->whereHas('story', fn($q2) =>
+                    $q2->where('project_id', $project->id)
+                );
+        });
 
         if ($selectedSuiteId) {
             $testSuites = $project->testSuites()->orderBy('name')->get(['id', 'name']);
@@ -160,8 +287,10 @@ class TestCaseService
         $testSuites = $project->testSuites()->orderBy('name')->get(['id', 'name']);
 
         return [
-            'testCases' => $testCases,
-            'testSuites' => $testSuites
+            'testCases'  => $query
+                ->orderBy($filters['sort'] ?? 'updated_at', $filters['direction'] ?? 'desc')
+                ->paginate(20),
+            'testSuites' => $project->testSuites()->orderBy('name')->get(),
         ];
     }
 

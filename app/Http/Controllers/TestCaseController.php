@@ -3,26 +3,33 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\TestCaseRequest;
+use App\Http\Requests\TestCaseIndexRequest;
 use App\Models\Project;
 use App\Models\Team;
 use App\Models\TestCase;
 use App\Models\TestSuite;
 use App\Services\TestCaseService;
+use App\Services\RelationshipValidationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use App\Traits\JsonResponse;
+use App\Services\StoryService;
 
 class TestCaseController extends Controller
 {
     use JsonResponse;
     protected $testCaseService;
+    protected $relationshipValidationService;
+    protected $storyService;
 
-    public function __construct(TestCaseService $testCaseService)
+    public function __construct(StoryService $storyService, TestCaseService $testCaseService, RelationshipValidationService $relationshipValidationService)
     {
         $this->testCaseService = $testCaseService;
+        $this->storyService = $storyService;
+        $this->relationshipValidationService = $relationshipValidationService;
     }
 
     /**
@@ -36,33 +43,44 @@ class TestCaseController extends Controller
     /**
      * Display a listing of all test cases across all projects (with filtering).
      */
-    public function indexAll(Request $request)
+    /**
+     * Display a listing of all test cases across all projects for the current team (with filtering).
+     */
+    public function indexAll(TestCaseIndexRequest $request) // Use the new request object
     {
+        // Get the current team context (using the trait)
         $team = $this->getCurrentTeam($request);
-        $currentTeamId = $team->id;
+        if (!$team) {
+            // This should theoretically be handled by middleware, but double-check
+            return redirect()->route('dashboard.select-team')->with('error', 'Please select a team.');
+        }
+
+        // Get validated filters from the request object
+        $filters = $request->filters();
 
         try {
-            $data = $this->testCaseService->getAllTestCasesForTeam(
-                $currentTeamId,
-                [
-                    'project_id' => $request->input('project_id'),
-                    'suite_id' => $request->input('suite_id'),
-                    'search' => $request->input('search'),
-                    'sort' => $request->input('sort', 'updated_at'),
-                    'direction' => $request->input('direction', 'desc')
-                ]
-            );
+            // Call the service to get filtered data
+            $viewData = $this->testCaseService->getFilteredTestCasesForTeam($team, $filters);
 
-            return view('dashboard.test-cases.index', array_merge($data, [
-                'selectedProjectId' => $request->input('project_id'),
-                'selectedSuiteId' => $request->input('suite_id'),
-                'searchTerm' => $request->search ?? '',
-                'sortField' => $request->input('sort', 'updated_at'),
-                'sortDirection' => $request->input('direction', 'desc')
-            ]));
+            // Pass all necessary data to the view
+            return view('dashboard.test-cases.index', [
+                'testCases'         => $viewData['testCases'],
+                'projectsForFilter' => $viewData['projectsForFilter'],
+                'storiesForFilter'  => $viewData['storiesForFilter'],
+                'suitesForFilter'   => $viewData['suitesForFilter'],
+                'team'              => $viewData['team'],
+                'isGenericIndex'    => true, // Flag for the view
+                'selectedProjectId' => $filters['project_id'] ?? null,
+                'selectedStoryId'   => $filters['story_id'] ?? null,
+                'selectedSuiteId'   => $filters['suite_id'] ?? null,
+                'searchTerm'        => $filters['search'] ?? '',
+                'sortField'         => $filters['sort'] ?? 'updated_at',
+                'sortDirection'     => $filters['direction'] ?? 'desc',
+            ]);
         } catch (\Exception $e) {
-            session()->forget('current_team');
-            return redirect()->route('dashboard.select-team')->with('error', $e->getMessage());
+            Log::error("Error fetching test cases for team {$team->id}: " . $e->getMessage());
+            // Redirect back with an error message or to an error page
+            return redirect()->back()->with('error', 'Could not load test cases. Please try again.');
         }
     }
 
@@ -73,42 +91,58 @@ class TestCaseController extends Controller
     {
         $this->authorizeAccess($project);
 
+        // Preload filter collections
+        $storiesForFilter = $project
+            ->stories()
+            ->orderBy('title')
+            ->get(['id', 'title']);
+        $suitesForFilter = $project
+            ->testSuites()
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
         try {
             if ($test_suite) {
+                // Suite-specific listing
                 $data = $this->testCaseService->getTestCasesForSuite(
                     $project,
                     $test_suite,
                     [
-                        'search' => $request->input('search'),
-                        'sort' => $request->input('sort', 'updated_at'),
-                        'direction' => $request->input('direction', 'desc')
+                        'search'    => $request->input('search'),
+                        'sort'      => $request->input('sort', 'updated_at'),
+                        'direction' => $request->input('direction', 'desc'),
                     ]
                 );
 
                 return view('dashboard.test-cases.index', array_merge($data, [
-                    'project' => $project,
-                    'testSuite' => $test_suite,
-                    'searchTerm' => $request->search ?? '',
-                    'sortField' => $request->input('sort', 'updated_at'),
-                    'sortDirection' => $request->input('direction', 'desc')
+                    'project'           => $project,
+                    'testSuite'         => $test_suite,
+                    'storiesForFilter'  => $storiesForFilter,
+                    'suitesForFilter'   => $suitesForFilter,
+                    'searchTerm'        => $request->input('search', ''),
+                    'sortField'         => $request->input('sort', 'updated_at'),
+                    'sortDirection'     => $request->input('direction', 'desc'),
                 ]));
             } else {
+                // Project-wide listing
                 $data = $this->testCaseService->getTestCasesForProject(
                     $project,
                     [
-                        'suite_id' => $request->input('suite_id'),
-                        'search' => $request->input('search'),
-                        'sort' => $request->input('sort', 'updated_at'),
-                        'direction' => $request->input('direction', 'desc')
+                        'suite_id'  => $request->input('suite_id'),
+                        'search'    => $request->input('search'),
+                        'sort'      => $request->input('sort', 'updated_at'),
+                        'direction' => $request->input('direction', 'desc'),
                     ]
                 );
 
                 return view('dashboard.test-cases.index', array_merge($data, [
-                    'project' => $project,
-                    'selectedSuiteId' => $request->input('suite_id'),
-                    'searchTerm' => $request->search ?? '',
-                    'sortField' => $request->input('sort', 'updated_at'),
-                    'sortDirection' => $request->input('direction', 'desc')
+                    'project'           => $project,
+                    'storiesForFilter'  => $storiesForFilter,
+                    'suitesForFilter'   => $suitesForFilter,
+                    'selectedSuiteId'   => $request->input('suite_id'),
+                    'searchTerm'        => $request->input('search', ''),
+                    'sortField'         => $request->input('sort', 'updated_at'),
+                    'sortDirection'     => $request->input('direction', 'desc'),
                 ]));
             }
         } catch (\Exception $e) {
@@ -126,33 +160,41 @@ class TestCaseController extends Controller
         try {
             // If a test suite is provided, validate it belongs to the project
             if ($test_suite) {
-                $this->testCaseService->validateProjectSuiteRelationship($project, $test_suite);
+                $this->relationshipValidationService->validateProjectSuiteRelationship($project, $test_suite);
             }
 
+            // Prepare test suites dropdown
             $testSuites = $test_suite
                 ? collect([$test_suite])
                 : $project->testSuites()->orderBy('name')->get();
+            $selectedSuite = $test_suite;
 
-            $selectedSuite = $test_suite ?? null;
-
-            if (!$test_suite) {
+            if (! $test_suite) {
                 $selectedSuiteId = $request->input('suite_id');
-                if ($selectedSuiteId) {
-                    $selectedSuite = $testSuites->firstWhere('id', $selectedSuiteId);
-                }
+                $selectedSuite = $testSuites->firstWhere('id', $selectedSuiteId);
+            }
+
+            // **Fetch stories for the required story dropdown**
+            $storiesForFilter = $project->stories()->orderBy('title')->get();
+            $selectedStory = null;
+            if ($request->filled('story_id')) {
+                $selectedStory = $storiesForFilter->firstWhere('id', $request->input('story_id'));
             }
 
             return view('dashboard.test-cases.create', [
-                'project' => $project,
-                'testSuites' => $testSuites,
-                'selectedSuite' => $selectedSuite,
-                'priorityOptions' => ['low', 'medium', 'high'],
-                'statusOptions' => ['draft', 'active', 'deprecated', 'archived']
+                'project'          => $project,
+                'testSuites'       => $testSuites,
+                'selectedSuite'    => $selectedSuite,
+                'storiesForFilter' => $storiesForFilter,
+                'selectedStory'    => $selectedStory,
+                'priorityOptions'  => ['low', 'medium', 'high'],
+                'statusOptions'    => ['draft', 'active', 'deprecated', 'archived'],
             ]);
         } catch (\Exception $e) {
             return back()->with('error', $e->getMessage());
         }
     }
+
 
     /**
      * Store a newly created test case.
@@ -273,6 +315,19 @@ class TestCaseController extends Controller
                 ->with('error', 'Error updating test case: ' . $e->getMessage());
         }
     }
+    public function getJsonForProject(Project $project, Request $request): JsonResponse
+    {
+        $suiteId = $request->query('suite_id');
+
+        // you'll need to add this method to StoryService:
+        $cases = $this->storyService->getProjectTestCases($project->id, $suiteId);
+
+        return response()->json([
+            'success'    => true,
+            'test_cases' => $cases,
+        ]);
+    }
+
 
     /**
      * Remove the specified test case.
