@@ -132,7 +132,7 @@
                         New Test Case
                     </a>
                 @else
-                    <a href="{{ route('dashboard.projects.test-suites.test-cases.create', [$selectedProjectId, $selectedSuiteId]) }}{{ $storyParam }}"
+                    <a href="{{ route('dashboard.projects.test-cases.create', [$project->id, $selectedSuiteId]) }}{{ $storyParam }}"
                         class="btn-primary inline-flex items-center px-5 py-2.5 group">
                         <i data-lucide="plus-circle"
                             class="w-5 h-5 mr-2 transition-transform duration-200 group-hover:rotate-90"></i>
