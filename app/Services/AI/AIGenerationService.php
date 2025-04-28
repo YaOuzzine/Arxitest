@@ -173,7 +173,6 @@ class AIGenerationService
         $testCase->priority = $testCaseData['priority'] ?? 'medium';
         $testCase->status = 'draft';
         $testCase->tags = $testCaseData['tags'] ?? [];
-        $testCase->save();
 
         return $testCase;
     }
