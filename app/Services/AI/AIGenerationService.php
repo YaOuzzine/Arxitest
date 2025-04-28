@@ -129,31 +129,28 @@ class AIGenerationService
      * @param array $context Context data
      * @return \App\Models\Story
      */
-    public function generateStory(string $prompt, array $context): \App\Models\Story
+    public function generateStory(string $prompt, array $context): array
     {
         $storyData = $this->generate('story', $prompt, $context);
 
-        // Create the Story record
-        $story = new \App\Models\Story();
-        $story->project_id = $context['project_id'];
-        $story->title = $storyData['title'] ?? 'Generated Story';
-        $story->description = $storyData['description'] ?? '';
-        $story->source = 'manual';
-        $story->epic_id = $context['epic_id'] ?? null;
-        $story->metadata = [
-            'created_by' => auth()->id(),
-            'created_through' => 'ai',
-            'source' => $this->provider->getName(),
-            'prompt' => $prompt,
-            'acceptance_criteria' => $storyData['acceptance_criteria'] ?? [],
-            'priority' => $storyData['priority'] ?? 'medium',
-            'tags' => $storyData['tags'] ?? []
+        // Return data without saving
+        return [
+            'project_id' => $context['project_id'],
+            'title' => $storyData['title'] ?? 'Generated Story',
+            'description' => $storyData['description'] ?? '',
+            'source' => 'manual',
+            'epic_id' => $context['epic_id'] ?? null,
+            'metadata' => [
+                'created_by' => auth()->id(),
+                'created_through' => 'ai',
+                'source' => $this->provider->getName(),
+                'prompt' => $prompt,
+                'acceptance_criteria' => $storyData['acceptance_criteria'] ?? [],
+                'priority' => $storyData['priority'] ?? 'medium',
+                'tags' => $storyData['tags'] ?? []
+            ]
         ];
-        $story->save();
-
-        return $story;
     }
-
     /**
      * Generate a test case and create a record in the database
      *
