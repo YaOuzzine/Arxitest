@@ -173,18 +173,18 @@ class AIGenerationService
         $testCase->priority = $testCaseData['priority'] ?? 'medium';
         $testCase->status = 'draft';
         $testCase->tags = $testCaseData['tags'] ?? [];
+        $testCase->save();
 
         return $testCase;
     }
-
     /**
-     * Generate a test script and create a record in the database
+     * Generate a test script without saving to the database
      *
      * @param string $prompt User's prompt
      * @param array $context Context data
-     * @return \App\Models\TestScript
+     * @return array Generated script data
      */
-    public function generateTestScript(string $prompt, array $context): \App\Models\TestScript
+    public function generateTestScript(string $prompt, array $context): array
     {
         $result = $this->generate('test-script', $prompt, $context);
         $scriptContent = $result['content'] ?? '';
@@ -194,31 +194,27 @@ class AIGenerationService
         $frameworkType = $context['framework_type'] ?? 'selenium-python';
         $scriptName = ($testCase ? $testCase->title : 'Generated') . ' - ' . ucfirst($frameworkType) . ' Script';
 
-        // Create and save the script
-        $testScript = new \App\Models\TestScript();
-        $testScript->test_case_id = $context['test_case_id'];
-        $testScript->creator_id = auth()->id();
-        $testScript->name = $scriptName;
-        $testScript->framework_type = $frameworkType;
-        $testScript->script_content = $scriptContent;
-        $testScript->metadata = [
-            'created_through' => 'ai',
-            'source' => $this->provider->getName(),
-            'prompt' => $prompt
+        // Return the generated data without saving
+        return [
+            'content' => $scriptContent,
+            'name' => $scriptName,
+            'framework_type' => $frameworkType,
+            'metadata' => [
+                'created_through' => 'ai',
+                'source' => $this->provider->getName(),
+                'prompt' => $prompt
+            ]
         ];
-        $testScript->save();
-
-        return $testScript;
     }
 
     /**
-     * Generate test data and create a record in the database
+     * Generate test data without saving to the database
      *
      * @param string $prompt User's prompt
      * @param array $context Context data
-     * @return \App\Models\TestData
+     * @return array Generated test data
      */
-    public function generateTestData(string $prompt, array $context): \App\Models\TestData
+    public function generateTestData(string $prompt, array $context): array
     {
         $result = $this->generate('test-data', $prompt, $context);
         $dataContent = $result['content'] ?? '';
@@ -228,30 +224,19 @@ class AIGenerationService
         $format = $context['format'] ?? 'json';
         $dataName = ($testCase ? $testCase->title : 'Generated') . ' - Test Data (' . strtoupper($format) . ')';
 
-        // Create the test data
-        $testData = new \App\Models\TestData();
-        $testData->name = $dataName;
-        $testData->content = $dataContent;
-        $testData->format = $format;
-        $testData->is_sensitive = false; // Default to non-sensitive
-        $testData->metadata = [
-            'created_by' => auth()->id(),
-            'created_through' => 'ai',
-            'source' => $this->provider->getName(),
-            'prompt' => $prompt
+        // Return the generated data without saving
+        return [
+            'content' => $dataContent,
+            'name' => $dataName,
+            'format' => $format,
+            'is_sensitive' => false,
+            'usage_context' => 'AI Generated',
+            'metadata' => [
+                'created_through' => 'ai',
+                'source' => $this->provider->getName(),
+                'prompt' => $prompt
+            ]
         ];
-        $testData->save();
-
-        // Create relationship to test case if provided
-        if ($testCase) {
-            $testCaseData = new \App\Models\TestCaseData();
-            $testCaseData->test_case_id = $testCase->id;
-            $testCaseData->test_data_id = $testData->id;
-            $testCaseData->usage_context = 'Generated from AI';
-            $testCaseData->save();
-        }
-
-        return $testData;
     }
 
     /**

@@ -98,9 +98,6 @@ class TestDataController extends Controller
         }
 
         try {
-            // Get script if available for additional context
-            $latestScript = $test_case->testScripts()->latest()->first();
-
             // Set up context for generation
             $context = [
                 'project_id' => $project->id,
@@ -112,12 +109,13 @@ class TestDataController extends Controller
             ];
 
             // Add script context if available
+            $latestScript = $test_case->testScripts()->latest()->first();
             if ($latestScript) {
                 $context['script_id'] = $latestScript->id;
                 $context['script_content'] = $latestScript->script_content;
             }
 
-            // Generate the test data
+            // Generate the test data WITHOUT saving
             $aiService = app(AIGenerationService::class);
             $testData = $aiService->generateTestData(
                 $request->input('prompt', 'Generate test data for this test case'),
@@ -127,12 +125,7 @@ class TestDataController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Test data generated successfully',
-                'data' => [
-                    'id' => $testData->id,
-                    'name' => $testData->name,
-                    'content' => $testData->content,
-                    'format' => $testData->format
-                ]
+                'data' => $testData
             ]);
         } catch (\Exception $e) {
             Log::error('Error generating test data with AI: ' . $e->getMessage());

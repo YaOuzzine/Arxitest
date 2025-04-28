@@ -1722,12 +1722,14 @@
 
     <script>
         document.addEventListener('alpine:init', () => {
+
             Alpine.data('testCaseView', () => ({
                 activeTab: 'details',
                 expandedScript: null,
                 expandedData: null,
                 confirmDelete: false,
 
+                // Script modal state
                 showScriptModal: false,
                 scriptCreationMode: 'ai', // 'ai' or 'manual'
                 scriptTab: 'input', // 'input' or 'output' for AI mode
@@ -1755,7 +1757,7 @@
                 scriptName: '',
                 scriptGenerationHistory: [],
 
-                // Data Modal
+                // Data modal state
                 showDataModal: false,
                 dataCreationMode: 'ai', // 'ai' or 'manual'
                 dataTab: 'input', // 'input' or 'output' for AI mode
@@ -1785,7 +1787,7 @@
                 dataReferenceScript: '',
                 dataStructure: '',
                 dataExample: '',
-                dataFiles: [], // Array to store uploaded files
+                dataFiles: [],
                 dataLoading: false,
                 dataError: null,
                 dataResponse: null,
@@ -1799,7 +1801,7 @@
                     // Load AI history from localStorage
                     this.loadGenerationHistory();
 
-                    // Old init logic
+                    // Initialize the UI
                     this.$nextTick(() => {
                         if (typeof lucide !== 'undefined') {
                             lucide.createIcons();
@@ -1815,6 +1817,7 @@
                         }
                     });
 
+                    // Set up watchers
                     this.$watch('activeTab', (value) => {
                         if (history.pushState) {
                             history.pushState(null, null, `#${value}`);
@@ -1831,7 +1834,8 @@
                         });
                     });
 
-                    this.$watch('manualScriptFramework', () => {
+                    // Watch for framework changes - fixed variable names
+                    this.$watch('scriptFramework', () => {
                         this.$nextTick(() => {
                             if (typeof lucide !== 'undefined') {
                                 lucide.createIcons();
@@ -1839,7 +1843,8 @@
                         });
                     });
 
-                    this.$watch('manualDataFormat', () => {
+                    // Watch for data format changes - fixed variable names
+                    this.$watch('dataFormat', () => {
                         this.$nextTick(() => {
                             if (typeof lucide !== 'undefined') {
                                 lucide.createIcons();
@@ -1847,26 +1852,6 @@
                             this.highlightCode();
                         });
                     });
-
-                    try {
-                        const savedScriptHistory = localStorage.getItem('script_generation_history');
-                        if (savedScriptHistory) {
-                            this.scriptGenerationHistory = JSON.parse(savedScriptHistory);
-                        }
-                    } catch (e) {
-                        console.error('Failed to parse script generation history:', e);
-                        this.scriptGenerationHistory = [];
-                    }
-
-                    try {
-                        const savedDataHistory = localStorage.getItem('data_generation_history');
-                        if (savedDataHistory) {
-                            this.dataGenerationHistory = JSON.parse(savedDataHistory);
-                        }
-                    } catch (e) {
-                        console.error('Failed to parse data generation history:', e);
-                        this.dataGenerationHistory = [];
-                    }
                 },
 
                 openDataModal() {
@@ -1980,7 +1965,6 @@
                     }));
                 },
 
-                // --- AI Script Generation ---
                 async generateScript() {
                     if (!this.scriptPrompt) {
                         this.scriptError = 'Please enter a prompt';
@@ -2020,9 +2004,14 @@
                         const result = await response.json();
 
                         if (result.success) {
+                            // Make sure we're correctly accessing the structure
+                            console.log("Script generation result:", result);
+
                             this.scriptResponse = result.data;
-                            this.scriptContent = result.data.content;
-                            this.scriptName =
+
+                            // Make sure we're accessing the correct properties
+                            this.scriptContent = result.data.content || "";
+                            this.scriptName = result.data.name ||
                                 `{{ $testCase->title }} - ${this.getScriptFrameworkLabel()} Script`;
 
                             // Add to generation history
@@ -2300,76 +2289,6 @@
                     }
                 },
 
-                async generateData() {
-                    if (!this.dataPrompt) {
-                        this.dataError = 'Please enter a prompt';
-                        return;
-                    }
-
-                    this.dataError = null;
-                    this.dataLoading = true;
-
-                    try {
-                        const context = {
-                            project_id: '{{ $project->id }}',
-                            test_case_id: '{{ $testCase->id }}',
-                            format: this.dataFormat
-                        };
-
-                        // Add additional context if available
-                        if (this.dataStructure) context.data_structure = this.dataStructure;
-                        if (this.dataExample) context.example_data = this.dataExample;
-                        if (this.dataReferenceScript) context.script_id = this.dataReferenceScript;
-
-                        // Add file contents count if available
-                        if (this.dataFiles.length > 0) {
-                            context.file_count = this.dataFiles.length;
-                        }
-
-                        const response = await fetch(
-                            '{{ route('api.ai.generate', 'test-data') }}', {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                                    'Accept': 'application/json'
-                                },
-                                body: JSON.stringify({
-                                    prompt: this.dataPrompt,
-                                    context
-                                })
-                            });
-
-                        const result = await response.json();
-
-                        if (result.success) {
-                            this.dataResponse = result.data;
-                            this.dataContent = result.data.content;
-                            this.dataName =
-                                `{{ $testCase->title }} - ${this.getDataFormatLabel()} Data`;
-                            this.dataUsageContext = 'AI Generated Test Data';
-
-                            // Add to generation history
-                            this.addToDataHistory({
-                                timestamp: Date.now(),
-                                prompt: this.dataPrompt,
-                                format: this.getDataFormatLabel(),
-                                content: this.dataContent
-                            });
-
-                            // Switch to output tab
-                            this.dataTab = 'output';
-                            this.$nextTick(() => this.highlightCode());
-                        } else {
-                            throw new Error(result.message || 'Failed to generate test data');
-                        }
-                    } catch (error) {
-                        console.error('Data generation error:', error);
-                        this.dataError = error.message || 'An error occurred during generation';
-                    } finally {
-                        this.dataLoading = false;
-                    }
-                },
 
                 // Regenerate the data with the same parameters
                 regenerateData() {
@@ -2448,47 +2367,75 @@
                 },
 
                 async saveScript() {
-                    if (!this.scriptContent || !this.scriptName) {
-                        this.showNotificationMessage(
-                            'Please provide a name and ensure the script has content', 'error');
-                        return;
-                    }
+    if (!this.scriptContent || !this.scriptName) {
+        this.showNotificationMessage('Please provide a name and ensure the script has content', 'error');
+        return;
+    }
 
-                    try {
-                        const formData = new FormData();
-                        formData.append('name', this.scriptName);
-                        formData.append('framework_type', this.scriptFramework);
-                        formData.append('script_content', this.scriptContent);
-                        formData.append('_token', '{{ csrf_token() }}');
+    try {
+        // Create payload
+        const payload = {
+            name: this.scriptName,
+            framework_type: this.scriptFramework,
+            script_content: this.scriptContent,
+            metadata: this.scriptCreationMode === 'ai'
+                ? { created_through: 'ai', prompt: this.scriptPrompt }
+                : { created_through: 'manual' }
+        };
 
-                        // Add metadata about creation method
-                        if (this.scriptCreationMode === 'ai') {
-                            formData.append('metadata[created_through]', 'ai');
-                            formData.append('metadata[prompt]', this.scriptPrompt);
-                        } else {
-                            formData.append('metadata[created_through]', 'manual');
-                        }
+        console.log('Sending script data:', {
+            name: payload.name,
+            framework_type: payload.framework_type,
+            content_length: payload.script_content.length
+        });
 
-                        const response = await fetch(
-                            '{{ route('dashboard.projects.test-cases.scripts.store', [$project->id, $testCase->id]) }}', {
-                                method: 'POST',
-                                body: formData
-                            });
-
-                        if (response.ok) {
-                            this.showNotificationMessage('Script saved successfully!', 'success');
-                            this.showScriptModal = false;
-                            window.location.reload();
-                        } else {
-                            const error = await response.json();
-                            throw new Error(error.message || 'Failed to save script');
-                        }
-                    } catch (error) {
-                        console.error('Error saving script:', error);
-                        this.showNotificationMessage('Failed to save script: ' + error.message,
-                            'error');
-                    }
+        const response = await fetch(
+            '{{ route('dashboard.projects.test-cases.scripts.store', [$project->id, $testCase->id]) }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                    'Accept': 'application/json',
                 },
+                body: JSON.stringify(payload)
+            });
+
+        // Debug response
+        console.log('Response status:', response.status);
+        console.log('Response headers:', Object.fromEntries([...response.headers]));
+
+        // Check for non-JSON response
+        const contentType = response.headers.get('content-type');
+        let responseData;
+        let responseText = await response.text();
+
+        console.log('Raw response:', responseText.substring(0, 300) + '...');
+
+        if (contentType && contentType.includes('application/json')) {
+            try {
+                responseData = JSON.parse(responseText);
+            } catch (e) {
+                console.error('Failed to parse JSON response:', e);
+                throw new Error('Invalid JSON response from server');
+            }
+        } else {
+            console.error('Non-JSON response received');
+            throw new Error('Server returned an unexpected response format. Please check your server logs.');
+        }
+
+        if (response.ok) {
+            this.showNotificationMessage('Script saved successfully!', 'success');
+            this.showScriptModal = false;
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            throw new Error(responseData?.message || 'Failed to save script');
+        }
+    } catch (error) {
+        console.error('Error saving script:', error);
+        this.showNotificationMessage('Failed to save script: ' + error.message, 'error');
+    }
+},
+
 
                 // Save the data (works for both AI-generated and manual)
                 async saveData() {

@@ -101,22 +101,18 @@ class TestScriptController extends Controller
                 'framework_type' => $request->input('framework_type')
             ];
 
-            // Generate the test script
+            // Generate the test script WITHOUT saving
             $aiService = app(AIGenerationService::class);
-            $testScript = $aiService->generateTestScript(
+            $scriptData = $aiService->generateTestScript(
                 $request->input('prompt', ''),
                 $context
             );
 
+            // Return just the data for the frontend to handle
             return response()->json([
                 'success' => true,
                 'message' => 'Test script generated successfully',
-                'script' => [
-                    'id' => $testScript->id,
-                    'name' => $testScript->name,
-                    'content' => $testScript->script_content,
-                    'framework_type' => $testScript->framework_type
-                ]
+                'data' => $scriptData
             ]);
         } catch (\Exception $e) {
             Log::error('Error generating test script with AI: ' . $e->getMessage());
