@@ -16,9 +16,24 @@ class TestScriptService
      */
     public function validateRelationships(Project $project, TestCase $testCase, ?TestScript $testScript = null): bool
     {
-        // Validate project-test case relationship
+        // Test cases can belong to a project either through a suite or through a story
+        $belongsToProject = false;
+
+        // Check if test case belongs through its suite
         $suite = $testCase->testSuite;
-        if (!$suite || $suite->project_id !== $project->id) {
+        if ($suite && $suite->project_id === $project->id) {
+            $belongsToProject = true;
+        }
+
+        // Check if test case belongs through its story
+        if (!$belongsToProject) {
+            $story = $testCase->story;
+            if ($story && $story->project_id === $project->id) {
+                $belongsToProject = true;
+            }
+        }
+
+        if (!$belongsToProject) {
             throw new \Exception('Test case not found in this project.');
         }
 
@@ -30,7 +45,7 @@ class TestScriptService
         return true;
     }
 
-     /**
+    /**
      * Create a new test script.
      */
     public function createScript(
@@ -56,5 +71,4 @@ class TestScriptService
 
         return $testScript;
     }
-
 }

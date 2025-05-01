@@ -53,23 +53,36 @@ class TestScriptController extends Controller
         try {
             $this->testScriptService->validateRelationships($project, $test_case);
 
-            // Create script using the service
             $testScript = $this->testScriptService->createScript(
                 $test_case,
                 $request->input('name'),
                 $request->input('framework_type'),
-                $request->input('script_content')
+                $request->input('script_content'),
+                $request->input('metadata', [])
             );
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Test script created successfully.',
+                    'data' => $testScript
+                ]);
+            }
 
             return redirect()->route('dashboard.projects.test-cases.show', [
                 'project' => $project->id,
                 'test_case' => $test_case->id
             ])->with('success', 'Test script created successfully.');
         } catch (\Exception $e) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage()
+                ], 400);
+            }
             return redirect()->back()->with('error', $e->getMessage())->withInput();
         }
     }
-
     /**
      * Generate a test script using AI.
      */
