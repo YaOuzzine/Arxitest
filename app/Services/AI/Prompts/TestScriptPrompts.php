@@ -4,6 +4,7 @@ namespace App\Services\AI\Prompts;
 
 use App\Models\TestCase;
 use App\Models\Project;
+use Illuminate\Support\Facades\Log;
 
 class TestScriptPrompts extends BasePrompt
 {
@@ -22,6 +23,7 @@ class TestScriptPrompts extends BasePrompt
         $testCaseTitle = self::contextValue($context, 'test_case_title', '');
         $testCaseSteps = self::contextValue($context, 'test_case_steps', '');
         $testCaseResults = self::contextValue($context, 'test_case_expected_results', '');
+        Log::debug('Getting System Prompt...');
 
         // Load test case details if only ID is provided
         if ($testCaseId && (empty($testCaseTitle) || empty($testCaseSteps) || empty($testCaseResults))) {
@@ -102,7 +104,7 @@ CYPRESS;
         if (!empty($combinedContext)) {
             $combinedContext = "Context Information:\n" . $combinedContext;
         }
-
+        Log::debug("Returning System Prompt");
         return <<<PROMPT
 You are an AI assistant that specializes in generating test automation scripts.
 You'll create a complete {$frameworkType} test script based on the provided information.

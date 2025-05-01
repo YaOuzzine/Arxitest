@@ -29,7 +29,12 @@ class TestDataPrompts extends BasePrompt
             $testCase = TestCase::find($testCaseId);
             if ($testCase) {
                 $testCaseTitle = $testCase->title;
-                $testCaseSteps = $testCase->steps;
+                // Check if steps is already an array or needs to be decoded
+                if (is_array($testCase->steps)) {
+                    $testCaseSteps = $testCase->steps;
+                } else {
+                    $testCaseSteps = json_decode($testCase->steps, true) ?? [];
+                }
                 $testCaseResults = $testCase->expected_results;
             }
         }

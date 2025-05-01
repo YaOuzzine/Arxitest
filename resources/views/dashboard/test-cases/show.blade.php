@@ -718,6 +718,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"
         integrity="sha512-SkmBfuA2hqjzEVpmnMt/LINrjDhDHjXCqwsllmJNCDHEVLcwjDqfbYf9hPec6pvQO/+JiS9J7Gf6+mFk07kqBQ=="
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
     {{-- Explicitly include common languages to potentially speed up initial load --}}
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"
         integrity="sha512-AKaNmg/7cgoALCU5Ym9JbUSGTz0KXvuRcV5I9Ua/qOPGIMI/6nMCFCWJ78SMOE4YQEJjOsZyrV3/7urTGC9QkQ=="
@@ -777,12 +778,26 @@
                 dataCreationMode: 'ai',
                 dataTab: 'input',
                 dataFormat: 'json',
-                dataFormatOptions: [
-                    { value: 'json', label: 'JSON' },
-                    { value: 'csv', label: 'CSV' },
-                    { value: 'xml', label: 'XML' },
-                    { value: 'plain', label: 'Plain Text' },
-                    { value: 'other', label: 'Other Format' }
+                dataFormatOptions: [{
+                        value: 'json',
+                        label: 'JSON'
+                    },
+                    {
+                        value: 'csv',
+                        label: 'CSV'
+                    },
+                    {
+                        value: 'xml',
+                        label: 'XML'
+                    },
+                    {
+                        value: 'plain',
+                        label: 'Plain Text'
+                    },
+                    {
+                        value: 'other',
+                        label: 'Other Format'
+                    }
                 ],
                 dataPrompt: '',
                 dataReferenceScript: '',
@@ -814,9 +829,13 @@
                     this.$watch('showScriptModal', (value) => {
                         if (value) {
                             this.$nextTick(() => {
-                                document.querySelectorAll('.form-input, .form-textarea, .form-select').forEach(el => {
-                                    el.classList.add('bg-white', 'dark:bg-zinc-700', 'text-zinc-900', 'dark:text-zinc-100');
-                                });
+                                document.querySelectorAll(
+                                        '.form-input, .form-textarea, .form-select')
+                                    .forEach(el => {
+                                        el.classList.add('bg-white',
+                                            'dark:bg-zinc-700', 'text-zinc-900',
+                                            'dark:text-zinc-100');
+                                    });
                             });
                         }
                     });
@@ -824,9 +843,13 @@
                     this.$watch('showDataModal', (value) => {
                         if (value) {
                             this.$nextTick(() => {
-                                document.querySelectorAll('.form-input, .form-textarea, .form-select').forEach(el => {
-                                    el.classList.add('bg-white', 'dark:bg-zinc-700', 'text-zinc-900', 'dark:text-zinc-100');
-                                });
+                                document.querySelectorAll(
+                                        '.form-input, .form-textarea, .form-select')
+                                    .forEach(el => {
+                                        el.classList.add('bg-white',
+                                            'dark:bg-zinc-700', 'text-zinc-900',
+                                            'dark:text-zinc-100');
+                                    });
                             });
                         }
                     });
@@ -983,6 +1006,14 @@
                                 })
                             });
 
+                        // Check if response is ok
+                        if (!response.ok) {
+                            const errorText = await response.text();
+                            console.error('Server error:', errorText);
+                            this.scriptError = `Server error: ${response.status}`;
+                            throw new Error(`Server error: ${response.status}`);
+                        }
+                        // Try to parse JSON
                         const result = await response.json();
 
                         if (result.success) {
@@ -990,14 +1021,6 @@
                             this.scriptContent = result.data.content || "";
                             this.scriptName = result.data.name ||
                                 `{{ $testCase->title }} - ${this.getScriptFrameworkLabel()} Script`;
-
-                            this.addToScriptHistory({
-                                timestamp: Date.now(),
-                                prompt: this.scriptPrompt,
-                                framework: this.getScriptFrameworkLabel(),
-                                content: this.scriptContent
-                            });
-
                             this.scriptTab = 'output';
                             this.$nextTick(() => this.highlightCode());
                         } else {
@@ -1005,12 +1028,20 @@
                         }
                     } catch (error) {
                         console.error('Script generation error:', error);
+                        // If it's a parsing error, get the actual response text
+                        if (error.message.includes('is not valid JSON')) {
+                            try {
+                                const responseText = await response.text();
+                                console.error('Raw response:', responseText);
+                            } catch (e) {
+                                console.error('Could not get response text:', e);
+                            }
+                        }
                         this.scriptError = error.message || 'An error occurred during generation';
                     } finally {
                         this.scriptLoading = false;
                     }
                 },
-
                 regenerateScript() {
                     this.scriptTab = 'input';
                     this.generateScript();
@@ -1090,7 +1121,7 @@
                                 const fileName = files[0].name;
                                 const fileContent = e.target.result;
                                 this.scriptCodeContext +=
-                                `\n\n// File: ${fileName}\n${fileContent}`;
+                                    `\n\n// File: ${fileName}\n${fileContent}`;
                             };
                             reader.readAsText(files[0]);
                         }
@@ -1154,7 +1185,7 @@
                         if (this.dataExample) context.example_data = this.dataExample;
                         if (this.dataReferenceScript) context.script_id = this.dataReferenceScript;
 
-                        const response = await fetch('{{ route('api.ai.generate', 'test-data') }}', {
+                        const response = await fetch('/api/ai/generate/test-data', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -1172,15 +1203,9 @@
                         if (result.success) {
                             this.dataResponse = result.data;
                             this.dataContent = result.data.content;
-                            this.dataName = `{{ $testCase->title }} - ${this.getFormatLabel()} Data`;
+                            this.dataName =
+                                `{{ $testCase->title }} - ${this.getFormatLabel()} Data`;
                             this.dataUsageContext = 'AI Generated Test Data';
-
-                            this.addToDataHistory({
-                                timestamp: Date.now(),
-                                prompt: this.dataPrompt,
-                                format: this.getFormatLabel(),
-                                content: this.dataContent
-                            });
 
                             this.dataTab = 'output';
                             this.$nextTick(() => this.highlightCode());
@@ -1345,6 +1370,11 @@
                     }
 
                     try {
+                        const csrfToken = document.querySelector('meta[name="csrf-token"]');
+                        if (!csrfToken) {
+                            throw new Error('CSRF token not found');
+                        }
+
                         const payload = {
                             name: this.scriptName,
                             framework_type: this.scriptFramework,
@@ -1362,8 +1392,7 @@
                                 method: 'POST',
                                 headers: {
                                     'Content-Type': 'application/json',
-                                    'X-CSRF-TOKEN': document.querySelector(
-                                        'meta[name="csrf-token"]').getAttribute('content'),
+                                    'X-CSRF-TOKEN': csrfToken.getAttribute('content'),
                                     'Accept': 'application/json',
                                 },
                                 body: JSON.stringify(payload)
@@ -1374,7 +1403,8 @@
                             this.showScriptModal = false;
                             setTimeout(() => window.location.reload(), 1000);
                         } else {
-                            throw new Error('Failed to save script');
+                            const errorData = await response.json();
+                            throw new Error(errorData.message || 'Failed to save script');
                         }
                     } catch (error) {
                         console.error('Error saving script:', error);
@@ -1387,7 +1417,9 @@
                 // Save the data (works for both AI-generated and manual)
                 async saveData() {
                     if (!this.dataContent || !this.dataName || !this.dataUsageContext) {
-                        this.showNotificationMessage('Please provide a name, usage context, and ensure the data has content', 'error');
+                        this.showNotificationMessage(
+                            'Please provide a name, usage context, and ensure the data has content',
+                            'error');
                         return;
                     }
 
@@ -1407,14 +1439,21 @@
                             formData.append('metadata[created_through]', 'manual');
                         }
 
-                        const response = await fetch(
-                            '{{ route('dashboard.projects.test-cases.data.store', [$project->id, $testCase->id]) }}', {
-                                method: 'POST',
-                                body: formData
-                            });
+                        // Fix the route construction - same pattern as the script
+                        const route =
+                            "{{ route('dashboard.projects.test-cases.data.store', ['project' => '__PROJECT__', 'test_case' => '__TEST_CASE__']) }}";
+                        const finalRoute = route
+                            .replace('__PROJECT__', "{{ $project->id }}")
+                            .replace('__TEST_CASE__', "{{ $testCase->id }}");
+
+                        const response = await fetch(finalRoute, {
+                            method: 'POST',
+                            body: formData
+                        });
 
                         if (response.ok) {
-                            this.showNotificationMessage('Test data saved successfully!', 'success');
+                            this.showNotificationMessage('Test data saved successfully!',
+                                'success');
                             this.showDataModal = false;
                             window.location.reload();
                         } else {
@@ -1423,7 +1462,8 @@
                         }
                     } catch (error) {
                         console.error('Error saving test data:', error);
-                        this.showNotificationMessage('Failed to save test data: ' + error.message, 'error');
+                        this.showNotificationMessage('Failed to save test data: ' + error.message,
+                            'error');
                     }
                 },
 

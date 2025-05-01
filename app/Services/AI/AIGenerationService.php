@@ -57,14 +57,17 @@ class AIGenerationService
         try {
             // Get the system prompt based on entity type
             $systemPrompt = $this->getSystemPrompt($entityType, $context);
-
+            Log::debug("SystemPrompt: {$systemPrompt}");
             // Generate with the selected provider
-            return $this->provider->generate($systemPrompt, [
+            $result = $this->provider->generate($systemPrompt, [
                 'user_prompt' => $prompt,
                 'context' => $context,
-                // Add any entity-specific options
                 'output_format' => $this->getOutputFormat($entityType)
             ]);
+
+            Log::debug("After Generating with Selected Provider");
+
+            return $result;
         } catch (\Exception $e) {
             Log::error("AI Generation failed for {$entityType}", [
                 'error' => $e->getMessage(),
@@ -189,11 +192,12 @@ class AIGenerationService
         $result = $this->generate('test-script', $prompt, $context);
         $scriptContent = $result['content'] ?? '';
 
+        Log::debug("Resulting Script:");
         // Create a name for the script
         $testCase = \App\Models\TestCase::find($context['test_case_id']);
         $frameworkType = $context['framework_type'] ?? 'selenium-python';
         $scriptName = ($testCase ? $testCase->title : 'Generated') . ' - ' . ucfirst($frameworkType) . ' Script';
-
+        Log::debug("AFter");
         // Return the generated data without saving
         return [
             'content' => $scriptContent,

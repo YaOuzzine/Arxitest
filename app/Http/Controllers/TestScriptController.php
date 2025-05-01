@@ -107,6 +107,7 @@ class TestScriptController extends Controller
                 $request->input('prompt', ''),
                 $context
             );
+            Log::debug("Script Data Generated: {$scriptData}");
 
             // Return just the data for the frontend to handle
             return response()->json([

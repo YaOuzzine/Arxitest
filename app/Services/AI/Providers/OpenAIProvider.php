@@ -20,22 +20,22 @@ class OpenAIProvider implements AIProviderInterface
         $model = $options['model'] ?? $this->config['model'];
         $temperature = $options['temperature'] ?? $this->config['temperature'];
         $outputFormat = $options['output_format'] ?? 'text';
-
+        Log::debug("IN THE PROVIDER");
         $responseFormat = null;
         if ($outputFormat === 'json') {
             $responseFormat = ['type' => 'json_object'];
         }
-
+        Log::debug("Getting header");
         $headers = [
             'Authorization' => 'Bearer ' . $this->config['api_key'],
             'Content-Type' => 'application/json',
         ];
-
+        Log::debug("getting messages");
         $messages = [
             ['role' => 'system', 'content' => $systemPrompt],
             ['role' => 'user', 'content' => $userPrompt],
         ];
-
+        Log::debug("THE BODY");
         $requestBody = [
             'model' => $model,
             'messages' => $messages,
@@ -43,15 +43,19 @@ class OpenAIProvider implements AIProviderInterface
             'max_tokens' => 2000,
         ];
 
+        Log::debug("Request Body");
+
         if ($responseFormat) {
             $requestBody['response_format'] = $responseFormat;
         }
 
         try {
+
             $response = Http::withHeaders($headers)
                 ->timeout(config('ai.timeout', 30))
                 ->post('https://api.openai.com/v1/chat/completions', $requestBody);
 
+            Log::debug("Response: {$response}");
             if ($response->failed()) {
                 Log::error('OpenAI API Error', [
                     'status' => $response->status(),
