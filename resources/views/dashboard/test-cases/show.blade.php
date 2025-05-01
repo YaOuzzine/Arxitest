@@ -528,1002 +528,17 @@
 
         <!-- Modals -->
 
-        <!-- Create Script Modal - Improved & Consolidated -->
-        <div x-cloak x-show="showScriptModal" @keydown.escape.window="showScriptModal = false"
-            class="fixed inset-0 overflow-y-auto z-50" x-transition:enter="transition ease-out duration-300"
-            x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
-            x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100"
-            x-transition:leave-end="opacity-0">
-            <!-- Backdrop -->
-            <div class="fixed inset-0 bg-zinc-900/70 dark:bg-zinc-900/80 backdrop-blur-sm transition-opacity"
-                @click="showScriptModal = false"></div>
-            <!-- Modal Panel -->
-            <div class="relative min-h-screen flex items-center justify-center p-4">
-                <div class="relative w-full max-w-6xl bg-white dark:bg-zinc-800 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden"
-                    x-transition:enter="transition ease-out duration-300"
-                    x-transition:enter-start="opacity-0 translate-y-8" x-transition:enter-end="opacity-100 translate-y-0"
-                    x-transition:leave="transition ease-in duration-200"
-                    x-transition:leave-start="opacity-100 translate-y-0" x-transition:leave-end="opacity-0 translate-y-8">
-                    <!-- Header -->
-                    <div
-                        class="px-6 py-4 border-b border-zinc-200 dark:border-zinc-700 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20">
-                        <div class="flex items-center justify-between">
-                            <h3 class="text-lg font-medium text-indigo-900 dark:text-indigo-100 flex items-center">
-                                <div class="flex items-center gap-2">
-                                    <i data-lucide="code" class="w-5 h-5 text-indigo-600 dark:text-indigo-400"></i>
-                                    <span>Create Test Script</span>
-                                </div>
-                            </h3>
-                            <button @click="showScriptModal = false"
-                                class="text-zinc-400 hover:text-zinc-500 dark:hover:text-zinc-300">
-                                <i data-lucide="x" class="w-5 h-5"></i>
-                            </button>
-                        </div>
-                    </div>
-                    <!-- Content -->
-                    <div class="p-0">
-                        <div class="grid grid-cols-1 lg:grid-cols-3 h-[calc(100vh-12rem)] max-h-[800px]">
-                            <!-- Left Column: Context & Options -->
-                            <div
-                                class="lg:col-span-1 p-6 border-r border-zinc-200 dark:border-zinc-700/70 bg-zinc-50 dark:bg-zinc-800/50 overflow-y-auto">
-                                <div class="space-y-6">
-                                    <!-- Creation Mode Tabs -->
-                                    <div>
-                                        <label
-                                            class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Creation
-                                            Mode</label>
-                                        <div
-                                            class="flex rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden">
-                                            <button @click="scriptCreationMode = 'ai'"
-                                                :class="{
-                                                    'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 font-medium': scriptCreationMode === 'ai',
-                                                    'bg-white dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-700/50': scriptCreationMode !== 'ai'
-                                                }"
-                                                class="flex-1 py-2.5 px-3 text-sm transition-colors">
-                                                <i data-lucide="sparkles" class="w-4 h-4 inline-block mr-1"></i>
-                                                AI-Assisted
-                                            </button>
-                                            <button @click="scriptCreationMode = 'manual'"
-                                                :class="{
-                                                    'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 font-medium': scriptCreationMode === 'manual',
-                                                    'bg-white dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-700/50': scriptCreationMode !== 'manual'
-                                                }"
-                                                class="flex-1 py-2.5 px-3 text-sm transition-colors">
-                                                <i data-lucide="edit-3" class="w-4 h-4 inline-block mr-1"></i> Manual
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <!-- Framework Selection -->
-                                    <div>
-                                        <label
-                                            class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Framework
-                                            <span class="text-red-500">*</span></label>
-                                        <div class="relative">
-                                            <select x-model="scriptFramework" class="form-select w-full rounded-lg">
-                                                <template x-for="option in scriptFrameworkOptions">
-                                                    <option :value="option.value" x-text="option.label"></option>
-                                                </template>
-                                            </select>
-                                        </div>
-                                    </div>
-
-                                    <!-- Context Information -->
-                                    <div x-show="scriptCreationMode === 'ai'"
-                                        class="bg-white dark:bg-zinc-700/30 rounded-lg p-4 border border-zinc-200 dark:border-zinc-700">
-                                        <h4 class="font-medium text-zinc-800 dark:text-zinc-200 mb-2 flex items-center">
-                                            <i data-lucide="info"
-                                                class="w-4 h-4 mr-2 text-indigo-500 dark:text-indigo-400"></i>
-                                            Context Information
-                                        </h4>
-                                        <div class="text-sm text-zinc-600 dark:text-zinc-300 space-y-2">
-                                            <div>
-                                                <span class="font-medium">Test Case:</span> {{ $testCase->title }}
-                                            </div>
-                                            <div>
-                                                <span class="font-medium">Steps:</span> {{ count($steps) }} steps defined
-                                            </div>
-                                            @if ($story)
-                                                <div>
-                                                    <span class="font-medium">Related Story:</span> {{ $story->title }}
-                                                </div>
-                                            @endif
-                                        </div>
-
-                                        <!-- Additional Context Toggle -->
-                                        <div x-data="{ showAdditionalContext: false }" class="mt-3">
-                                            <button @click="showAdditionalContext = !showAdditionalContext"
-                                                class="text-xs flex items-center text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300">
-                                                <i data-lucide="plus-circle" class="w-3.5 h-3.5 mr-1"
-                                                    x-show="!showAdditionalContext"></i>
-                                                <i data-lucide="minus-circle" class="w-3.5 h-3.5 mr-1"
-                                                    x-show="showAdditionalContext"></i>
-                                                <span
-                                                    x-text="showAdditionalContext ? 'Hide Additional Context' : 'Add Additional Context'"></span>
-                                            </button>
-
-                                            <div x-show="showAdditionalContext" x-collapse class="mt-3 space-y-3">
-                                                <div>
-                                                    <label
-                                                        class="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                                                        Code Context <span
-                                                            class="text-zinc-500 dark:text-zinc-400 text-xs font-normal">(Optional)</span>
-                                                    </label>
-                                                    <textarea x-model="scriptCodeContext" rows="4" class="form-textarea w-full rounded-lg text-xs font-mono"
-                                                        placeholder="Paste relevant code, API specifications, or other technical details here"></textarea>
-                                                </div>
-
-                                                <!-- File Upload System with Preview and Delete -->
-                                                <div>
-                                                    <label
-                                                        class="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                                                        Reference Files <span
-                                                            class="text-zinc-500 dark:text-zinc-400 text-xs font-normal">(Optional,
-                                                            up to 5)</span>
-                                                    </label>
-                                                    <div class="space-y-3">
-                                                        <div x-show="scriptFiles.length < 5">
-                                                            <input type="file" id="script-files"
-                                                                class="block w-full text-xs text-zinc-600 dark:text-zinc-400
-                                                    file:mr-3 file:py-1.5 file:px-3
-                                                    file:text-xs file:font-medium
-                                                    file:border file:border-zinc-200 dark:file:border-zinc-600
-                                                    file:bg-white dark:file:bg-zinc-700
-                                                    file:text-indigo-600 dark:file:text-indigo-400
-                                                    hover:file:bg-zinc-50 dark:hover:file:bg-zinc-600
-                                                    file:rounded-md"
-                                                                @change="handleScriptFileUpload($event)"
-                                                                accept=".py,.js,.ts,.json,.txt,.csv,.xml,.html,.css">
-                                                            <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                                                                Upload related files to provide more context
-                                                            </p>
-                                                        </div>
-
-                                                        <!-- File List -->
-                                                        <div class="space-y-2" x-show="scriptFiles.length > 0">
-                                                            <h5
-                                                                class="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                                                                Uploaded Files (<span
-                                                                    x-text="scriptFiles.length"></span>/5)
-                                                            </h5>
-                                                            <ul class="space-y-1.5">
-                                                                <template x-for="(file, index) in scriptFiles"
-                                                                    :key="index">
-                                                                    <li
-                                                                        class="flex items-center justify-between px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-700/30 rounded-md border border-zinc-200 dark:border-zinc-700">
-                                                                        <div class="flex items-center truncate">
-                                                                            <i data-lucide="file"
-                                                                                class="w-3.5 h-3.5 mr-2 text-indigo-500 dark:text-indigo-400"></i>
-                                                                            <span class="truncate"
-                                                                                x-text="file.name"></span>
-                                                                        </div>
-                                                                        <button @click="removeScriptFile(index)"
-                                                                            class="text-zinc-400 hover:text-red-500 dark:hover:text-red-400">
-                                                                            <i data-lucide="x" class="w-3.5 h-3.5"></i>
-                                                                        </button>
-                                                                    </li>
-                                                                </template>
-                                                            </ul>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- Generation History (AI Mode Only) -->
-                                    <div x-show="scriptCreationMode === 'ai'">
-                                        <h4 class="font-medium text-zinc-800 dark:text-zinc-200 mb-2 flex items-center">
-                                            <i data-lucide="history"
-                                                class="w-4 h-4 mr-2 text-indigo-500 dark:text-indigo-400"></i>
-                                            Generation History
-                                        </h4>
-                                        <div class="space-y-2 max-h-96 overflow-y-auto pr-1">
-                                            <template x-for="(item, index) in scriptGenerationHistory"
-                                                :key="index">
-                                                <div @click="useScriptHistoryItem(index)"
-                                                    class="p-3 rounded-lg cursor-pointer bg-white dark:bg-zinc-700/30 border border-zinc-200 dark:border-zinc-700 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors text-sm">
-                                                    <div class="flex justify-between items-start">
-                                                        <span class="font-medium text-zinc-900 dark:text-zinc-100"
-                                                            x-text="item.framework || 'Script'"></span>
-                                                        <span class="text-xs text-zinc-500 dark:text-zinc-400"
-                                                            x-text="formatTime(item.timestamp)"></span>
-                                                    </div>
-                                                    <p class="mt-1 text-zinc-600 dark:text-zinc-400 line-clamp-2"
-                                                        x-text="item.prompt"></p>
-                                                </div>
-                                            </template>
-                                            <div x-show="scriptGenerationHistory.length === 0"
-                                                class="p-4 text-center text-sm text-zinc-500 dark:text-zinc-400 italic">
-                                                No generation history yet
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Right Column: Input/Output -->
-                            <div class="lg:col-span-2 flex flex-col">
-                                <!-- Tabs for Input/Output -->
-                                <div class="px-6 pt-6 pb-0 flex border-b border-zinc-200 dark:border-zinc-700">
-                                    <!-- AI Mode Tabs -->
-                                    <template x-if="scriptCreationMode === 'ai'">
-                                        <div class="flex">
-                                            <button @click="scriptTab = 'input'"
-                                                class="px-4 py-2 font-medium text-sm border-b-2 -mb-px"
-                                                :class="scriptTab === 'input' ?
-                                                    'text-indigo-600 dark:text-indigo-400 border-indigo-600 dark:border-indigo-400' :
-                                                    'text-zinc-500 dark:text-zinc-400 border-transparent hover:text-zinc-700 dark:hover:text-zinc-300'">
-                                                <i data-lucide="pencil" class="w-4 h-4 inline mr-1"></i> Input Prompt
-                                            </button>
-                                            <button @click="scriptTab = 'output'"
-                                                class="px-4 py-2 font-medium text-sm border-b-2 -mb-px"
-                                                :class="scriptTab === 'output' ?
-                                                    'text-indigo-600 dark:text-indigo-400 border-indigo-600 dark:border-indigo-400' :
-                                                    'text-zinc-500 dark:text-zinc-400 border-transparent hover:text-zinc-700 dark:hover:text-zinc-300'">
-                                                <i data-lucide="code" class="w-4 h-4 inline mr-1"></i> Generated Script
-                                            </button>
-                                        </div>
-                                    </template>
-
-                                    <!-- Manual Mode Tab -->
-                                    <template x-if="scriptCreationMode === 'manual'">
-                                        <div class="flex">
-                                            <div
-                                                class="px-4 py-2 font-medium text-sm border-b-2 -mb-px text-indigo-600 dark:text-indigo-400 border-indigo-600 dark:border-indigo-400">
-                                                <i data-lucide="edit-3" class="w-4 h-4 inline mr-1"></i> Manual Script
-                                            </div>
-                                        </div>
-                                    </template>
-                                </div>
-
-                                <!-- AI Input Tab -->
-                                <div x-show="scriptCreationMode === 'ai' && scriptTab === 'input'"
-                                    class="p-6 overflow-y-auto flex-1">
-                                    <div class="space-y-4">
-                                        <!-- Prompt Templates -->
-                                        <div>
-                                            <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                                                Template <span
-                                                    class="text-zinc-500 dark:text-zinc-400 text-xs font-normal">(Optional)</span>
-                                            </label>
-                                            <div class="grid grid-cols-2 gap-2">
-                                                <button @click="useScriptTemplate('basic')"
-                                                    class="flex items-center px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition-colors">
-                                                    <i data-lucide="layout-template"
-                                                        class="w-4 h-4 mr-1.5 text-indigo-500"></i>
-                                                    Basic Test
-                                                </button>
-                                                <button @click="useScriptTemplate('detailed')"
-                                                    class="flex items-center px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition-colors">
-                                                    <i data-lucide="list-checks"
-                                                        class="w-4 h-4 mr-1.5 text-green-500"></i>
-                                                    Detailed Test
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        <!-- Prompt Input -->
-                                        <div>
-                                            <label for="script-prompt"
-                                                class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                                                Prompt <span class="text-red-500">*</span>
-                                            </label>
-                                            <textarea x-model="scriptPrompt" id="script-prompt" rows="12"
-                                                placeholder="Describe what you want the test script to do. Be specific about testing scenarios, assertions, and edge cases."
-                                                class="form-textarea w-full rounded-lg" :class="{ 'border-red-500 dark:border-red-500': scriptError }"></textarea>
-                                            <p x-show="scriptError" x-text="scriptError"
-                                                class="mt-1 text-sm text-red-600 dark:text-red-400"></p>
-                                        </div>
-
-                                        <!-- Generate Button -->
-                                        <div class="flex justify-center">
-                                            <button @click="generateScript"
-                                                class="px-6 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-lg shadow-md hover:shadow-lg flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
-                                                :disabled="scriptLoading || !scriptPrompt">
-                                                <template x-if="!scriptLoading">
-                                                    <i data-lucide="sparkles" class="w-5 h-5 mr-2"></i>
-                                                </template>
-                                                <template x-if="scriptLoading">
-                                                    <svg class="animate-spin h-5 w-5 mr-2 text-white"
-                                                        xmlns="http://www.w3.org/2000/svg" fill="none"
-                                                        viewBox="0 0 24 24">
-                                                        <circle class="opacity-25" cx="12" cy="12" r="10"
-                                                            stroke="currentColor" stroke-width="4"></circle>
-                                                        <path class="opacity-75" fill="currentColor"
-                                                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
-                                                        </path>
-                                                    </svg>
-                                                </template>
-                                                <span x-text="scriptLoading ? 'Generating...' : 'Generate Script'"></span>
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- AI Output Tab -->
-                                <div x-show="scriptCreationMode === 'ai' && scriptTab === 'output'"
-                                    class="flex-1 flex flex-col p-6 overflow-hidden">
-                                    <div x-show="!scriptResponse" class="flex-1 flex items-center justify-center">
-                                        <div class="text-center p-6">
-                                            <div
-                                                class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-indigo-50 dark:bg-indigo-900/30 mb-4">
-                                                <i data-lucide="code"
-                                                    class="w-8 h-8 text-indigo-600 dark:text-indigo-400"></i>
-                                            </div>
-                                            <h3 class="text-lg font-medium text-zinc-900 dark:text-white mb-2">No Script
-                                                Generated Yet</h3>
-                                            <p class="text-zinc-500 dark:text-zinc-400 max-w-md">
-                                                Switch to the Input tab and provide a prompt to generate a script using AI.
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    <div x-show="scriptResponse" class="flex-1 flex flex-col h-full">
-                                        <!-- Script Header -->
-                                        <div class="mb-4 flex justify-between items-start">
-                                            <div>
-                                                <h3 class="text-lg font-medium text-zinc-900 dark:text-white">Generated
-                                                    Script</h3>
-                                                <p class="text-sm text-zinc-500 dark:text-zinc-400">Review and edit the
-                                                    generated script before saving</p>
-                                            </div>
-                                            <div class="flex gap-2">
-                                                <button @click="regenerateScript"
-                                                    class="p-2 rounded-lg text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30"
-                                                    :disabled="scriptLoading">
-                                                    <i data-lucide="refresh-cw" class="w-5 h-5"></i>
-                                                </button>
-                                                <button @click="copyScriptToClipboard"
-                                                    class="p-2 rounded-lg text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30">
-                                                    <i data-lucide="clipboard-copy" class="w-5 h-5"></i>
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        <!-- Script Content Editor -->
-                                        <div class="flex-1 mb-4 overflow-hidden">
-                                            <div class="h-full relative">
-                                                <textarea x-model="scriptContent" rows="15"
-                                                    class="w-full h-full px-4 py-3 font-mono text-sm bg-zinc-50 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-lg"
-                                                    :class="{ 'language-python': scriptFramework === 'selenium-python', 'language-javascript': scriptFramework === 'cypress' }"></textarea>
-                                            </div>
-                                        </div>
-
-                                        <!-- Script Name Input -->
-                                        <div class="mb-4">
-                                            <label for="script-name"
-                                                class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                                                Script Name <span class="text-red-500">*</span>
-                                            </label>
-                                            <input type="text" id="script-name" x-model="scriptName"
-                                                class="form-input w-full rounded-lg"
-                                                placeholder="Enter a name for this script">
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Manual Entry Tab -->
-                                <div x-show="scriptCreationMode === 'manual'"
-                                    class="flex-1 flex flex-col p-6 overflow-hidden">
-                                    <div class="space-y-4">
-                                        <!-- Script Name Input -->
-                                        <div>
-                                            <label for="manual-script-name"
-                                                class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                                                Script Name <span class="text-red-500">*</span>
-                                            </label>
-                                            <input type="text" id="manual-script-name" x-model="scriptName"
-                                                class="form-input w-full rounded-lg"
-                                                placeholder="Enter a name for this script">
-                                        </div>
-
-                                        <!-- Script Content Editor -->
-                                        <div>
-                                            <label for="manual-script-content"
-                                                class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                                                Script Content <span class="text-red-500">*</span>
-                                            </label>
-                                            <textarea x-model="scriptContent" id="manual-script-content" rows="15"
-                                                placeholder="Enter your test script code here..."
-                                                class="w-full px-4 py-3 font-mono text-sm bg-zinc-50 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-lg"
-                                                :class="{ 'language-python': scriptFramework === 'selenium-python', 'language-javascript': scriptFramework === 'cypress' }"></textarea>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Save Button Footer (for both modes) -->
-                                <div
-                                    class="p-6 bg-zinc-50 dark:bg-zinc-800/50 border-t border-zinc-200 dark:border-zinc-700">
-                                    <div class="flex justify-end space-x-3">
-                                        <button @click="showScriptModal = false" class="btn-secondary">
-                                            Cancel
-                                        </button>
-                                        <button @click="saveScript" class="btn-primary"
-                                            :disabled="!scriptContent || !scriptName">
-                                            <i data-lucide="save" class="w-4 h-4 mr-1.5"></i> Save Script
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <!-- Create Test Data Modal - Complete Implementation -->
-        <div x-cloak x-show="showDataModal" @keydown.escape.window="showDataModal = false"
-            class="fixed inset-0 overflow-y-auto z-50" x-transition:enter="transition ease-out duration-300"
-            x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
-            x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100"
-            x-transition:leave-end="opacity-0">
-            <!-- Backdrop -->
-            <div class="fixed inset-0 bg-zinc-900/70 dark:bg-zinc-900/80 backdrop-blur-sm transition-opacity"
-                @click="showDataModal = false"></div>
-            <!-- Modal Panel -->
-            <div class="relative min-h-screen flex items-center justify-center p-4">
-                <div class="relative w-full max-w-6xl bg-white dark:bg-zinc-800 rounded-2xl shadow-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden"
-                    x-transition:enter="transition ease-out duration-300"
-                    x-transition:enter-start="opacity-0 translate-y-8" x-transition:enter-end="opacity-100 translate-y-0"
-                    x-transition:leave="transition ease-in duration-200"
-                    x-transition:leave-start="opacity-100 translate-y-0" x-transition:leave-end="opacity-0 translate-y-8">
-                    <!-- Header -->
-                    <div
-                        class="px-6 py-4 border-b border-zinc-200 dark:border-zinc-700 bg-gradient-to-r from-teal-50 to-emerald-50 dark:from-teal-900/20 dark:to-emerald-900/20">
-                        <div class="flex items-center justify-between">
-                            <h3 class="text-lg font-medium text-teal-900 dark:text-teal-100 flex items-center">
-                                <div class="flex items-center gap-2">
-                                    <i data-lucide="database" class="w-5 h-5 text-teal-600 dark:text-teal-400"></i>
-                                    <span>Create Test Data</span>
-                                </div>
-                            </h3>
-                            <button @click="showDataModal = false"
-                                class="text-zinc-400 hover:text-zinc-500 dark:hover:text-zinc-300">
-                                <i data-lucide="x" class="w-5 h-5"></i>
-                            </button>
-                        </div>
-                    </div>
-                    <!-- Content -->
-                    <div class="p-0">
-                        <div class="grid grid-cols-1 lg:grid-cols-3 h-[calc(100vh-12rem)] max-h-[800px]">
-                            <!-- Left Column: Context & Options -->
-                            <div
-                                class="lg:col-span-1 p-6 border-r border-zinc-200 dark:border-zinc-700/70 bg-zinc-50 dark:bg-zinc-800/50 overflow-y-auto">
-                                <div class="space-y-6">
-                                    <!-- Creation Mode Tabs -->
-                                    <div>
-                                        <label
-                                            class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Creation
-                                            Mode</label>
-                                        <div
-                                            class="flex rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden">
-                                            <button @click="dataCreationMode = 'ai'"
-                                                :class="{
-                                                    'bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 font-medium': dataCreationMode === 'ai',
-                                                    'bg-white dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-700/50': dataCreationMode !== 'ai'
-                                                }"
-                                                class="flex-1 py-2.5 px-3 text-sm transition-colors">
-                                                <i data-lucide="sparkles" class="w-4 h-4 inline-block mr-1"></i>
-                                                AI-Assisted
-                                            </button>
-                                            <button @click="dataCreationMode = 'manual'"
-                                                :class="{
-                                                    'bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 font-medium': dataCreationMode === 'manual',
-                                                    'bg-white dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-700/50': dataCreationMode !== 'manual'
-                                                }"
-                                                class="flex-1 py-2.5 px-3 text-sm transition-colors">
-                                                <i data-lucide="edit-3" class="w-4 h-4 inline-block mr-1"></i> Manual
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <!-- Format Selection -->
-                                    <div>
-                                        <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Data
-                                            Format
-                                            <span class="text-red-500">*</span></label>
-                                        <div class="relative">
-                                            <select x-model="dataFormat" class="form-select w-full rounded-lg">
-                                                <template x-for="option in dataFormatOptions">
-                                                    <option :value="option.value" x-text="option.label"></option>
-                                                </template>
-                                            </select>
-                                        </div>
-                                    </div>
-
-                                    <!-- Context Information -->
-                                    <div x-show="dataCreationMode === 'ai'"
-                                        class="bg-white dark:bg-zinc-700/30 rounded-lg p-4 border border-zinc-200 dark:border-zinc-700">
-                                        <h4 class="font-medium text-zinc-800 dark:text-zinc-200 mb-2 flex items-center">
-                                            <i data-lucide="info"
-                                                class="w-4 h-4 mr-2 text-teal-500 dark:text-teal-400"></i>
-                                            Context Information
-                                        </h4>
-                                        <div class="text-sm text-zinc-600 dark:text-zinc-300 space-y-2">
-                                            <div>
-                                                <span class="font-medium">Test Case:</span> {{ $testCase->title }}
-                                            </div>
-                                            <div>
-                                                <span class="font-medium">Expected Results:</span>
-                                                <div class="text-xs mt-1 line-clamp-2">{{ $testCase->expected_results }}
-                                                </div>
-                                            </div>
-                                            @if ($testScripts->count() > 0)
-                                                <div>
-                                                    <span class="font-medium">Test Scripts:</span>
-                                                    {{ $testScripts->count() }} available
-                                                </div>
-                                            @endif
-                                        </div>
-
-                                        <!-- Additional Context Toggle -->
-                                        <div x-data="{ showAdditionalContext: false }" class="mt-3">
-                                            <button @click="showAdditionalContext = !showAdditionalContext"
-                                                class="text-xs flex items-center text-teal-600 dark:text-teal-400 hover:text-teal-800 dark:hover:text-teal-300">
-                                                <i data-lucide="plus-circle" class="w-3.5 h-3.5 mr-1"
-                                                    x-show="!showAdditionalContext"></i>
-                                                <i data-lucide="minus-circle" class="w-3.5 h-3.5 mr-1"
-                                                    x-show="showAdditionalContext"></i>
-                                                <span
-                                                    x-text="showAdditionalContext ? 'Hide Additional Context' : 'Add Additional Context'"></span>
-                                            </button>
-
-                                            <div x-show="showAdditionalContext" x-collapse class="mt-3 space-y-3">
-                                                <!-- Script Selection -->
-                                                @if ($testScripts->count() > 0)
-                                                    <div>
-                                                        <label
-                                                            class="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                                                            Reference Script
-                                                        </label>
-                                                        <select x-model="dataReferenceScript"
-                                                            class="form-select w-full rounded-lg text-xs">
-                                                            <option value="">None</option>
-                                                            @foreach ($testScripts as $script)
-                                                                <option value="{{ $script->id }}">{{ $script->name }}
-                                                                </option>
-                                                            @endforeach
-                                                        </select>
-                                                    </div>
-                                                @endif
-
-                                                <!-- Data Structure -->
-                                                <div>
-                                                    <label
-                                                        class="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                                                        Data Structure <span
-                                                            class="text-zinc-500 dark:text-zinc-400 text-xs font-normal">(Optional)</span>
-                                                    </label>
-                                                    <textarea x-model="dataStructure" rows="4" class="form-textarea w-full rounded-lg text-xs font-mono"
-                                                        placeholder="Describe the structure of the data you need (fields, expected types, constraints)"></textarea>
-                                                </div>
-
-                                                <!-- Example Data -->
-                                                <div>
-                                                    <label
-                                                        class="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                                                        Example Data <span
-                                                            class="text-zinc-500 dark:text-zinc-400 text-xs font-normal">(Optional)</span>
-                                                    </label>
-                                                    <textarea x-model="dataExample" rows="4" class="form-textarea w-full rounded-lg text-xs font-mono"
-                                                        placeholder="Paste examples of valid and/or invalid data here"></textarea>
-                                                </div>
-
-                                                <!-- File Upload System with Preview and Delete -->
-                                                <div>
-                                                    <label
-                                                        class="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                                                        Reference Files <span
-                                                            class="text-zinc-500 dark:text-zinc-400 text-xs font-normal">(Optional,
-                                                            up to 5)</span>
-                                                    </label>
-                                                    <div class="space-y-3">
-                                                        <div x-show="dataFiles.length < 5">
-                                                            <input type="file" id="data-files"
-                                                                class="block w-full text-xs text-zinc-600 dark:text-zinc-400
-                                                    file:mr-3 file:py-1.5 file:px-3
-                                                    file:text-xs file:font-medium
-                                                    file:border file:border-zinc-200 dark:file:border-zinc-600
-                                                    file:bg-white dark:file:bg-zinc-700
-                                                    file:text-teal-600 dark:file:text-teal-400
-                                                    hover:file:bg-zinc-50 dark:hover:file:bg-zinc-600
-                                                    file:rounded-md"
-                                                                @change="handleDataFileUpload($event)"
-                                                                accept=".json,.csv,.xml,.txt,.py,.js">
-                                                            <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                                                                Upload related files to provide more context
-                                                            </p>
-                                                        </div>
-
-                                                        <!-- File List -->
-                                                        <div class="space-y-2" x-show="dataFiles.length > 0">
-                                                            <h5
-                                                                class="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                                                                Uploaded Files (<span x-text="dataFiles.length"></span>/5)
-                                                            </h5>
-                                                            <ul class="space-y-1.5">
-                                                                <template x-for="(file, index) in dataFiles"
-                                                                    :key="index">
-                                                                    <li
-                                                                        class="flex items-center justify-between px-3 py-2 text-xs bg-zinc-50 dark:bg-zinc-700/30 rounded-md border border-zinc-200 dark:border-zinc-700">
-                                                                        <div class="flex items-center truncate">
-                                                                            <i data-lucide="file"
-                                                                                class="w-3.5 h-3.5 mr-2 text-teal-500 dark:text-teal-400"></i>
-                                                                            <span class="truncate"
-                                                                                x-text="file.name"></span>
-                                                                        </div>
-                                                                        <button @click="removeDataFile(index)"
-                                                                            class="text-zinc-400 hover:text-red-500 dark:hover:text-red-400">
-                                                                            <i data-lucide="x" class="w-3.5 h-3.5"></i>
-                                                                        </button>
-                                                                    </li>
-                                                                </template>
-                                                            </ul>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- Generation History (AI Mode Only) -->
-                                    <div x-show="dataCreationMode === 'ai'">
-                                        <h4 class="font-medium text-zinc-800 dark:text-zinc-200 mb-2 flex items-center">
-                                            <i data-lucide="history"
-                                                class="w-4 h-4 mr-2 text-teal-500 dark:text-teal-400"></i>
-                                            Generation History
-                                        </h4>
-                                        <div class="space-y-2 max-h-96 overflow-y-auto pr-1">
-                                            <template x-for="(item, index) in dataGenerationHistory"
-                                                :key="index">
-                                                <div @click="useDataHistoryItem(index)"
-                                                    class="p-3 rounded-lg cursor-pointer bg-white dark:bg-zinc-700/30 border border-zinc-200 dark:border-zinc-700 hover:bg-teal-50 dark:hover:bg-teal-900/20 transition-colors text-sm">
-                                                    <div class="flex justify-between items-start">
-                                                        <span class="font-medium text-zinc-900 dark:text-zinc-100"
-                                                            x-text="item.format || 'Data'"></span>
-                                                        <span class="text-xs text-zinc-500 dark:text-zinc-400"
-                                                            x-text="formatTime(item.timestamp)"></span>
-                                                    </div>
-                                                    <p class="mt-1 text-zinc-600 dark:text-zinc-400 line-clamp-2"
-                                                        x-text="item.prompt"></p>
-                                                </div>
-                                            </template>
-                                            <div x-show="dataGenerationHistory.length === 0"
-                                                class="p-4 text-center text-sm text-zinc-500 dark:text-zinc-400 italic">
-                                                No generation history yet
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Right Column: Input/Output -->
-                            <div class="lg:col-span-2 flex flex-col">
-                                <!-- Tabs for Input/Output -->
-                                <div class="px-6 pt-6 pb-0 flex border-b border-zinc-200 dark:border-zinc-700">
-                                    <!-- AI Mode Tabs -->
-                                    <template x-if="dataCreationMode === 'ai'">
-                                        <div class="flex">
-                                            <button @click="dataTab = 'input'"
-                                                class="px-4 py-2 font-medium text-sm border-b-2 -mb-px"
-                                                :class="dataTab === 'input' ?
-                                                    'text-teal-600 dark:text-teal-400 border-teal-600 dark:border-teal-400' :
-                                                    'text-zinc-500 dark:text-zinc-400 border-transparent hover:text-zinc-700 dark:hover:text-zinc-300'">
-                                                <i data-lucide="pencil" class="w-4 h-4 inline mr-1"></i> Input Prompt
-                                            </button>
-                                            <button @click="dataTab = 'output'"
-                                                class="px-4 py-2 font-medium text-sm border-b-2 -mb-px"
-                                                :class="dataTab === 'output' ?
-                                                    'text-teal-600 dark:text-teal-400 border-teal-600 dark:border-teal-400' :
-                                                    'text-zinc-500 dark:text-zinc-400 border-transparent hover:text-zinc-700 dark:hover:text-zinc-300'">
-                                                <i data-lucide="database" class="w-4 h-4 inline mr-1"></i> Generated Data
-                                            </button>
-                                        </div>
-                                    </template>
-
-                                    <!-- Manual Mode Tab -->
-                                    <template x-if="dataCreationMode === 'manual'">
-                                        <div class="flex">
-                                            <div
-                                                class="px-4 py-2 font-medium text-sm border-b-2 -mb-px text-teal-600 dark:text-teal-400 border-teal-600 dark:border-teal-400">
-                                                <i data-lucide="edit-3" class="w-4 h-4 inline mr-1"></i> Manual Data
-                                            </div>
-                                        </div>
-                                    </template>
-                                </div>
-
-                                <!-- AI Input Tab -->
-                                <div x-show="dataCreationMode === 'ai' && dataTab === 'input'"
-                                    class="p-6 overflow-y-auto flex-1">
-                                    <div class="space-y-4">
-                                        <!-- Prompt Templates -->
-                                        <div>
-                                            <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                                                Template <span
-                                                    class="text-zinc-500 dark:text-zinc-400 text-xs font-normal">(Optional)</span>
-                                            </label>
-                                            <div class="grid grid-cols-2 gap-2">
-                                                <button @click="useDataTemplate('valid')"
-                                                    class="flex items-center px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition-colors">
-                                                    <i data-lucide="check-circle"
-                                                        class="w-4 h-4 mr-1.5 text-green-500"></i>
-                                                    Valid Test Data
-                                                </button>
-                                                <button @click="useDataTemplate('invalid')"
-                                                    class="flex items-center px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition-colors">
-                                                    <i data-lucide="x-circle" class="w-4 h-4 mr-1.5 text-red-500"></i>
-                                                    Invalid Test Data
-                                                </button>
-                                                <button @click="useDataTemplate('mixed')"
-                                                    class="flex items-center px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition-colors">
-                                                    <i data-lucide="shuffle" class="w-4 h-4 mr-1.5 text-purple-500"></i>
-                                                    Mixed Data Set
-                                                </button>
-                                                <button @click="useDataTemplate('edge')"
-                                                    class="flex items-center px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition-colors">
-                                                    <i data-lucide="alert-triangle"
-                                                        class="w-4 h-4 mr-1.5 text-amber-500"></i>
-                                                    Edge Cases
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        <!-- Prompt Input -->
-                                        <div>
-                                            <label for="data-prompt"
-                                                class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                                                Prompt <span class="text-red-500">*</span>
-                                            </label>
-                                            <textarea x-model="dataPrompt" id="data-prompt" rows="12"
-                                                placeholder="Describe what test data you need. Include details about data structure, required fields, and edge cases you want to test."
-                                                class="form-textarea w-full rounded-lg" :class="{ 'border-red-500 dark:border-red-500': dataError }"></textarea>
-                                            <p x-show="dataError" x-text="dataError"
-                                                class="mt-1 text-sm text-red-600 dark:text-red-400"></p>
-                                        </div>
-
-                                        <!-- Generate Button -->
-                                        <div class="flex justify-center">
-                                            <button @click="generateData"
-                                                class="px-6 py-2.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white rounded-lg shadow-md hover:shadow-lg flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
-                                                :disabled="dataLoading || !dataPrompt">
-                                                <template x-if="!dataLoading">
-                                                    <i data-lucide="sparkles" class="w-5 h-5 mr-2"></i>
-                                                </template>
-                                                <template x-if="dataLoading">
-                                                    <svg class="animate-spin h-5 w-5 mr-2 text-white"
-                                                        xmlns="http://www.w3.org/2000/svg" fill="none"
-                                                        viewBox="0 0 24 24">
-                                                        <circle class="opacity-25" cx="12" cy="12" r="10"
-                                                            stroke="currentColor" stroke-width="4"></circle>
-                                                        <path class="opacity-75" fill="currentColor"
-                                                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
-                                                        </path>
-                                                    </svg>
-                                                </template>
-                                                <span x-text="dataLoading ? 'Generating...' : 'Generate Data'"></span>
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- AI Output Tab -->
-                                <div x-show="dataCreationMode === 'ai' && dataTab === 'output'"
-                                    class="flex-1 flex flex-col p-6 overflow-hidden">
-                                    <div x-show="!dataResponse" class="flex-1 flex items-center justify-center">
-                                        <div class="text-center p-6">
-                                            <div
-                                                class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-teal-50 dark:bg-teal-900/30 mb-4">
-                                                <i data-lucide="database"
-                                                    class="w-8 h-8 text-teal-600 dark:text-teal-400"></i>
-                                            </div>
-                                            <h3 class="text-lg font-medium text-zinc-900 dark:text-white mb-2">No Data
-                                                Generated Yet</h3>
-                                            <p class="text-zinc-500 dark:text-zinc-400 max-w-md">
-                                                Switch to the Input tab and provide a prompt to generate test data using AI.
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    <div x-show="dataResponse" class="flex-1 flex flex-col h-full">
-                                        <!-- Data Header -->
-                                        <div class="mb-4 flex justify-between items-start">
-                                            <div>
-                                                <h3 class="text-lg font-medium text-zinc-900 dark:text-white">Generated
-                                                    Test Data</h3>
-                                                <p class="text-sm text-zinc-500 dark:text-zinc-400">Review and edit the
-                                                    generated data before saving</p>
-                                            </div>
-                                            <div class="flex gap-2">
-                                                <button @click="regenerateData"
-                                                    class="p-2 rounded-lg text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/30"
-                                                    :disabled="dataLoading">
-                                                    <i data-lucide="refresh-cw" class="w-5 h-5"></i>
-                                                </button>
-                                                <button @click="copyDataToClipboard"
-                                                    class="p-2 rounded-lg text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30">
-                                                    <i data-lucide="clipboard-copy" class="w-5 h-5"></i>
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        <!-- Data Content Editor -->
-                                        <div class="flex-1 mb-4 overflow-hidden">
-                                            <div class="h-full relative">
-                                                <textarea x-model="dataContent" rows="15"
-                                                    class="w-full h-full px-4 py-3 font-mono text-sm bg-zinc-50 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-lg"
-                                                    :class="{
-                                                        'language-json': dataFormat === 'json',
-                                                        'language-csv': dataFormat === 'csv',
-                                                        'language-xml': dataFormat === 'xml',
-                                                        'language-plaintext': dataFormat === 'plain'
-                                                    }"></textarea>
-                                            </div>
-                                        </div>
-
-                                        <!-- Common Fields (Name, Usage Context, Sensitive) -->
-                                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                                            <div>
-                                                <label for="data-name"
-                                                    class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                                                    Data Name <span class="text-red-500">*</span>
-                                                </label>
-                                                <input type="text" id="data-name" x-model="dataName"
-                                                    class="form-input w-full rounded-lg"
-                                                    placeholder="Enter a name for this test data">
-                                            </div>
-                                            <div>
-                                                <label for="data-usage-context"
-                                                    class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                                                    Usage Context <span class="text-red-500">*</span>
-                                                </label>
-                                                <input type="text" id="data-usage-context" x-model="dataUsageContext"
-                                                    class="form-input w-full rounded-lg"
-                                                    placeholder="e.g., 'Valid input scenario' or 'Edge case testing'">
-                                            </div>
-                                        </div>
-                                        <div class="mb-4">
-                                            <label class="flex items-center">
-                                                <input type="checkbox" x-model="dataIsSensitive" class="form-checkbox">
-                                                <span class="ml-2 text-sm text-zinc-700 dark:text-zinc-300">
-                                                    Mark as sensitive data (contains private, personal, or confidential
-                                                    information)
-                                                </span>
-                                            </label>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Manual Entry Tab -->
-                                <div x-show="dataCreationMode === 'manual'"
-                                    class="flex-1 flex flex-col p-6 overflow-hidden">
-                                    <div class="space-y-4">
-                                        <!-- Data Name Input -->
-                                        <div>
-                                            <label for="manual-data-name"
-                                                class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                                                Data Name <span class="text-red-500">*</span>
-                                            </label>
-                                            <input type="text" id="manual-data-name" x-model="dataName"
-                                                class="form-input w-full rounded-lg"
-                                                placeholder="Enter a name for this test data">
-                                        </div>
-
-                                        <!-- Data Content Editor -->
-                                        <div>
-                                            <label for="manual-data-content"
-                                                class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                                                Data Content <span class="text-red-500">*</span>
-                                            </label>
-                                            <textarea x-model="dataContent" id="manual-data-content" rows="15"
-                                                placeholder="Enter your test data content here..."
-                                                class="w-full px-4 py-3 font-mono text-sm bg-zinc-50 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-lg"
-                                                :class="{
-                                                    'language-json': dataFormat === 'json',
-                                                    'language-csv': dataFormat === 'csv',
-                                                    'language-xml': dataFormat === 'xml',
-                                                    'language-plaintext': dataFormat === 'plain'
-                                                }"></textarea>
-                                        </div>
-
-                                        <!-- Usage Context -->
-                                        <div>
-                                            <label for="manual-data-usage-context"
-                                                class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                                                Usage Context <span class="text-red-500">*</span>
-                                            </label>
-                                            <input type="text" id="manual-data-usage-context"
-                                                x-model="dataUsageContext" class="form-input w-full rounded-lg"
-                                                placeholder="e.g., 'Valid input scenario' or 'Edge case testing'">
-                                        </div>
-
-                                        <!-- Sensitive Data Checkbox -->
-                                        <div>
-                                            <label class="flex items-center">
-                                                <input type="checkbox" x-model="dataIsSensitive" class="form-checkbox">
-                                                <span class="ml-2 text-sm text-zinc-700 dark:text-zinc-300">
-                                                    Mark as sensitive data (contains private, personal, or confidential
-                                                    information)
-                                                </span>
-                                            </label>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Save Button Footer (for both modes) -->
-                                <div
-                                    class="p-6 bg-zinc-50 dark:bg-zinc-800/50 border-t border-zinc-200 dark:border-zinc-700">
-                                    <div class="flex justify-end space-x-3">
-                                        <button @click="showDataModal = false" class="btn-secondary">
-                                            Cancel
-                                        </button>
-                                        <button @click="saveData" class="btn-primary"
-                                            :disabled="!dataContent || !dataName || !dataUsageContext">
-                                            <i data-lucide="save" class="w-4 h-4 mr-1.5"></i> Save Test Data
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Delete Confirmation Modal -->
-        <div x-cloak x-show="confirmDelete" @keydown.escape.window="confirmDelete = false"
-            class="fixed inset-0 overflow-y-auto z-50" x-transition:enter="transition ease-out duration-300"
-            x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
-            x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100"
-            x-transition:leave-end="opacity-0">
-            <!-- Backdrop -->
-            <div class="fixed inset-0 bg-zinc-900/60 dark:bg-zinc-900/80 backdrop-blur-sm transition-opacity"
-                @click="confirmDelete = false"></div>
-
-            <!-- Modal Panel -->
-            <div class="relative min-h-screen flex items-center justify-center p-4">
-                <div @click.stop
-                    class="relative bg-white dark:bg-zinc-800 rounded-xl shadow-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden max-w-lg w-full"
-                    x-transition:enter="transition ease-out duration-300"
-                    x-transition:enter-start="opacity-0 translate-y-8" x-transition:enter-end="opacity-100 translate-y-0"
-                    x-transition:leave="transition ease-in duration-200"
-                    x-transition:leave-start="opacity-100 translate-y-0" x-transition:leave-end="opacity-0 translate-y-8">
-
-                    <div class="p-6">
-                        <div class="flex items-start space-x-4">
-                            <div class="flex-shrink-0">
-                                <div
-                                    class="flex items-center justify-center h-12 w-12 rounded-full bg-red-100 dark:bg-red-900/30">
-                                    <i data-lucide="alert-triangle" class="h-6 w-6 text-red-600 dark:text-red-500"></i>
-                                </div>
-                            </div>
-                            <div class="flex-1">
-                                <h3 class="text-lg font-medium text-zinc-900 dark:text-white">Delete Test Case</h3>
-                                <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-                                    Are you sure you want to delete test case "<strong
-                                        class="font-semibold">{{ $testCase->title }}</strong>"?
-                                    This action cannot be undone. Associated test scripts and data connections will also be
-                                    removed.
-                                </p>
-                            </div>
-                        </div>
-
-                        <div class="mt-6 flex justify-end space-x-3">
-                            <button @click="confirmDelete = false" class="btn-secondary">
-                                Cancel
-                            </button>
-                            <form method="POST"
-                                action="{{ route('dashboard.projects.test-cases.destroy', [$project->id, $testCase->id]) }}">
-                                @csrf
-                                @method('DELETE')
-                                <button type="submit" class="btn-danger">
-                                    Delete Test Case
-                                </button>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+        @include('dashboard.modals.test-script-modal', [
+            'testCase' => $testCase,
+            'project' => $project,
+            'testScripts' => $testScripts,
+        ])
+        @include('dashboard.modals.test-data-modal', [
+            'testCase' => $testCase,
+            'project' => $project,
+            'testData' => $testData,
+        ])
+        @include('dashboard.modals.delete-confirmation')
 
         <!-- Notification Area -->
         <div x-data="notification" x-show="show" x-cloak
@@ -1731,8 +746,8 @@
 
                 // Script modal state
                 showScriptModal: false,
-                scriptCreationMode: 'ai', // 'ai' or 'manual'
-                scriptTab: 'input', // 'input' or 'output' for AI mode
+                scriptCreationMode: 'ai',
+                scriptTab: 'input',
                 scriptFramework: 'selenium-python',
                 scriptFrameworkOptions: [{
                         value: 'selenium-python',
@@ -1749,7 +764,7 @@
                 ],
                 scriptPrompt: '',
                 scriptCodeContext: '',
-                scriptFiles: [], // Array to store uploaded files
+                scriptFiles: [],
                 scriptLoading: false,
                 scriptError: null,
                 scriptResponse: null,
@@ -1759,29 +774,15 @@
 
                 // Data modal state
                 showDataModal: false,
-                dataCreationMode: 'ai', // 'ai' or 'manual'
-                dataTab: 'input', // 'input' or 'output' for AI mode
+                dataCreationMode: 'ai',
+                dataTab: 'input',
                 dataFormat: 'json',
-                dataFormatOptions: [{
-                        value: 'json',
-                        label: 'JSON'
-                    },
-                    {
-                        value: 'csv',
-                        label: 'CSV'
-                    },
-                    {
-                        value: 'xml',
-                        label: 'XML'
-                    },
-                    {
-                        value: 'plain',
-                        label: 'Plain Text'
-                    },
-                    {
-                        value: 'other',
-                        label: 'Other Format'
-                    }
+                dataFormatOptions: [
+                    { value: 'json', label: 'JSON' },
+                    { value: 'csv', label: 'CSV' },
+                    { value: 'xml', label: 'XML' },
+                    { value: 'plain', label: 'Plain Text' },
+                    { value: 'other', label: 'Other Format' }
                 ],
                 dataPrompt: '',
                 dataReferenceScript: '',
@@ -1807,50 +808,27 @@
                             lucide.createIcons();
                         }
                         this.highlightCode();
+                    });
 
-                        const hash = window.location.hash;
-                        if (hash) {
-                            const tab = hash.replace('#', '');
-                            if (['details', 'scripts', 'testdata'].includes(tab)) {
-                                this.activeTab = tab;
-                            }
+                    // Fix form styling for modals
+                    this.$watch('showScriptModal', (value) => {
+                        if (value) {
+                            this.$nextTick(() => {
+                                document.querySelectorAll('.form-input, .form-textarea, .form-select').forEach(el => {
+                                    el.classList.add('bg-white', 'dark:bg-zinc-700', 'text-zinc-900', 'dark:text-zinc-100');
+                                });
+                            });
                         }
                     });
 
-                    // Set up watchers
-                    this.$watch('activeTab', (value) => {
-                        if (history.pushState) {
-                            history.pushState(null, null, `#${value}`);
-                        } else {
-                            window.location.hash = `#${value}`;
+                    this.$watch('showDataModal', (value) => {
+                        if (value) {
+                            this.$nextTick(() => {
+                                document.querySelectorAll('.form-input, .form-textarea, .form-select').forEach(el => {
+                                    el.classList.add('bg-white', 'dark:bg-zinc-700', 'text-zinc-900', 'dark:text-zinc-100');
+                                });
+                            });
                         }
-                        if (['scripts', 'testdata'].includes(value)) {
-                            this.highlightCode();
-                        }
-                        this.$nextTick(() => {
-                            if (typeof lucide !== 'undefined') {
-                                lucide.createIcons();
-                            }
-                        });
-                    });
-
-                    // Watch for framework changes - fixed variable names
-                    this.$watch('scriptFramework', () => {
-                        this.$nextTick(() => {
-                            if (typeof lucide !== 'undefined') {
-                                lucide.createIcons();
-                            }
-                        });
-                    });
-
-                    // Watch for data format changes - fixed variable names
-                    this.$watch('dataFormat', () => {
-                        this.$nextTick(() => {
-                            if (typeof lucide !== 'undefined') {
-                                lucide.createIcons();
-                            }
-                            this.highlightCode();
-                        });
                     });
                 },
 
@@ -1865,6 +843,13 @@
                     this.dataUsageContext = '';
                     this.dataIsSensitive = false;
                     this.dataFiles = [];
+
+                    // Ensure proper styling
+                    this.$nextTick(() => {
+                        if (typeof lucide !== 'undefined') {
+                            lucide.createIcons();
+                        }
+                    });
                 },
 
                 openScriptModal() {
@@ -1876,6 +861,13 @@
                     this.scriptContent = '';
                     this.scriptName = '';
                     this.scriptFiles = [];
+
+                    // Ensure proper styling
+                    this.$nextTick(() => {
+                        if (typeof lucide !== 'undefined') {
+                            lucide.createIcons();
+                        }
+                    });
                 },
 
                 // New methods for AI history
@@ -1885,14 +877,9 @@
                         if (savedScriptHistory) {
                             this.scriptGenerationHistory = JSON.parse(savedScriptHistory);
                         }
-                        const savedDataHistory = localStorage.getItem('data_generation_history');
-                        if (savedDataHistory) {
-                            this.dataGenerationHistory = JSON.parse(savedDataHistory);
-                        }
                     } catch (e) {
                         console.error('Failed to parse generation history:', e);
                         this.scriptGenerationHistory = [];
-                        this.dataGenerationHistory = [];
                     }
                 },
 
@@ -1982,11 +969,6 @@
                             code: this.scriptCodeContext || undefined
                         };
 
-                        // Add file contents if available
-                        if (this.scriptFiles.length > 0) {
-                            context.file_count = this.scriptFiles.length;
-                        }
-
                         const response = await fetch(
                             '{{ route('api.ai.generate', 'test-script') }}', {
                                 method: 'POST',
@@ -2004,17 +986,11 @@
                         const result = await response.json();
 
                         if (result.success) {
-                            // Make sure we're correctly accessing the structure
-                            console.log("Script generation result:", result);
-
                             this.scriptResponse = result.data;
-
-                            // Make sure we're accessing the correct properties
                             this.scriptContent = result.data.content || "";
                             this.scriptName = result.data.name ||
                                 `{{ $testCase->title }} - ${this.getScriptFrameworkLabel()} Script`;
 
-                            // Add to generation history
                             this.addToScriptHistory({
                                 timestamp: Date.now(),
                                 prompt: this.scriptPrompt,
@@ -2022,7 +998,6 @@
                                 content: this.scriptContent
                             });
 
-                            // Switch to output tab
                             this.scriptTab = 'output';
                             this.$nextTick(() => this.highlightCode());
                         } else {
@@ -2080,7 +1055,6 @@
                     this.scriptResponse = {
                         content: item.content
                     };
-
                     this.scriptName = `{{ $testCase->title }} - ${item.framework || 'Script'}`;
                     this.scriptTab = 'output';
 
@@ -2102,30 +1076,24 @@
                             break;
                     }
                 },
-
                 handleScriptFileUpload(event) {
                     const files = event.target.files;
                     if (!files || !files.length) return;
 
-                    // Add the file to our array (up to 5 files)
                     if (this.scriptFiles.length < 5) {
                         this.scriptFiles.push(files[0]);
 
-                        // Read the file content if it's a text file
                         if (files[0].type.includes('text') || files[0].name.match(
                                 /\.(py|js|json|css|html|xml|csv|txt)$/i)) {
                             const reader = new FileReader();
                             reader.onload = (e) => {
-                                // Add file content to context
                                 const fileName = files[0].name;
                                 const fileContent = e.target.result;
                                 this.scriptCodeContext +=
-                                    `\n\n// File: ${fileName}\n${fileContent}`;
+                                `\n\n// File: ${fileName}\n${fileContent}`;
                             };
                             reader.readAsText(files[0]);
                         }
-
-                        // Reset the file input to allow selecting the same file again
                         event.target.value = null;
                     }
                 },
@@ -2167,59 +1135,63 @@
 
                 // --- AI Test Data Generation ---
                 async generateData() {
-                    if (!this.aiDataPrompt) {
-                        this.aiDataError = 'Please enter a prompt';
+                    if (!this.dataPrompt) {
+                        this.dataError = 'Please enter a prompt';
                         return;
                     }
-                    this.aiDataError = null;
-                    this.aiDataLoading = true;
+
+                    this.dataError = null;
+                    this.dataLoading = true;
+
                     try {
                         const context = {
                             project_id: '{{ $project->id }}',
                             test_case_id: '{{ $testCase->id }}',
-                            format: this.aiDataFormat
+                            format: this.dataFormat
                         };
-                        if (this.aiDataStructure) context.data_structure = this.aiDataStructure;
-                        if (this.aiDataExample) context.example_data = this.aiDataExample;
-                        if (this.aiDataReferenceScript) context.script_id = this
-                            .aiDataReferenceScript;
 
-                        const response = await fetch(
-                            '{{ route('api.ai.generate', 'test-data') }}', {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                                    'Accept': 'application/json'
-                                },
-                                body: JSON.stringify({
-                                    prompt: this.aiDataPrompt,
-                                    context
-                                })
-                            });
+                        if (this.dataStructure) context.data_structure = this.dataStructure;
+                        if (this.dataExample) context.example_data = this.dataExample;
+                        if (this.dataReferenceScript) context.script_id = this.dataReferenceScript;
+
+                        const response = await fetch('{{ route('api.ai.generate', 'test-data') }}', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                                'Accept': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                prompt: this.dataPrompt,
+                                context
+                            })
+                        });
+
                         const result = await response.json();
+
                         if (result.success) {
-                            this.aiDataResponse = result.data;
-                            this.aiDataContent = result.data.content;
-                            this.aiDataName =
-                                `{{ $testCase->title }} - ${this.getFormatLabel()} Data`;
-                            this.aiDataUsageContext = 'AI Generated Test Data';
+                            this.dataResponse = result.data;
+                            this.dataContent = result.data.content;
+                            this.dataName = `{{ $testCase->title }} - ${this.getFormatLabel()} Data`;
+                            this.dataUsageContext = 'AI Generated Test Data';
+
                             this.addToDataHistory({
                                 timestamp: Date.now(),
-                                prompt: this.aiDataPrompt,
+                                prompt: this.dataPrompt,
                                 format: this.getFormatLabel(),
-                                content: this.aiDataContent
+                                content: this.dataContent
                             });
-                            this.aiDataTab = 'output';
+
+                            this.dataTab = 'output';
                             this.$nextTick(() => this.highlightCode());
                         } else {
                             throw new Error(result.message || 'Failed to generate test data');
                         }
                     } catch (error) {
                         console.error('Data generation error:', error);
-                        this.aiDataError = error.message || 'An error occurred during generation';
+                        this.dataError = error.message || 'An error occurred during generation';
                     } finally {
-                        this.aiDataLoading = false;
+                        this.dataLoading = false;
                     }
                 },
 
@@ -2237,8 +1209,7 @@
                 },
 
                 getFormatLabel() {
-                    const option = this.aiDataFormatOptions.find(opt => opt.value === this
-                        .aiDataFormat);
+                    const option = this.dataFormatOptions.find(opt => opt.value === this.dataFormat);
                     return option ? option.label : 'Data';
                 },
 
@@ -2367,82 +1338,56 @@
                 },
 
                 async saveScript() {
-    if (!this.scriptContent || !this.scriptName) {
-        this.showNotificationMessage('Please provide a name and ensure the script has content', 'error');
-        return;
-    }
+                    if (!this.scriptContent || !this.scriptName) {
+                        this.showNotificationMessage(
+                            'Please provide a name and ensure the script has content', 'error');
+                        return;
+                    }
 
-    try {
-        // Create payload
-        const payload = {
-            name: this.scriptName,
-            framework_type: this.scriptFramework,
-            script_content: this.scriptContent,
-            metadata: this.scriptCreationMode === 'ai'
-                ? { created_through: 'ai', prompt: this.scriptPrompt }
-                : { created_through: 'manual' }
-        };
+                    try {
+                        const payload = {
+                            name: this.scriptName,
+                            framework_type: this.scriptFramework,
+                            script_content: this.scriptContent,
+                            metadata: this.scriptCreationMode === 'ai' ? {
+                                created_through: 'ai',
+                                prompt: this.scriptPrompt
+                            } : {
+                                created_through: 'manual'
+                            }
+                        };
 
-        console.log('Sending script data:', {
-            name: payload.name,
-            framework_type: payload.framework_type,
-            content_length: payload.script_content.length
-        });
+                        const response = await fetch(
+                            '{{ route('dashboard.projects.test-cases.scripts.store', [$project->id, $testCase->id]) }}', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRF-TOKEN': document.querySelector(
+                                        'meta[name="csrf-token"]').getAttribute('content'),
+                                    'Accept': 'application/json',
+                                },
+                                body: JSON.stringify(payload)
+                            });
 
-        const response = await fetch(
-            '{{ route('dashboard.projects.test-cases.scripts.store', [$project->id, $testCase->id]) }}', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                    'Accept': 'application/json',
+                        if (response.ok) {
+                            this.showNotificationMessage('Script saved successfully!', 'success');
+                            this.showScriptModal = false;
+                            setTimeout(() => window.location.reload(), 1000);
+                        } else {
+                            throw new Error('Failed to save script');
+                        }
+                    } catch (error) {
+                        console.error('Error saving script:', error);
+                        this.showNotificationMessage('Failed to save script: ' + error.message,
+                            'error');
+                    }
                 },
-                body: JSON.stringify(payload)
-            });
-
-        // Debug response
-        console.log('Response status:', response.status);
-        console.log('Response headers:', Object.fromEntries([...response.headers]));
-
-        // Check for non-JSON response
-        const contentType = response.headers.get('content-type');
-        let responseData;
-        let responseText = await response.text();
-
-        console.log('Raw response:', responseText.substring(0, 300) + '...');
-
-        if (contentType && contentType.includes('application/json')) {
-            try {
-                responseData = JSON.parse(responseText);
-            } catch (e) {
-                console.error('Failed to parse JSON response:', e);
-                throw new Error('Invalid JSON response from server');
-            }
-        } else {
-            console.error('Non-JSON response received');
-            throw new Error('Server returned an unexpected response format. Please check your server logs.');
-        }
-
-        if (response.ok) {
-            this.showNotificationMessage('Script saved successfully!', 'success');
-            this.showScriptModal = false;
-            setTimeout(() => window.location.reload(), 1000);
-        } else {
-            throw new Error(responseData?.message || 'Failed to save script');
-        }
-    } catch (error) {
-        console.error('Error saving script:', error);
-        this.showNotificationMessage('Failed to save script: ' + error.message, 'error');
-    }
-},
 
 
                 // Save the data (works for both AI-generated and manual)
                 async saveData() {
                     if (!this.dataContent || !this.dataName || !this.dataUsageContext) {
-                        this.showNotificationMessage(
-                            'Please provide a name, usage context, and ensure the data has content',
-                            'error');
+                        this.showNotificationMessage('Please provide a name, usage context, and ensure the data has content', 'error');
                         return;
                     }
 
@@ -2455,7 +1400,6 @@
                         formData.append('is_sensitive', this.dataIsSensitive ? '1' : '0');
                         formData.append('_token', '{{ csrf_token() }}');
 
-                        // Add metadata about creation method
                         if (this.dataCreationMode === 'ai') {
                             formData.append('metadata[created_through]', 'ai');
                             formData.append('metadata[prompt]', this.dataPrompt);
@@ -2470,8 +1414,7 @@
                             });
 
                         if (response.ok) {
-                            this.showNotificationMessage('Test data saved successfully!',
-                                'success');
+                            this.showNotificationMessage('Test data saved successfully!', 'success');
                             this.showDataModal = false;
                             window.location.reload();
                         } else {
@@ -2480,8 +1423,7 @@
                         }
                     } catch (error) {
                         console.error('Error saving test data:', error);
-                        this.showNotificationMessage('Failed to save test data: ' + error.message,
-                            'error');
+                        this.showNotificationMessage('Failed to save test data: ' + error.message, 'error');
                     }
                 },
 
