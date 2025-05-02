@@ -358,6 +358,15 @@
 
     <script>
         document.addEventListener('alpine:init', () => {
+
+            Alpine.store('editorData', {
+                id: null,
+                name: '',
+                format: '',
+                content: '',
+                usage_context: '',
+                is_sensitive: false
+            });
             Alpine.data('testCaseView', () => ({
                 // Tab Management
                 activeTab: 'details',
@@ -409,12 +418,18 @@
                     column: 1
                 },
 
+                showScriptEditor: false,
+                showDataEditor: false,
+
                 /**
                  * Initialize component
                  */
                 init() {
                     // Load data from localStorage if needed
                     this.loadGenerationHistory();
+                    this.showScriptEditor = false;
+                    this.showDataEditor = false;
+
 
                     // Initialize UI elements after rendering
                     this.$nextTick(() => {
@@ -654,69 +669,72 @@
                  * Open script editing modal
                  */
                 editScript(script) {
-                    this.editingScript = {
+                    // Set up the form data
+                    this.$store.editorData = {
                         id: script.id,
                         name: script.name,
-                        framework_type: script.framework_type,
-                        script_content: script.script_content
+                        format: script.framework_type,
+                        content: script.script_content
                     };
-                    this.showScriptEditModal = true;
+
+                    // Initialize the modal with the correct data
+                    this.$nextTick(() => {
+                        this.showScriptEditor = true;
+                    });
                 },
 
                 /**
                  * Save edited script
                  */
-                async saveEditedScript() {
-                    if (!this.editingScript.name || !this.editingScript.script_content) {
-                        this.showNotificationMessage('Please provide a name and script content',
-                            'error');
-                        return;
-                    }
+                saveEditedScript(formData) {
+                    // Create payload
+                    const payload = {
+                        name: formData.name,
+                        framework_type: formData.format,
+                        script_content: formData.content
+                    };
 
-                    try {
-                        const csrfToken = document.querySelector('meta[name="csrf-token"]');
-                        if (!csrfToken) {
-                            throw new Error('CSRF token not found');
-                        }
-
-                        const response = await fetch(
-                            `/dashboard/projects/{{ $project->id }}/test-cases/{{ $testCase->id }}/scripts/${this.editingScript.id}`, {
-                                method: 'PUT',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    'X-CSRF-TOKEN': csrfToken.getAttribute('content'),
-                                    'Accept': 'application/json',
-                                },
-                                body: JSON.stringify({
-                                    name: this.editingScript.name,
-                                    framework_type: this.editingScript.framework_type,
-                                    script_content: this.editingScript.script_content
-                                })
-                            });
-
-                        if (response.ok) {
-                            // Update the script in the list
-                            const index = this.testScripts.findIndex(s => s.id === this
-                                .editingScript.id);
-                            if (index !== -1) {
-                                this.testScripts[index] = {
-                                    ...this.testScripts[index],
-                                    name: this.editingScript.name,
-                                    framework_type: this.editingScript.framework_type,
-                                    script_content: this.editingScript.script_content
-                                };
+                    // Submit to server
+                    fetch(`/dashboard/projects/${projectId}/test-cases/${testCaseId}/scripts/${formData.id}`, {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')
+                                    .getAttribute('content'),
+                                'Accept': 'application/json',
+                            },
+                            body: JSON.stringify(payload)
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                // Update local data and show notification
+                                this.updateScriptInList(formData.id, formData);
+                                this.showNotificationMessage('Script updated successfully!',
+                                    'success');
+                            } else {
+                                throw new Error(data.message || 'Failed to update script');
                             }
+                        })
+                        .catch(error => {
+                            console.error('Error updating script:', error);
+                            this.showNotificationMessage('Failed to update script: ' + error
+                                .message, 'error');
+                        });
 
-                            this.showNotificationMessage('Script updated successfully!', 'success');
-                            this.showScriptEditModal = false;
-                        } else {
-                            const errorData = await response.json();
-                            throw new Error(errorData.message || 'Failed to update script');
-                        }
-                    } catch (error) {
-                        console.error('Error updating script:', error);
-                        this.showNotificationMessage('Failed to update script: ' + error.message,
-                            'error');
+                    // Close the modal
+                    this.showScriptEditor = false;
+                },
+
+                updateScriptInList(id, updatedData) {
+                    const index = this.testScripts.findIndex(s => s.id === id);
+                    if (index !== -1) {
+                        this.testScripts[index] = {
+                            ...this.testScripts[index],
+                            name: updatedData.name,
+                            framework_type: updatedData.format,
+                            script_content: updatedData.content
+                        };
                     }
                 },
 
@@ -726,7 +744,7 @@
                 confirmDeleteScript(id) {
                     if (confirm(
                             'Are you sure you want to delete this script? This action cannot be undone.'
-                            )) {
+                        )) {
                         this.deleteScript(id);
                     }
                 },
@@ -869,7 +887,8 @@
                  * Open data editing modal
                  */
                 editData(data) {
-                    this.editingData = {
+                    // Set up the form data
+                    this.$store.editorData = {
                         id: data.id,
                         name: data.name,
                         format: data.format,
@@ -877,66 +896,69 @@
                         usage_context: data.pivot?.usage_context || '',
                         is_sensitive: data.is_sensitive
                     };
-                    this.showDataEditModal = true;
+
+                    // Show the modal
+                    this.$nextTick(() => {
+                        this.showDataEditor = true;
+                    });
                 },
 
                 /**
                  * Save edited data
                  */
-                async saveEditedData() {
-                    if (!this.editingData.name || !this.editingData.content || !this.editingData
-                        .usage_context) {
-                        this.showNotificationMessage(
-                            'Please provide a name, content, and usage context', 'error');
-                        return;
-                    }
+                saveEditedData(formData) {
+                    // Create form data for submission
+                    const form = new FormData();
+                    form.append('_method', 'PUT');
+                    form.append('name', formData.name);
+                    form.append('format', formData.format);
+                    form.append('content', formData.content);
+                    form.append('usage_context', formData.usage_context);
+                    form.append('is_sensitive', formData.is_sensitive ? '1' : '0');
+                    form.append('_token', document.querySelector('meta[name="csrf-token"]')
+                        .getAttribute('content'));
 
-                    try {
-                        const formData = new FormData();
-                        formData.append('_method', 'PUT');
-                        formData.append('name', this.editingData.name);
-                        formData.append('format', this.editingData.format);
-                        formData.append('content', this.editingData.content);
-                        formData.append('usage_context', this.editingData.usage_context);
-                        formData.append('is_sensitive', this.editingData.is_sensitive ? '1' : '0');
-                        formData.append('_token', document.querySelector('meta[name="csrf-token"]')
-                            .getAttribute('content'));
-
-                        const response = await fetch(
-                            `/dashboard/projects/{{ $project->id }}/test-cases/{{ $testCase->id }}/data/${this.editingData.id}`, {
-                                method: 'POST',
-                                body: formData
-                            });
-
-                        if (response.ok) {
-                            // Update the data in the list
-                            const index = this.testData.findIndex(d => d.id === this.editingData
-                            .id);
-                            if (index !== -1) {
-                                this.testData[index] = {
-                                    ...this.testData[index],
-                                    name: this.editingData.name,
-                                    format: this.editingData.format,
-                                    content: this.editingData.content,
-                                    is_sensitive: this.editingData.is_sensitive,
-                                    pivot: {
-                                        ...this.testData[index].pivot,
-                                        usage_context: this.editingData.usage_context
-                                    }
-                                };
+                    // Submit to server
+                    fetch(`/dashboard/projects/${projectId}/test-cases/${testCaseId}/data/${formData.id}`, {
+                            method: 'POST',
+                            body: form
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                // Update local data
+                                this.updateDataInList(formData.id, formData);
+                                this.showNotificationMessage('Test data updated successfully!',
+                                    'success');
+                            } else {
+                                throw new Error(data.message || 'Failed to update test data');
                             }
+                        })
+                        .catch(error => {
+                            console.error('Error updating test data:', error);
+                            this.showNotificationMessage('Failed to update test data: ' + error
+                                .message, 'error');
+                        });
 
-                            this.showNotificationMessage('Test data updated successfully!',
-                                'success');
-                            this.showDataEditModal = false;
-                        } else {
-                            const errorData = await response.json();
-                            throw new Error(errorData.message || 'Failed to update test data');
-                        }
-                    } catch (error) {
-                        console.error('Error updating test data:', error);
-                        this.showNotificationMessage('Failed to update test data: ' + error.message,
-                            'error');
+                    // Close modal
+                    this.showDataEditor = false;
+                },
+
+                // Helper to update data in the testData array
+                updateDataInList(id, updatedData) {
+                    const index = this.testData.findIndex(d => d.id === id);
+                    if (index !== -1) {
+                        this.testData[index] = {
+                            ...this.testData[index],
+                            name: updatedData.name,
+                            format: updatedData.format,
+                            content: updatedData.content,
+                            is_sensitive: updatedData.is_sensitive,
+                            pivot: {
+                                ...this.testData[index].pivot,
+                                usage_context: updatedData.usage_context
+                            }
+                        };
                     }
                 },
 
@@ -946,7 +968,7 @@
                 confirmDeleteData(id) {
                     if (confirm(
                             'Are you sure you want to remove this test data? This will only remove the association with this test case but won\'t delete the data itself.'
-                            )) {
+                        )) {
                         this.deleteData(id);
                     }
                 },
@@ -1042,7 +1064,7 @@
                         this.showNotificationMessage('Data formatted successfully!', 'success');
                     } catch (error) {
                         this.showNotificationMessage('Failed to format data: ' + error.message,
-                        'error');
+                            'error');
                     }
                 },
 
