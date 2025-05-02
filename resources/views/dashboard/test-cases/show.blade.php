@@ -327,6 +327,28 @@
         [x-cloak] {
             display: none !important;
         }
+
+
+        /* Monaco editor container styling */
+        #monaco-script-editor,
+        #monaco-data-editor {
+            min-height: 400px;
+            height: 100%;
+            width: 100%;
+            border: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        /* Dark mode adjustments */
+        .dark #monaco-script-editor,
+        .dark #monaco-data-editor {
+            border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        /* Make editor visible and properly sized */
+        .monaco-editor {
+            width: 100% !important;
+            height: 100% !important;
+        }
     </style>
 @endpush
 
@@ -420,6 +442,9 @@
 
                 showScriptEditor: false,
                 showDataEditor: false,
+
+                monacoEditor: null,
+                editorDarkMode: document.documentElement.classList.contains('dark'),
 
                 /**
                  * Initialize component
@@ -677,25 +702,34 @@
                         content: script.script_content
                     };
 
-                    // Initialize the modal with the correct data
+                    // Open the modal and initialize the editor
+                    this.showScriptEditor = true;
+
+                    // Initialize Monaco editor after modal is visible
                     this.$nextTick(() => {
-                        this.showScriptEditor = true;
+                        this.initMonacoEditor('script');
                     });
                 },
 
                 /**
                  * Save edited script
                  */
-                saveEditedScript(formData) {
+                saveEditedScript() {
+                    if (!this.monacoEditor || !this.$store.editorData.name) return;
+
+                    // Get current content from editor
+                    const content = this.monacoEditor.getValue();
+
                     // Create payload
                     const payload = {
-                        name: formData.name,
-                        framework_type: formData.format,
-                        script_content: formData.content
+                        id: this.$store.editorData.id,
+                        name: this.$store.editorData.name,
+                        framework_type: this.$store.editorData.format,
+                        script_content: content
                     };
 
                     // Submit to server
-                    fetch(`/dashboard/projects/${projectId}/test-cases/${testCaseId}/scripts/${formData.id}`, {
+                    fetch(`/dashboard/projects/${projectId}/test-cases/${testCaseId}/scripts/${payload.id}`, {
                             method: 'PUT',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -709,7 +743,7 @@
                         .then(data => {
                             if (data.success) {
                                 // Update local data and show notification
-                                this.updateScriptInList(formData.id, formData);
+                                this.updateScriptInList(payload.id, payload);
                                 this.showNotificationMessage('Script updated successfully!',
                                     'success');
                             } else {
@@ -817,17 +851,111 @@
                     }
                 },
 
+                // Initialize editor when modal opens
+                initMonacoEditor(type) {
+                    // Load Monaco if needed
+                    if (typeof monaco === 'undefined') {
+                        this.loadMonacoEditor(() => this.createMonacoEditor(type));
+                        return;
+                    }
+
+                    this.createMonacoEditor(type);
+                },
+
+                // Load Monaco Editor
+                loadMonacoEditor(callback) {
+                    const script = document.createElement('script');
+                    script.src = 'https://cdn.jsdelivr.net/npm/monaco-editor@0.43.0/min/vs/loader.js';
+                    script.async = true;
+                    script.onload = () => {
+                        require.config({
+                            paths: {
+                                'vs': 'https://cdn.jsdelivr.net/npm/monaco-editor@0.43.0/min/vs'
+                            }
+                        });
+
+                        require(['vs/editor/editor.main'], () => {
+                            // Define themes
+                            monaco.editor.defineTheme('myDarkTheme', {
+                                base: 'vs-dark',
+                                inherit: true,
+                                rules: [],
+                                colors: {
+                                    'editor.background': '#1e1e1e'
+                                }
+                            });
+
+                            if (typeof callback === 'function') callback();
+                        });
+                    };
+                    document.head.appendChild(script);
+                },
+
+                // Create Monaco Editor instance
+                createMonacoEditor(type) {
+                    // Destroy previous instance if exists
+                    if (this.monacoEditor) {
+                        this.monacoEditor.dispose();
+                    }
+
+                    const containerId = type === 'script' ? 'monaco-script-editor' :
+                        'monaco-data-editor';
+                    const container = document.getElementById(containerId);
+                    if (!container) return;
+
+                    // Set appropriate language based on format
+                    const format = this.$store.editorData.format;
+                    let language = 'plaintext';
+
+                    if (type === 'script') {
+                        language = format === 'selenium-python' ? 'python' :
+                            format === 'cypress' ? 'javascript' : 'plaintext';
+                    } else {
+                        language = format === 'json' ? 'json' :
+                            format === 'xml' ? 'xml' : 'plaintext';
+                    }
+
+                    // Create editor
+                    this.monacoEditor = monaco.editor.create(container, {
+                        value: this.$store.editorData.content || '',
+                        language: language,
+                        theme: this.editorDarkMode ? 'myDarkTheme' : 'vs',
+                        automaticLayout: true,
+                        minimap: {
+                            enabled: true
+                        },
+                        scrollBeyondLastLine: false,
+                        lineNumbers: 'on',
+                        renderLineHighlight: 'all',
+                        tabSize: 4,
+                        fontSize: 14,
+                        fontFamily: "'JetBrains Mono', 'Fira Code', monospace"
+                    });
+
+                    // Make editor resize properly
+                    window.addEventListener('resize', () => {
+                        if (this.monacoEditor) {
+                            this.monacoEditor.layout();
+                        }
+                    });
+
+                    // Focus editor
+                    setTimeout(() => {
+                        if (this.monacoEditor) {
+                            this.monacoEditor.focus();
+                        }
+                    }, 100);
+                },
+
                 /**
                  * Toggle editor theme
                  */
                 toggleEditorTheme() {
                     this.editorDarkMode = !this.editorDarkMode;
-                    if (this.codeEditor) {
-                        this.codeEditor.setOption('theme', this.editorDarkMode ? 'vscode-dark' :
-                            'eclipse');
+                    if (this.monacoEditor) {
+                        monaco.editor.setTheme(this.editorDarkMode ? 'myDarkTheme' : 'vs');
                     }
                 },
-
                 /**
                  * Get framework label
                  */
@@ -897,29 +1025,39 @@
                         is_sensitive: data.is_sensitive
                     };
 
-                    // Show the modal
+                    // Open the modal and initialize the editor
+                    this.showDataEditor = true;
+
+                    // Initialize Monaco editor after modal is visible
                     this.$nextTick(() => {
-                        this.showDataEditor = true;
+                        this.initMonacoEditor('data');
                     });
                 },
 
                 /**
                  * Save edited data
                  */
-                saveEditedData(formData) {
+                // Save data changes
+                saveEditedData() {
+                    if (!this.monacoEditor || !this.$store.editorData.name || !this.$store.editorData
+                        .usage_context) return;
+
+                    // Get current content from editor
+                    const content = this.monacoEditor.getValue();
+
                     // Create form data for submission
                     const form = new FormData();
                     form.append('_method', 'PUT');
-                    form.append('name', formData.name);
-                    form.append('format', formData.format);
-                    form.append('content', formData.content);
-                    form.append('usage_context', formData.usage_context);
-                    form.append('is_sensitive', formData.is_sensitive ? '1' : '0');
+                    form.append('name', this.$store.editorData.name);
+                    form.append('format', this.$store.editorData.format);
+                    form.append('content', content);
+                    form.append('usage_context', this.$store.editorData.usage_context);
+                    form.append('is_sensitive', this.$store.editorData.is_sensitive ? '1' : '0');
                     form.append('_token', document.querySelector('meta[name="csrf-token"]')
                         .getAttribute('content'));
 
                     // Submit to server
-                    fetch(`/dashboard/projects/${projectId}/test-cases/${testCaseId}/data/${formData.id}`, {
+                    fetch(`/dashboard/projects/${projectId}/test-cases/${testCaseId}/data/${this.$store.editorData.id}`, {
                             method: 'POST',
                             body: form
                         })
@@ -927,7 +1065,15 @@
                         .then(data => {
                             if (data.success) {
                                 // Update local data
-                                this.updateDataInList(formData.id, formData);
+                                const updatedData = {
+                                    id: this.$store.editorData.id,
+                                    name: this.$store.editorData.name,
+                                    format: this.$store.editorData.format,
+                                    content: content,
+                                    is_sensitive: this.$store.editorData.is_sensitive,
+                                    usage_context: this.$store.editorData.usage_context
+                                };
+                                this.updateDataInList(this.$store.editorData.id, updatedData);
                                 this.showNotificationMessage('Test data updated successfully!',
                                     'success');
                             } else {
@@ -1036,35 +1182,48 @@
                     }
                 },
 
+                // Update Monaco language when format changes
+                updateMonacoLanguage() {
+                    if (!this.monacoEditor) return;
+
+                    const format = this.$store.editorData.format;
+                    let language;
+
+                    if (this.showScriptEditor) {
+                        language = format === 'selenium-python' ? 'python' :
+                            format === 'cypress' ? 'javascript' : 'plaintext';
+                    } else {
+                        language = format === 'json' ? 'json' :
+                            format === 'xml' ? 'xml' : 'plaintext';
+                    }
+
+                    monaco.editor.setModelLanguage(this.monacoEditor.getModel(), language);
+                },
+
                 /**
                  * Format/prettify data
                  */
                 formatData() {
-                    if (!this.dataCodeEditor) return;
+                    if (!this.monacoEditor) return;
 
                     try {
-                        const format = this.editingData.format;
-                        const content = this.dataCodeEditor.getValue();
-
-                        let formattedContent = content;
+                        const format = this.$store.editorData.format;
+                        const content = this.monacoEditor.getValue();
 
                         if (format === 'json') {
                             // Format JSON
                             const jsonObj = JSON.parse(content);
-                            formattedContent = JSON.stringify(jsonObj, null, 2);
-                        } else if (format === 'xml') {
-                            // Basic XML formatting (simplified)
-                            formattedContent = content
-                                .replace(/><(?!\/)/g, '>\n<')
-                                .replace(/></g, '>\n<')
-                                .replace(/>\s+</g, '>\n<');
+                            const formattedContent = JSON.stringify(jsonObj, null, 2);
+                            this.monacoEditor.setValue(formattedContent);
+                            this.monacoEditor.getAction('editor.action.formatDocument').run();
+                            this.showNotificationMessage('JSON formatted successfully', 'success');
+                        } else {
+                            // For other formats, just use editor's formatter
+                            this.monacoEditor.getAction('editor.action.formatDocument').run();
+                            this.showNotificationMessage('Document formatted', 'success');
                         }
-
-                        this.dataCodeEditor.setValue(formattedContent);
-                        this.showNotificationMessage('Data formatted successfully!', 'success');
                     } catch (error) {
-                        this.showNotificationMessage('Failed to format data: ' + error.message,
-                            'error');
+                        this.showNotificationMessage('Formatting failed: ' + error.message, 'error');
                     }
                 },
 

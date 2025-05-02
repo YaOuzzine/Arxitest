@@ -1,12 +1,11 @@
 @props([
-    'modalId' => 'code-editor-modal', // Unique ID for the modal
-    'title' => 'Edit Code', // Modal title
-    'buttonIcon' => 'save', // Icon for action button
-    'buttonText' => 'Save Changes', // Text for action button
-    'editorType' => 'code', // 'code' or 'data'
-    'extraFields' => [], // Additional form fields
-    'initialMode' => 'javascript', // Initial editor mode
-    'type' => 'code', // For differentiation in CSS/JS
+    'modalId' => 'code-editor-modal',
+    'title' => 'Edit Code',
+    'buttonIcon' => 'save',
+    'buttonText' => 'Save Changes',
+    'editorType' => 'code',
+    'initialMode' => 'javascript',
+    'type' => 'code',
 ])
 
 <!-- Code Editor Modal -->
@@ -14,7 +13,7 @@
     class="fixed inset-0 overflow-y-auto z-50" x-transition:enter="transition ease-out duration-300"
     x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
     x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100"
-    x-transition:leave-end="opacity-0" x-data="codeEditorModal({
+    x-transition:leave-end="opacity-0" x-data="monacoEditorModal({
         type: '{{ $type }}',
         initialMode: '{{ $initialMode }}',
         saveCallback: typeof {{ $attributes->get('x-on:save') ?? 'null' }} === 'function' ?
@@ -72,7 +71,7 @@
                                     class="text-red-500">*</span>
                             </label>
                             <select id="{{ $modalId }}-format" x-model="formData.format"
-                                @change="updateEditorMode"
+                                @change="updateEditorLanguage()"
                                 class="form-select w-full rounded-lg h-10 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-zinc-600">
 
                                 @if ($editorType === 'code')
@@ -94,106 +93,36 @@
                     </div>
                 </div>
 
-                <!-- Code Editor Area -->
-                <div class="flex-1 flex flex-col overflow-hidden">
-                    <!-- Editor Toolbar -->
-                    <div
-                        class="flex items-center px-2 py-1.5 bg-gray-100 dark:bg-zinc-700 border-b border-gray-300 dark:border-zinc-600">
-                        <div class="flex items-center space-x-1">
-                            <button @click="editorAction('undo')"
+                <!-- Editor Toolbar -->
+                <div
+                    class="flex items-center px-2 py-1.5 bg-gray-100 dark:bg-zinc-700 border-b border-gray-300 dark:border-zinc-600">
+                    <div class="flex items-center space-x-2">
+                        <!-- Theme toggle -->
+                        <button @click="toggleEditorTheme()"
+                            class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition-colors"
+                            title="Toggle Theme">
+                            <i data-lucide="sun" class="w-4 h-4 text-gray-700 dark:text-gray-300"
+                                x-show="!editorDarkMode"></i>
+                            <i data-lucide="moon" class="w-4 h-4 text-gray-700 dark:text-gray-300"
+                                x-show="editorDarkMode"></i>
+                        </button>
+
+                        <div class="h-5 border-r border-gray-300 dark:border-zinc-500"></div>
+
+                        <!-- Format button for data -->
+                        <template x-if="type === 'data'">
+                            <button @click="formatContent()"
                                 class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition-colors"
-                                title="Undo">
-                                <i data-lucide="undo-2" class="w-4 h-4 text-gray-700 dark:text-gray-300"></i>
+                                title="Format Code">
+                                <i data-lucide="align-justify" class="w-4 h-4 text-gray-700 dark:text-gray-300"></i>
                             </button>
-                            <button @click="editorAction('redo')"
-                                class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition-colors"
-                                title="Redo">
-                                <i data-lucide="redo-2" class="w-4 h-4 text-gray-700 dark:text-gray-300"></i>
-                            </button>
-
-                            <div class="mx-1 h-5 border-r border-gray-300 dark:border-zinc-500"></div>
-
-                            <button @click="editorAction('indent')"
-                                class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition-colors"
-                                title="Indent">
-                                <i data-lucide="indent" class="w-4 h-4 text-gray-700 dark:text-gray-300"></i>
-                            </button>
-                            <button @click="editorAction('outdent')"
-                                class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition-colors"
-                                title="Outdent">
-                                <i data-lucide="outdent" class="w-4 h-4 text-gray-700 dark:text-gray-300"></i>
-                            </button>
-
-                            <div class="mx-1 h-5 border-r border-gray-300 dark:border-zinc-500"></div>
-
-                            <button @click="editorAction('comment')"
-                                class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition-colors"
-                                title="Toggle Comment">
-                                <i data-lucide="message-square" class="w-4 h-4 text-gray-700 dark:text-gray-300"></i>
-                            </button>
-
-                            @if ($editorType === 'code')
-                                <button @click="editorAction('fold')"
-                                    class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition-colors"
-                                    title="Fold Code">
-                                    <i data-lucide="chevrons-down" class="w-4 h-4 text-gray-700 dark:text-gray-300"></i>
-                                </button>
-                            @endif
-
-                            <div class="mx-1 h-5 border-r border-gray-300 dark:border-zinc-500"></div>
-
-                            <button @click="editorAction('search')"
-                                class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition-colors"
-                                title="Search">
-                                <i data-lucide="search" class="w-4 h-4 text-gray-700 dark:text-gray-300"></i>
-                            </button>
-                            <button @click="editorAction('replace')"
-                                class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition-colors"
-                                title="Replace">
-                                <i data-lucide="replace" class="w-4 h-4 text-gray-700 dark:text-gray-300"></i>
-                            </button>
-
-                            @if ($editorType === 'data')
-                                <div class="mx-1 h-5 border-r border-gray-300 dark:border-zinc-500"></div>
-
-                                <button @click="editorAction('format')"
-                                    class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition-colors"
-                                    title="Format Code">
-                                    <i data-lucide="align-justify"
-                                        class="w-4 h-4 text-gray-700 dark:text-gray-300"></i>
-                                </button>
-                                <button @click="editorAction('validate')"
-                                    class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition-colors"
-                                    title="Validate">
-                                    <i data-lucide="check-circle"
-                                        class="w-4 h-4 text-gray-700 dark:text-gray-300"></i>
-                                </button>
-                            @endif
-                        </div>
-
-                        <div class="ml-auto flex items-center space-x-2">
-                            <span class="text-xs text-gray-600 dark:text-gray-400">
-                                <span class="hidden sm:inline">Line:</span> <span
-                                    x-text="cursorPosition.line">1</span>,
-                                <span class="hidden sm:inline">Col:</span> <span
-                                    x-text="cursorPosition.column">1</span>
-                            </span>
-                            <button @click="toggleEditorTheme()"
-                                class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition-colors"
-                                title="Toggle Theme">
-                                <i data-lucide="sun" class="w-4 h-4 text-gray-700 dark:text-gray-300"
-                                    x-show="!editorDarkMode"></i>
-                                <i data-lucide="moon" class="w-4 h-4 text-gray-700 dark:text-gray-300"
-                                    x-show="editorDarkMode"></i>
-                            </button>
-                        </div>
+                        </template>
                     </div>
+                </div>
 
-                    <!-- Code Editor (CodeMirror) -->
-                    <div class="flex-1 relative overflow-hidden">
-                        <div id="{{ $modalId }}-editor" class="editor-container absolute inset-0 w-full h-full">
-                        </div>
-                    </div>
+                <!-- Monaco Editor Container -->
+                <div class="flex-1 relative overflow-hidden">
+                    <div id="{{ $modalId }}-monaco-container" class="absolute inset-0 w-full h-full"></div>
                 </div>
 
                 <!-- Footer with Save/Cancel -->
@@ -216,155 +145,51 @@
 </div>
 
 @push('styles')
-    <!-- CodeMirror CSS -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/codemirror.min.css" />
-    <link rel="stylesheet"
-        href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/theme/material-darker.min.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/theme/eclipse.min.css" />
-    <link rel="stylesheet"
-        href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/addon/hint/show-hint.min.css" />
-    <link rel="stylesheet"
-        href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/addon/fold/foldgutter.min.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/addon/dialog/dialog.min.css" />
     <style>
-        /* Modern CodeMirror styling */
-        .CodeMirror {
-            height: 100% !important;
-            font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, Monaco, 'Courier New', monospace;
-            font-size: 14px;
-            line-height: 1.6;
-            border-radius: 0;
+        /* Monaco editor container sizing */
+        .monaco-editor {
+            width: 100%;
+            height: 100%;
         }
 
-        .editor-container .CodeMirror {
-            height: 100% !important;
+        /* Fix for editor height in flex container */
+        .editor-container {
+            flex-grow: 1;
         }
 
-        /* Material theme adjustments */
-        .cm-s-material-darker.CodeMirror {
-            background-color: #212121;
-        }
-
-        .cm-s-material-darker .CodeMirror-gutters {
-            background-color: #1a1a1a;
-            border-right: 1px solid #333;
-        }
-
-        /* Better selection highlighting */
-        .CodeMirror-focused .CodeMirror-selected {
-            background-color: rgba(66, 150, 255, 0.3) !important;
-        }
-
-        .dark .CodeMirror-focused .CodeMirror-selected {
-            background-color: rgba(79, 134, 198, 0.4) !important;
-        }
-
-        /* Better scrollbars */
-        .CodeMirror-vscrollbar,
-        .CodeMirror-hscrollbar {
-            width: 10px;
-        }
-
-        .CodeMirror-vscrollbar::-webkit-scrollbar,
-        .CodeMirror-hscrollbar::-webkit-scrollbar {
-            width: 10px;
-            height: 10px;
-        }
-
-        .CodeMirror-vscrollbar::-webkit-scrollbar-thumb,
-        .CodeMirror-hscrollbar::-webkit-scrollbar-thumb {
-            background: rgba(100, 100, 100, 0.5);
-            border-radius: 5px;
-        }
-
-        .dark .CodeMirror-vscrollbar::-webkit-scrollbar-thumb,
-        .dark .CodeMirror-hscrollbar::-webkit-scrollbar-thumb {
-            background: rgba(80, 80, 80, 0.5);
-        }
-
-        /* Improved cursor visibility */
-        .CodeMirror-cursor {
-            border-left: 2px solid #1976D2 !important;
-        }
-
-        .dark .CodeMirror-cursor {
-            border-left: 2px solid #90CAF9 !important;
-        }
-
-        /* Better active line highlighting */
-        .CodeMirror-activeline-background {
-            background: rgba(0, 0, 0, 0.05) !important;
-        }
-
-        .dark .CodeMirror-activeline-background {
-            background: rgba(255, 255, 255, 0.05) !important;
-        }
-
-        /* Improved dialog styling for search/replace */
-        .CodeMirror-dialog {
-            border-bottom: 1px solid #e5e7eb;
-            background: #f9fafb;
-            padding: 8px;
-        }
-
-        .dark .CodeMirror-dialog {
-            border-bottom: 1px solid #4b5563;
-            background: #374151;
-            color: #e5e7eb;
-        }
-
-        .CodeMirror-dialog input {
-            border: 1px solid #d1d5db;
-            border-radius: 4px;
-            padding: 4px 8px;
-        }
-
-        .dark .CodeMirror-dialog input {
-            border: 1px solid #6b7280;
-            background: #1f2937;
-            color: #e5e7eb;
-        }
     </style>
 @endpush
 
 @push('scripts')
-    <!-- CodeMirror JS and extensions -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/codemirror.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/mode/python/python.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/mode/javascript/javascript.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/mode/xml/xml.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/mode/css/css.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/mode/htmlmixed/htmlmixed.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/addon/edit/matchbrackets.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/addon/edit/closebrackets.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/addon/fold/foldcode.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/addon/fold/foldgutter.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/addon/fold/brace-fold.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/addon/fold/indent-fold.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/addon/fold/comment-fold.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/addon/hint/show-hint.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/addon/hint/anyword-hint.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/addon/search/search.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/addon/search/searchcursor.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/addon/dialog/dialog.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/addon/comment/comment.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/addon/selection/active-line.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.15/addon/display/autorefresh.min.js"></script>
-
     <script>
-        // Define the Alpine.js component for code editor modal
+        // Load Monaco Editor only if not already loaded
+        if (typeof monaco === 'undefined') {
+            // Load Monaco editor from CDN
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/monaco-editor@0.43.0/min/vs/loader.js';
+            script.async = true;
+            document.head.appendChild(script);
+
+            script.onload = function() {
+                require.config({
+                    paths: {
+                        'vs': 'https://cdn.jsdelivr.net/npm/monaco-editor@0.43.0/min/vs'
+                    }
+                });
+            };
+        }
+
+        // Define the Alpine.js component for Monaco editor modal
         document.addEventListener('alpine:init', () => {
-            Alpine.data('codeEditorModal', ({
+            Alpine.data('monacoEditorModal', ({
                 type,
                 initialMode,
                 saveCallback
             }) => ({
                 editor: null,
                 editorDarkMode: document.documentElement.classList.contains('dark'),
-                cursorPosition: {
-                    line: 1,
-                    column: 1
-                },
+                editorInitialized: false,
+
                 formData: {
                     id: null,
                     name: '',
@@ -399,7 +224,6 @@
 
                 // Initialize the component
                 init() {
-
                     // Initialize form data from Alpine store if available
                     if (this.$store.editorData && this.$store.editorData.id) {
                         Object.keys(this.$store.editorData).forEach(key => {
@@ -408,136 +232,130 @@
                             }
                         });
                     }
-                    this.$nextTick(() => {
-                        this.initializeEditor();
 
-                        // Listen for events to update the editor data
-                        this.$watch('formData.format', () => {
-                            this.updateEditorMode();
+                    // Watch for modal visibility
+                    this.$watch(
+                        `show${this.$el.id.split('-')[0][0].toUpperCase() + this.$el.id.split('-')[0].slice(1)}`,
+                        (value) => {
+                            if (value) {
+                                this.initMonacoEditor();
+                            }
                         });
-
-                        // Refresh when modal is shown (important for CodeMirror)
-                        this.$watch(
-                            `show${this.$el.id.split('-')[0][0].toUpperCase() + this.$el.id.split('-')[0].slice(1)}`,
-                            (value) => {
-                                if (value && this.editor) {
-                                    setTimeout(() => {
-                                        this.editor.refresh();
-                                    }, 10);
-                                }
-                            });
-                    });
                 },
 
-                // Initialize the CodeMirror editor
-                initializeEditor() {
-                    const editorContainer = document.getElementById(
-                        `${this.$el.id.split(' ')[0]}-editor`);
-                    if (!editorContainer) return;
+                // Initialize Monaco Editor
+                initMonacoEditor() {
+                    const containerId = `${this.$el.id.split(' ')[0]}-monaco-container`;
+                    const container = document.getElementById(containerId);
 
-                    this.editor = CodeMirror(editorContainer, {
-                        value: this.formData.content || '',
-                        mode: this.getEditorMode(),
-                        theme: this.editorDarkMode ? 'material-darker' : 'eclipse',
-                        lineNumbers: true,
-                        lineWrapping: true,
-                        autoCloseBrackets: true,
-                        matchBrackets: true,
-                        styleActiveLine: true,
-                        foldGutter: true,
-                        autoRefresh: true,
-                        gutters: ["CodeMirror-linenumbers", "CodeMirror-foldgutter"],
-                        tabSize: 4,
-                        indentUnit: 4,
-                        extraKeys: {
-                            "Ctrl-Space": "autocomplete",
-                            "Tab": function(cm) {
-                                if (cm.somethingSelected()) {
-                                    cm.indentSelection("add");
-                                } else {
-                                    const spaces = Array(cm.getOption("indentUnit") + 1)
-                                        .join(" ");
-                                    cm.replaceSelection(spaces, "end", "+input");
-                                }
-                            }
-                        }
-                    });
+                    if (!container) return;
 
-                    // Set up events
-                    this.editor.on("cursorActivity", () => {
-                        const cursor = this.editor.getCursor();
-                        this.cursorPosition = {
-                            line: cursor.line + 1,
-                            column: cursor.ch + 1
-                        };
-                    });
-
-                    this.editor.on("change", () => {
-                        this.formData.content = this.editor.getValue();
-                    });
-
-                    // Set editor content if formData.content already exists
-                    if (this.formData.content) {
-                        this.editor.setValue(this.formData.content);
+                    if (this.editorInitialized) {
+                        // If editor already initialized, just update content and language
+                        this.updateEditorContent();
+                        this.updateEditorLanguage();
+                        return;
                     }
 
-                    // Important: set focus and refresh
-                    this.editor.focus();
-                    setTimeout(() => {
-                        this.editor.refresh();
-                    }, 50);
+                    // Initialize Monaco Editor
+                    require(['vs/editor/editor.main'], () => {
+                        // Set editor theme based on current mode
+                        monaco.editor.defineTheme('myDarkTheme', {
+                            base: 'vs-dark',
+                            inherit: true,
+                            rules: [],
+                            colors: {
+                                'editor.background': '#1e1e1e',
+                            }
+                        });
+
+                        // Create the editor
+                        this.editor = monaco.editor.create(container, {
+                            value: this.formData.content || '',
+                            language: this.getMonacoLanguage(),
+                            theme: this.editorDarkMode ? 'myDarkTheme' : 'vs',
+                            automaticLayout: true,
+                            minimap: {
+                                enabled: true
+                            },
+                            scrollBeyondLastLine: false,
+                            lineNumbers: 'on',
+                            renderLineHighlight: 'all',
+                            tabSize: 4,
+                            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                            fontSize: 14,
+                            formatOnType: true,
+                            formatOnPaste: true,
+                            autoIndent: 'full',
+                            "bracketPairColorization.enabled": true,
+                        });
+
+                        // Set up content change listener
+                        this.editor.onDidChangeModelContent(() => {
+                            this.formData.content = this.editor.getValue();
+                        });
+
+                        // Mark as initialized
+                        this.editorInitialized = true;
+
+                        // Make editor resize properly
+                        window.addEventListener('resize', () => {
+                            if (this.editor) {
+                                this.editor.layout();
+                            }
+                        });
+
+                        // Focus editor
+                        setTimeout(() => {
+                            if (this.editor) {
+                                this.editor.focus();
+                            }
+                        }, 100);
+                    });
                 },
 
-                // Update the editor mode based on the selected format
-                updateEditorMode() {
-                    if (!this.editor) return;
-                    this.editor.setOption('mode', this.getEditorMode());
+                // Update editor content when formData changes
+                updateEditorContent() {
+                    if (this.editor) {
+                        this.editor.setValue(this.formData.content || '');
+                    }
                 },
 
-                // Get the appropriate CodeMirror mode for the current format
-                getEditorMode() {
+                // Update editor language when format changes
+                updateEditorLanguage() {
+                    if (this.editor) {
+                        monaco.editor.setModelLanguage(this.editor.getModel(), this
+                    .getMonacoLanguage());
+                    }
+                },
+
+                // Get the appropriate Monaco language for the current format
+                getMonacoLanguage() {
                     if (type === 'code') {
                         return {
                             'selenium-python': 'python',
                             'cypress': 'javascript',
-                            'other': 'text/plain'
-                        } [this.formData.format] || 'text/plain';
+                            'other': 'plaintext'
+                        } [this.formData.format] || 'plaintext';
                     } else {
                         return {
-                            'json': 'application/json',
-                            'xml': 'application/xml',
-                            'html': 'text/html',
-                            'css': 'text/css',
-                            'csv': 'text/plain',
-                            'plain': 'text/plain',
-                            'other': 'text/plain'
-                        } [this.formData.format] || 'text/plain';
+                            'json': 'json',
+                            'xml': 'xml',
+                            'html': 'html',
+                            'css': 'css',
+                            'csv': 'plaintext',
+                            'plain': 'plaintext',
+                            'other': 'plaintext'
+                        } [this.formData.format] || 'plaintext';
                     }
                 },
 
-                // Toggle the editor theme
+                // Toggle editor theme
                 toggleEditorTheme() {
                     this.editorDarkMode = !this.editorDarkMode;
                     if (this.editor) {
-                        this.editor.setOption('theme', this.editorDarkMode ? 'material-darker' :
-                            'eclipse');
+                        monaco.editor.setTheme(this.editorDarkMode ? 'myDarkTheme' : 'vs');
                     }
-                },
-
-                // Save changes
-                saveChanges() {
-                    if (!this.isValid) return;
-
-                    // Call the provided save callback if available
-                    if (typeof saveCallback === 'function') {
-                        saveCallback(this.formData);
-                    } else {
-                        // Default behavior: dispatch a save event for the parent to handle
-                        this.$dispatch('editor:save', this.formData);
-                    }
-
-                    // Close the modal
-                    this.$el.dispatchEvent(new CustomEvent('close'));
                 },
 
                 // Format content (primarily for data)
@@ -553,97 +371,52 @@
                             // Format JSON
                             const jsonObj = JSON.parse(content);
                             formattedContent = JSON.stringify(jsonObj, null, 2);
+                            this.editor.setValue(formattedContent);
+                            this.editor.getAction('editor.action.formatDocument').run();
                         } else if (format === 'xml') {
-                            // Basic XML formatting
-                            formattedContent = content
-                                .replace(/><(?!\/)/g, '>\n<')
-                                .replace(/></g, '>\n<')
-                                .replace(/>\s+</g, '>\n<');
+                            // For XML, use Monaco's built-in formatter
+                            this.editor.getAction('editor.action.formatDocument').run();
+                        } else {
+                            // For other formats, try the built-in formatter
+                            this.editor.getAction('editor.action.formatDocument').run();
                         }
 
-                        this.editor.setValue(formattedContent);
                         this.notifyUser('Content formatted successfully', 'success');
                     } catch (error) {
                         this.notifyUser(`Formatting failed: ${error.message}`, 'error');
                     }
                 },
 
-                // Validate content (primarily for data)
-                validateContent() {
-                    if (!this.editor) return;
+                // Save the changes
+                saveChanges() {
+                    if (!this.isValid) return;
 
-                    try {
-                        const format = this.formData.format;
-                        const content = this.editor.getValue();
-
-                        if (format === 'json') {
-                            // Validate JSON
-                            JSON.parse(content);
-                            this.notifyUser('JSON is valid!', 'success');
-                        } else if (format === 'xml') {
-                            // Basic XML validation
-                            const parser = new DOMParser();
-                            const doc = parser.parseFromString(content, 'text/xml');
-                            const errorNode = doc.querySelector('parsererror');
-                            if (errorNode) {
-                                throw new Error('Invalid XML');
-                            }
-                            this.notifyUser('XML is valid!', 'success');
-                        } else {
-                            this.notifyUser(
-                                `Validation for ${format.toUpperCase()} format is not supported.`,
-                                'info');
-                        }
-                    } catch (error) {
-                        this.notifyUser(`Validation failed: ${error.message}`, 'error');
+                    // Make sure content is up-to-date
+                    if (this.editor) {
+                        this.formData.content = this.editor.getValue();
                     }
+
+                    // Call the provided save callback if available
+                    if (typeof saveCallback === 'function') {
+                        saveCallback(this.formData);
+                    } else {
+                        // Default behavior: dispatch a save event
+                        this.$dispatch('editor:save', this.formData);
+                    }
+
+                    // Close the modal
+                    this.$el.dispatchEvent(new CustomEvent('close'));
+                    eval(
+                        `show${this.$el.id.split('-')[0][0].toUpperCase() + this.$el.id.split('-')[0].slice(1)} = false`);
                 },
 
                 // Helper to send notifications
                 notifyUser(message, type = 'info') {
-                    // Dispatch a notification event for the parent to handle
+                    // Dispatch a notification event
                     this.$dispatch('notify', {
                         message,
                         type
                     });
-                },
-
-                // Handle editor toolbar actions
-                editorAction(action) {
-                    if (!this.editor) return;
-
-                    switch (action) {
-                        case 'undo':
-                            this.editor.undo();
-                            break;
-                        case 'redo':
-                            this.editor.redo();
-                            break;
-                        case 'indent':
-                            this.editor.execCommand('indentMore');
-                            break;
-                        case 'outdent':
-                            this.editor.execCommand('indentLess');
-                            break;
-                        case 'comment':
-                            this.editor.execCommand('toggleComment');
-                            break;
-                        case 'fold':
-                            this.editor.execCommand('foldAll');
-                            break;
-                        case 'search':
-                            this.editor.execCommand('find');
-                            break;
-                        case 'replace':
-                            this.editor.execCommand('replace');
-                            break;
-                        case 'format':
-                            this.formatContent();
-                            break;
-                        case 'validate':
-                            this.validateContent();
-                            break;
-                    }
                 }
             }));
         });
