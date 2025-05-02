@@ -186,6 +186,7 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
         Route::post('/', [TestScriptController::class, 'store'])->name('store');
         Route::get('/{test_script}', [TestScriptController::class, 'show'])->name('show');
         Route::delete('/{test_script}', [TestScriptController::class, 'destroy'])->name('destroy');
+        Route::put('/{test_script}', [TestScriptController::class, 'update'])->name('update');
     });
 
     // Test Data Routes
@@ -194,6 +195,7 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
         Route::post('/', [TestDataController::class, 'store'])->name('store');
         Route::get('/{test_data}', [TestDataController::class, 'show'])->name('show');
         Route::delete('/{test_data}', [TestDataController::class, 'detach'])->name('detach');
+        Route::put('/{test_data}', [TestDataController::class, 'update'])->name('update');
     });
 
     // Global Stories Index (All projects)

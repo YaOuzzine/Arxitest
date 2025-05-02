@@ -137,6 +137,66 @@ class TestDataController extends Controller
     }
 
     /**
+     * Update the specified test data.
+     */
+    public function update(Request $request, Project $project, TestCase $test_case, TestData $test_data)
+    {
+        try {
+            $this->testDataService->validateTestDataRelationships($project, $test_case, $test_data);
+
+            // Validate the request
+            $validator = Validator::make($request->all(), [
+                'name' => 'required|string|max:100',
+                'format' => 'required|string|in:json,csv,xml,plain,other',
+                'content' => 'required|string',
+                'usage_context' => 'required|string|max:255',
+                'is_sensitive' => 'boolean',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            // Update the test data
+            $test_data->name = $request->input('name');
+            $test_data->format = $request->input('format');
+            $test_data->content = $request->input('content');
+            $test_data->is_sensitive = $request->boolean('is_sensitive');
+            $test_data->save();
+
+            // Update the pivot data with the new usage context
+            $test_case->testData()->updateExistingPivot($test_data->id, [
+                'usage_context' => $request->input('usage_context')
+            ]);
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Test data updated successfully.',
+                    'data' => $test_data
+                ]);
+            }
+
+            return redirect()->route('dashboard.projects.test-cases.show', [
+                'project' => $project->id,
+                'test_case' => $test_case->id
+            ])->with('success', 'Test data updated successfully.');
+        } catch (\Exception $e) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage()
+                ], 400);
+            }
+            return redirect()->back()->with('error', $e->getMessage())->withInput();
+        }
+    }
+
+    /**
      * Display the specified test data.
      */
     public function show(Project $project, TestCase $test_case, TestData $test_data)

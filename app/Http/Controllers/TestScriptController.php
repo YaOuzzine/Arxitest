@@ -138,6 +138,58 @@ class TestScriptController extends Controller
     }
 
     /**
+     * Update the specified test script.
+     */
+    public function update(Request $request, Project $project, TestCase $test_case, TestScript $test_script)
+    {
+        try {
+            $this->testScriptService->validateRelationships($project, $test_case, $test_script);
+
+            // Validate the request
+            $validator = Validator::make($request->all(), [
+                'name' => 'required|string|max:100',
+                'framework_type' => 'required|string|in:selenium-python,cypress,other',
+                'script_content' => 'required|string',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            // Update the script
+            $test_script->name = $request->input('name');
+            $test_script->framework_type = $request->input('framework_type');
+            $test_script->script_content = $request->input('script_content');
+            $test_script->save();
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Test script updated successfully.',
+                    'data' => $test_script
+                ]);
+            }
+
+            return redirect()->route('dashboard.projects.test-cases.show', [
+                'project' => $project->id,
+                'test_case' => $test_case->id
+            ])->with('success', 'Test script updated successfully.');
+        } catch (\Exception $e) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage()
+                ], 400);
+            }
+            return redirect()->back()->with('error', $e->getMessage())->withInput();
+        }
+    }
+
+    /**
      * Display the specified test script.
      */
     public function show(Project $project, TestCase $test_case, TestScript $test_script)
