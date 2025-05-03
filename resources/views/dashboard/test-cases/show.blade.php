@@ -281,6 +281,50 @@
         integrity="sha512-vswe+cgvic/XBoF1OcM/TeJ2FW0OofqAVdCZiEYkd6dwGXuxGoVZSgoqvPKrG4+DingPYFKCZmHAIU5xyzY解答=="
         crossorigin="anonymous" referrerpolicy="no-referrer" />
     <style>
+        /* CodeMirror specific styling */
+        .CodeMirror {
+            height: 100% !important;
+            width: 100% !important;
+            position: absolute !important;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        /* Editor container styles */
+        #script-editor-container,
+        #data-editor-container {
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            left: 0;
+            height: 100%;
+            width: 100%;
+        }
+
+        /* Fix for flex container */
+        .flex-1.relative.overflow-hidden {
+            position: relative;
+            flex: 1 1 auto;
+            min-height: 400px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Ensure the modal content takes the full height */
+        .flex.flex-col.h-\[calc\(100vh-12rem\)\] {
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 12rem);
+            max-height: 800px;
+        }
+
+        /* Force the editor container to expand */
+        .flex-1 {
+            flex: 1 1 0% !important;
+        }
+
         /* Button Styles */
         .btn-primary {
             @apply inline-flex items-center justify-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
@@ -389,6 +433,7 @@
                 usage_context: '',
                 is_sensitive: false
             });
+
             Alpine.data('testCaseView', () => ({
                 // Tab Management
                 activeTab: 'details',
@@ -400,21 +445,17 @@
                 scriptSearchTerm: '',
                 scriptFilterFramework: '',
                 showScriptModal: false,
-                showScriptEditModal: false,
+                showScriptEditor: false,
 
                 // Script Editor Settings
-                editingScript: {
+                currentScript: {
                     id: null,
                     name: '',
                     framework_type: 'selenium-python',
                     script_content: ''
                 },
-                codeEditor: null,
+                scriptEditor: null,
                 editorDarkMode: document.documentElement.classList.contains('dark'),
-                editorCursorPosition: {
-                    line: 1,
-                    column: 1
-                },
 
                 // Data Management
                 expandedData: null,
@@ -422,10 +463,10 @@
                 dataSearchTerm: '',
                 dataFilterFormat: '',
                 showDataModal: false,
-                showDataEditModal: false,
+                showDataEditor: false,
 
                 // Data Editor Settings
-                editingData: {
+                currentData: {
                     id: null,
                     name: '',
                     format: 'json',
@@ -433,28 +474,15 @@
                     usage_context: '',
                     is_sensitive: false
                 },
-                dataCodeEditor: null,
+                dataEditor: null,
                 dataEditorDarkMode: document.documentElement.classList.contains('dark'),
-                dataEditorCursorPosition: {
-                    line: 1,
-                    column: 1
-                },
-
-                showScriptEditor: false,
-                showDataEditor: false,
-
-                monacoEditor: null,
-                editorDarkMode: document.documentElement.classList.contains('dark'),
 
                 /**
                  * Initialize component
                  */
                 init() {
-                    // Load data from localStorage if needed
-                    this.loadGenerationHistory();
-                    this.showScriptEditor = false;
-                    this.showDataEditor = false;
-
+                    // Add CodeMirror CSS
+                    this.addCodeMirrorStyles();
 
                     // Initialize UI elements after rendering
                     this.$nextTick(() => {
@@ -463,183 +491,83 @@
                         }
                         this.highlightCode();
                     });
+                },
 
-                    // Watch for modal state changes
-                    this.setupModalWatchers();
+                forceEditorRefresh() {
+                    // Set a small delay to ensure the DOM has updated
+                    setTimeout(() => {
+                        if (this.scriptEditor) {
+                            this.scriptEditor.refresh();
+                        }
+                        if (this.dataEditor) {
+                            this.dataEditor.refresh();
+                        }
+                        // Also force a window resize event which often helps editor sizing
+                        window.dispatchEvent(new Event('resize'));
+                    }, 100);
                 },
 
                 /**
-                 * Set up watchers for modal state changes
+                 * Add CodeMirror styles to the document
                  */
-                setupModalWatchers() {
-                    this.$watch('showScriptModal', (value) => {
-                        if (value) {
-                            this.$nextTick(() => {
-                                this.initializeFormElements();
-                            });
-                        }
-                    });
+                addCodeMirrorStyles() {
+                    if (!document.getElementById('codemirror-styles')) {
+                        const link = document.createElement('link');
+                        link.id = 'codemirror-styles';
+                        link.rel = 'stylesheet';
+                        link.href =
+                            'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css';
+                        document.head.appendChild(link);
 
-                    this.$watch('showDataModal', (value) => {
-                        if (value) {
-                            this.$nextTick(() => {
-                                this.initializeFormElements();
-                            });
-                        }
-                    });
+                        // Add themes
+                        const themeDark = document.createElement('link');
+                        themeDark.rel = 'stylesheet';
+                        themeDark.href =
+                            'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/dracula.min.css';
+                        document.head.appendChild(themeDark);
 
-                    this.$watch('showScriptEditModal', (value) => {
-                        if (value) {
-                            this.$nextTick(() => {
-                                this.initializeCodeEditor();
-                            });
-                        }
-                    });
-
-                    this.$watch('showDataEditModal', (value) => {
-                        if (value) {
-                            this.$nextTick(() => {
-                                this.initializeDataEditor();
-                            });
-                        }
-                    });
+                        const themeLight = document.createElement('link');
+                        themeLight.rel = 'stylesheet';
+                        themeLight.href =
+                            'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/eclipse.min.css';
+                        document.head.appendChild(themeLight);
+                    }
                 },
 
                 /**
-                 * Apply proper styling to form elements
+                 * Load CodeMirror if it's not already loaded
                  */
-                initializeFormElements() {
-                    document.querySelectorAll('.form-input, .form-textarea, .form-select')
-                        .forEach(el => {
-                            el.classList.add('bg-white', 'dark:bg-zinc-700',
-                                'text-zinc-900', 'dark:text-zinc-100');
+                loadCodeMirror(callback) {
+                    if (typeof CodeMirror !== 'undefined') {
+                        callback();
+                        return;
+                    }
+
+                    // Load main script
+                    const script = document.createElement('script');
+                    script.src =
+                        'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js';
+                    script.onload = () => {
+                        // Load modes
+                        const modes = ['javascript', 'python', 'xml', 'htmlmixed',
+                            'css'
+                        ];
+                        let loadedCount = 0;
+
+                        modes.forEach(mode => {
+                            const modeScript = document.createElement('script');
+                            modeScript.src =
+                                `https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/${mode}/${mode}.min.js`;
+                            modeScript.onload = () => {
+                                loadedCount++;
+                                if (loadedCount === modes.length) {
+                                    callback();
+                                }
+                            };
+                            document.head.appendChild(modeScript);
                         });
-
-                    if (typeof lucide !== 'undefined') {
-                        lucide.createIcons();
-                    }
-                },
-
-                /**
-                 * Initialize code editor for script editing
-                 */
-                initializeCodeEditor() {
-                    if (!this.codeEditor) {
-                        const editorElement = document.getElementById('script-code-editor');
-                        if (editorElement) {
-                            this.codeEditor = CodeMirror(editorElement, {
-                                value: this.editingScript.script_content,
-                                mode: this.getCodeMirrorMode(this.editingScript.framework_type),
-                                theme: this.editorDarkMode ? 'vscode-dark' : 'eclipse',
-                                lineNumbers: true,
-                                indentUnit: 4,
-                                tabSize: 4,
-                                matchBrackets: true,
-                                autoCloseBrackets: true,
-                                foldGutter: true,
-                                gutters: ["CodeMirror-linenumbers", "CodeMirror-foldgutter"],
-                                extraKeys: {
-                                    "Ctrl-Space": "autocomplete",
-                                    "Tab": function(cm) {
-                                        if (cm.somethingSelected()) {
-                                            cm.indentSelection("add");
-                                        } else {
-                                            cm.replaceSelection("    ", "end");
-                                        }
-                                    }
-                                }
-                            });
-
-                            this.codeEditor.on('cursorActivity', () => {
-                                const cursor = this.codeEditor.getCursor();
-                                this.editorCursorPosition = {
-                                    line: cursor.line + 1,
-                                    column: cursor.ch + 1
-                                };
-                            });
-
-                            this.codeEditor.on('change', () => {
-                                this.editingScript.script_content = this.codeEditor.getValue();
-                            });
-                        }
-                    } else {
-                        this.codeEditor.setValue(this.editingScript.script_content);
-                        this.codeEditor.setOption('mode', this.getCodeMirrorMode(this.editingScript
-                            .framework_type));
-                    }
-                },
-
-                /**
-                 * Initialize data editor for test data editing
-                 */
-                initializeDataEditor() {
-                    if (!this.dataCodeEditor) {
-                        const editorElement = document.getElementById('data-code-editor');
-                        if (editorElement) {
-                            this.dataCodeEditor = CodeMirror(editorElement, {
-                                value: this.editingData.content,
-                                mode: this.getDataMirrorMode(this.editingData.format),
-                                theme: this.dataEditorDarkMode ? 'vscode-dark' : 'eclipse',
-                                lineNumbers: true,
-                                indentUnit: 2,
-                                tabSize: 2,
-                                matchBrackets: true,
-                                autoCloseBrackets: true,
-                                foldGutter: true,
-                                gutters: ["CodeMirror-linenumbers", "CodeMirror-foldgutter"],
-                                extraKeys: {
-                                    "Ctrl-Space": "autocomplete",
-                                    "Tab": function(cm) {
-                                        if (cm.somethingSelected()) {
-                                            cm.indentSelection("add");
-                                        } else {
-                                            cm.replaceSelection("  ", "end");
-                                        }
-                                    }
-                                }
-                            });
-
-                            this.dataCodeEditor.on('cursorActivity', () => {
-                                const cursor = this.dataCodeEditor.getCursor();
-                                this.dataEditorCursorPosition = {
-                                    line: cursor.line + 1,
-                                    column: cursor.ch + 1
-                                };
-                            });
-
-                            this.dataCodeEditor.on('change', () => {
-                                this.editingData.content = this.dataCodeEditor.getValue();
-                            });
-                        }
-                    } else {
-                        this.dataCodeEditor.setValue(this.editingData.content);
-                        this.dataCodeEditor.setOption('mode', this.getDataMirrorMode(this.editingData
-                            .format));
-                    }
-                },
-
-                /**
-                 * Get appropriate CodeMirror mode for a script framework
-                 */
-                getCodeMirrorMode(framework) {
-                    return {
-                        'selenium-python': 'python',
-                        'cypress': 'javascript',
-                        'other': 'text/plain'
-                    } [framework] || 'text/plain';
-                },
-
-                /**
-                 * Get appropriate CodeMirror mode for data format
-                 */
-                getDataMirrorMode(format) {
-                    return {
-                        'json': 'application/json',
-                        'csv': 'text/plain',
-                        'xml': 'application/xml',
-                        'plain': 'text/plain',
-                        'other': 'text/plain'
-                    } [format] || 'text/plain';
+                    };
+                    document.head.appendChild(script);
                 },
 
                 /**
@@ -658,10 +586,11 @@
                  */
                 get filteredScripts() {
                     return this.testScripts.filter(script => {
-                        const nameMatch = script.name.toLowerCase().includes(this
-                            .scriptSearchTerm.toLowerCase());
-                        const frameworkMatch = !this.scriptFilterFramework || script
-                            .framework_type === this.scriptFilterFramework;
+                        const nameMatch = script.name.toLowerCase().includes(
+                            this.scriptSearchTerm.toLowerCase());
+                        const frameworkMatch = !this.scriptFilterFramework ||
+                            script.framework_type === this
+                            .scriptFilterFramework;
                         return nameMatch && frameworkMatch;
                     });
                 },
@@ -677,64 +606,131 @@
                 },
 
                 /**
-                 * Open script creation modal
-                 */
-                openScriptModal() {
-                    this.showScriptModal = true;
-                    this.scriptCreationMode = 'ai';
-                    this.scriptTab = 'input';
-                    this.scriptError = null;
-                    this.scriptResponse = null;
-                    this.scriptContent = '';
-                    this.scriptName = '';
-                    this.scriptFiles = [];
-                },
-
-                /**
                  * Open script editing modal
                  */
                 editScript(script) {
-                    // Set up the form data
-                    this.$store.editorData = {
+                    // Create a deep copy of the script to avoid modifying the original directly
+                    this.currentScript = {
                         id: script.id,
                         name: script.name,
-                        format: script.framework_type,
-                        content: script.script_content
+                        framework_type: script.framework_type,
+                        script_content: script.script_content
                     };
 
-                    // Open the modal and initialize the editor
                     this.showScriptEditor = true;
 
-                    // Initialize Monaco editor after modal is visible
+                    // Initialize the CodeMirror editor after the modal is shown
                     this.$nextTick(() => {
-                        this.initMonacoEditor('script');
+                        this.loadCodeMirror(() => {
+                            this.initScriptEditor();
+                            this.forceEditorRefresh(); // Add this line
+                        });
                     });
                 },
 
                 /**
-                 * Save edited script
+                 * Initialize the CodeMirror editor for scripts
+                 */
+                initScriptEditor() {
+                    const container = document.getElementById('script-editor-container');
+                    if (!container) return;
+
+                    // If editor already exists, dispose it
+                    if (this.scriptEditor) {
+                        container.innerHTML = '';
+                    }
+
+                    // Create the editor
+                    this.scriptEditor = CodeMirror(container, {
+                        value: this.currentScript.script_content,
+                        mode: this.getCodeMirrorMode(this.currentScript.framework_type),
+                        theme: this.editorDarkMode ? 'dracula' : 'eclipse',
+                        lineNumbers: true,
+                        indentUnit: 4,
+                        tabSize: 4,
+                        autoCloseBrackets: true,
+                        matchBrackets: true,
+                        lineWrapping: true,
+                        extraKeys: {
+                            "Tab": function(cm) {
+                                if (cm.somethingSelected()) {
+                                    cm.indentSelection("add");
+                                } else {
+                                    cm.replaceSelection("    ", "end");
+                                }
+                            }
+                        }
+                    });
+
+                    // Set up change handler
+                    this.scriptEditor.on('change', () => {
+                        this.currentScript.script_content = this.scriptEditor.getValue();
+                    });
+
+                    // Make sure editor resizes properly
+                    this.$nextTick(() => {
+                        this.scriptEditor.refresh();
+                        window.dispatchEvent(new Event('resize'));
+                    });
+                },
+                /**
+                 * Get the CodeMirror mode for a framework
+                 */
+                getCodeMirrorMode(framework) {
+                    switch (framework) {
+                        case 'selenium-python':
+                            return 'python';
+                        case 'cypress':
+                            return 'javascript';
+                        default:
+                            return 'text/plain';
+                    }
+                },
+
+                /**
+                 * Change editor mode when framework changes
+                 */
+                changeEditorMode() {
+                    if (this.scriptEditor) {
+                        this.scriptEditor.setOption('mode', this.getCodeMirrorMode(this
+                            .currentScript.framework_type));
+                    }
+                },
+
+                /**
+                 * Toggle editor theme
+                 */
+                toggleEditorTheme() {
+                    this.editorDarkMode = !this.editorDarkMode;
+                    if (this.scriptEditor) {
+                        this.scriptEditor.setOption('theme', this.editorDarkMode ?
+                            'dracula' : 'eclipse');
+                    }
+                },
+
+                /**
+                 * Save the edited script
                  */
                 saveEditedScript() {
-                    if (!this.monacoEditor || !this.$store.editorData.name) return;
-
-                    // Get current content from editor
-                    const content = this.monacoEditor.getValue();
+                    if (!this.currentScript.name) return;
 
                     // Create payload
                     const payload = {
-                        id: this.$store.editorData.id,
-                        name: this.$store.editorData.name,
-                        framework_type: this.$store.editorData.format,
-                        script_content: content
+                        name: this.currentScript.name,
+                        framework_type: this.currentScript.framework_type,
+                        script_content: this.currentScript.script_content
                     };
 
+                    // Get CSRF token
+                    const token = document.querySelector('meta[name="csrf-token"]')
+                        .getAttribute('content');
+
                     // Submit to server
-                    fetch(`/dashboard/projects/${projectId}/test-cases/${testCaseId}/scripts/${payload.id}`, {
+                    fetch(`/dashboard/projects/{{ $project->id }}/test-cases/{{ $testCase->id }}/scripts/${this.currentScript.id}`, {
                             method: 'PUT',
                             headers: {
                                 'Content-Type': 'application/json',
-                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')
-                                    .getAttribute('content'),
+                                'X-CSRF-TOKEN': token,
                                 'Accept': 'application/json',
                             },
                             body: JSON.stringify(payload)
@@ -742,34 +738,32 @@
                         .then(response => response.json())
                         .then(data => {
                             if (data.success) {
-                                // Update local data and show notification
-                                this.updateScriptInList(payload.id, payload);
-                                this.showNotificationMessage('Script updated successfully!',
-                                    'success');
+                                // Update the script in the list
+                                const index = this.testScripts.findIndex(s => s.id ===
+                                    this.currentScript.id);
+                                if (index !== -1) {
+                                    this.testScripts[index] = {
+                                        ...this.testScripts[index],
+                                        name: payload.name,
+                                        framework_type: payload.framework_type,
+                                        script_content: payload.script_content
+                                    };
+                                }
+
+                                // Show success notification and close modal
+                                this.showNotificationMessage(
+                                    'Script updated successfully!', 'success');
+                                this.showScriptEditor = false;
                             } else {
-                                throw new Error(data.message || 'Failed to update script');
+                                throw new Error(data.message ||
+                                    'Failed to update script');
                             }
                         })
                         .catch(error => {
                             console.error('Error updating script:', error);
-                            this.showNotificationMessage('Failed to update script: ' + error
-                                .message, 'error');
+                            this.showNotificationMessage('Failed to update script: ' +
+                                error.message, 'error');
                         });
-
-                    // Close the modal
-                    this.showScriptEditor = false;
-                },
-
-                updateScriptInList(id, updatedData) {
-                    const index = this.testScripts.findIndex(s => s.id === id);
-                    if (index !== -1) {
-                        this.testScripts[index] = {
-                            ...this.testScripts[index],
-                            name: updatedData.name,
-                            framework_type: updatedData.format,
-                            script_content: updatedData.content
-                        };
-                    }
                 },
 
                 /**
@@ -788,7 +782,8 @@
                  */
                 async deleteScript(id) {
                     try {
-                        const csrfToken = document.querySelector('meta[name="csrf-token"]');
+                        const csrfToken = document.querySelector(
+                            'meta[name="csrf-token"]');
                         if (!csrfToken) {
                             throw new Error('CSRF token not found');
                         }
@@ -797,165 +792,30 @@
                             `/dashboard/projects/{{ $project->id }}/test-cases/{{ $testCase->id }}/scripts/${id}`, {
                                 method: 'DELETE',
                                 headers: {
-                                    'X-CSRF-TOKEN': csrfToken.getAttribute('content'),
+                                    'X-CSRF-TOKEN': csrfToken.getAttribute(
+                                        'content'),
                                     'Accept': 'application/json',
                                 }
                             });
 
                         if (response.ok) {
                             // Remove the script from the list
-                            this.testScripts = this.testScripts.filter(s => s.id !== id);
-                            this.showNotificationMessage('Script deleted successfully!', 'success');
+                            this.testScripts = this.testScripts.filter(s => s.id !==
+                                id);
+                            this.showNotificationMessage('Script deleted successfully!',
+                                'success');
                         } else {
                             const errorData = await response.json();
-                            throw new Error(errorData.message || 'Failed to delete script');
+                            throw new Error(errorData.message ||
+                                'Failed to delete script');
                         }
                     } catch (error) {
                         console.error('Error deleting script:', error);
-                        this.showNotificationMessage('Failed to delete script: ' + error.message,
-                            'error');
+                        this.showNotificationMessage('Failed to delete script: ' + error
+                            .message, 'error');
                     }
                 },
 
-                /**
-                 * Handle editor actions (undo, redo, etc.)
-                 */
-                editorAction(action) {
-                    if (!this.codeEditor) return;
-
-                    switch (action) {
-                        case 'undo':
-                            this.codeEditor.undo();
-                            break;
-                        case 'redo':
-                            this.codeEditor.redo();
-                            break;
-                        case 'indent':
-                            this.codeEditor.execCommand('indentMore');
-                            break;
-                        case 'outdent':
-                            this.codeEditor.execCommand('indentLess');
-                            break;
-                        case 'comment':
-                            this.codeEditor.execCommand('toggleComment');
-                            break;
-                        case 'fold':
-                            this.codeEditor.execCommand('foldAll');
-                            break;
-                        case 'search':
-                            this.codeEditor.execCommand('find');
-                            break;
-                        case 'replace':
-                            this.codeEditor.execCommand('replace');
-                            break;
-                    }
-                },
-
-                // Initialize editor when modal opens
-                initMonacoEditor(type) {
-                    // Load Monaco if needed
-                    if (typeof monaco === 'undefined') {
-                        this.loadMonacoEditor(() => this.createMonacoEditor(type));
-                        return;
-                    }
-
-                    this.createMonacoEditor(type);
-                },
-
-                // Load Monaco Editor
-                loadMonacoEditor(callback) {
-                    const script = document.createElement('script');
-                    script.src = 'https://cdn.jsdelivr.net/npm/monaco-editor@0.43.0/min/vs/loader.js';
-                    script.async = true;
-                    script.onload = () => {
-                        require.config({
-                            paths: {
-                                'vs': 'https://cdn.jsdelivr.net/npm/monaco-editor@0.43.0/min/vs'
-                            }
-                        });
-
-                        require(['vs/editor/editor.main'], () => {
-                            // Define themes
-                            monaco.editor.defineTheme('myDarkTheme', {
-                                base: 'vs-dark',
-                                inherit: true,
-                                rules: [],
-                                colors: {
-                                    'editor.background': '#1e1e1e'
-                                }
-                            });
-
-                            if (typeof callback === 'function') callback();
-                        });
-                    };
-                    document.head.appendChild(script);
-                },
-
-                // Create Monaco Editor instance
-                createMonacoEditor(type) {
-                    // Destroy previous instance if exists
-                    if (this.monacoEditor) {
-                        this.monacoEditor.dispose();
-                    }
-
-                    const containerId = type === 'script' ? 'monaco-script-editor' :
-                        'monaco-data-editor';
-                    const container = document.getElementById(containerId);
-                    if (!container) return;
-
-                    // Set appropriate language based on format
-                    const format = this.$store.editorData.format;
-                    let language = 'plaintext';
-
-                    if (type === 'script') {
-                        language = format === 'selenium-python' ? 'python' :
-                            format === 'cypress' ? 'javascript' : 'plaintext';
-                    } else {
-                        language = format === 'json' ? 'json' :
-                            format === 'xml' ? 'xml' : 'plaintext';
-                    }
-
-                    // Create editor
-                    this.monacoEditor = monaco.editor.create(container, {
-                        value: this.$store.editorData.content || '',
-                        language: language,
-                        theme: this.editorDarkMode ? 'myDarkTheme' : 'vs',
-                        automaticLayout: true,
-                        minimap: {
-                            enabled: true
-                        },
-                        scrollBeyondLastLine: false,
-                        lineNumbers: 'on',
-                        renderLineHighlight: 'all',
-                        tabSize: 4,
-                        fontSize: 14,
-                        fontFamily: "'JetBrains Mono', 'Fira Code', monospace"
-                    });
-
-                    // Make editor resize properly
-                    window.addEventListener('resize', () => {
-                        if (this.monacoEditor) {
-                            this.monacoEditor.layout();
-                        }
-                    });
-
-                    // Focus editor
-                    setTimeout(() => {
-                        if (this.monacoEditor) {
-                            this.monacoEditor.focus();
-                        }
-                    }, 100);
-                },
-
-                /**
-                 * Toggle editor theme
-                 */
-                toggleEditorTheme() {
-                    this.editorDarkMode = !this.editorDarkMode;
-                    if (this.monacoEditor) {
-                        monaco.editor.setTheme(this.editorDarkMode ? 'myDarkTheme' : 'vs');
-                    }
-                },
                 /**
                  * Get framework label
                  */
@@ -979,8 +839,8 @@
                     return this.testData.filter(data => {
                         const nameMatch = data.name.toLowerCase().includes(this
                             .dataSearchTerm.toLowerCase());
-                        const formatMatch = !this.dataFilterFormat || data.format === this
-                            .dataFilterFormat;
+                        const formatMatch = !this.dataFilterFormat || data
+                            .format === this.dataFilterFormat;
                         return nameMatch && formatMatch;
                     });
                 },
@@ -996,27 +856,11 @@
                 },
 
                 /**
-                 * Open data creation modal
-                 */
-                openDataModal() {
-                    this.showDataModal = true;
-                    this.dataCreationMode = 'ai';
-                    this.dataTab = 'input';
-                    this.dataError = null;
-                    this.dataResponse = null;
-                    this.dataContent = '';
-                    this.dataName = '';
-                    this.dataUsageContext = '';
-                    this.dataIsSensitive = false;
-                    this.dataFiles = [];
-                },
-
-                /**
                  * Open data editing modal
                  */
                 editData(data) {
-                    // Set up the form data
-                    this.$store.editorData = {
+                    // Create a deep copy of the data to avoid modifying the original directly
+                    this.currentData = {
                         id: data.id,
                         name: data.name,
                         format: data.format,
@@ -1025,87 +869,187 @@
                         is_sensitive: data.is_sensitive
                     };
 
-                    // Open the modal and initialize the editor
                     this.showDataEditor = true;
 
-                    // Initialize Monaco editor after modal is visible
+                    // Initialize the CodeMirror editor after the modal is shown
                     this.$nextTick(() => {
-                        this.initMonacoEditor('data');
+                        this.loadCodeMirror(() => {
+                            this.initDataEditor();
+                            this.forceEditorRefresh(); // Add this line
+                        });
+                    });
+                },
+                /**
+                 * Initialize the CodeMirror editor for data
+                 */
+                initDataEditor() {
+                    const container = document.getElementById('data-editor-container');
+                    if (!container) return;
+
+                    // If editor already exists, dispose it
+                    if (this.dataEditor) {
+                        container.innerHTML = '';
+                    }
+
+                    // Create the editor
+                    this.dataEditor = CodeMirror(container, {
+                        value: this.currentData.content,
+                        mode: this.getDataEditorMode(this.currentData.format),
+                        theme: this.dataEditorDarkMode ? 'dracula' : 'eclipse',
+                        lineNumbers: true,
+                        indentUnit: 2,
+                        tabSize: 2,
+                        autoCloseBrackets: true,
+                        matchBrackets: true,
+                        lineWrapping: true,
+                        extraKeys: {
+                            "Tab": function(cm) {
+                                if (cm.somethingSelected()) {
+                                    cm.indentSelection("add");
+                                } else {
+                                    cm.replaceSelection("  ", "end");
+                                }
+                            }
+                        }
+                    });
+
+                    // Set up change handler
+                    this.dataEditor.on('change', () => {
+                        this.currentData.content = this.dataEditor.getValue();
                     });
                 },
 
                 /**
-                 * Save edited data
+                 * Get the CodeMirror mode for a data format
                  */
-                // Save data changes
-                saveEditedData() {
-                    if (!this.monacoEditor || !this.$store.editorData.name || !this.$store.editorData
-                        .usage_context) return;
+                getDataEditorMode(format) {
+                    switch (format) {
+                        case 'json':
+                            return 'application/json';
+                        case 'xml':
+                            return 'application/xml';
+                        case 'csv':
+                        case 'plain':
+                        case 'other':
+                        default:
+                            return 'text/plain';
+                    }
+                },
 
-                    // Get current content from editor
-                    const content = this.monacoEditor.getValue();
+                /**
+                 * Change editor mode when data format changes
+                 */
+                changeDataEditorMode() {
+                    if (this.dataEditor) {
+                        this.dataEditor.setOption('mode', this.getDataEditorMode(this
+                            .currentData.format));
+                    }
+                },
+
+                /**
+                 * Toggle data editor theme
+                 */
+                toggleDataEditorTheme() {
+                    this.dataEditorDarkMode = !this.dataEditorDarkMode;
+                    if (this.dataEditor) {
+                        this.dataEditor.setOption('theme', this.dataEditorDarkMode ?
+                            'dracula' : 'eclipse');
+                    }
+                },
+
+                /**
+                 * Format data content
+                 */
+                formatData() {
+                    if (!this.dataEditor) return;
+
+                    try {
+                        const format = this.currentData.format;
+                        const content = this.dataEditor.getValue();
+
+                        if (format === 'json') {
+                            // Format JSON
+                            try {
+                                const jsonObj = JSON.parse(content);
+                                const formattedContent = JSON.stringify(jsonObj, null, 2);
+                                this.dataEditor.setValue(formattedContent);
+                                this.showNotificationMessage('JSON formatted successfully',
+                                    'success');
+                            } catch (e) {
+                                throw new Error('Invalid JSON: ' + e.message);
+                            }
+                        } else if (format === 'xml') {
+                            // XML formatting would be more complex, just notify for now
+                            this.showNotificationMessage('XML formatting not implemented',
+                                'info');
+                        } else {
+                            this.showNotificationMessage(
+                                'Formatting not available for this format', 'info');
+                        }
+                    } catch (error) {
+                        this.showNotificationMessage('Formatting failed: ' + error.message,
+                            'error');
+                    }
+                },
+
+                /**
+                 * Save the edited data
+                 */
+                saveEditedData() {
+                    if (!this.currentData.name || !this.currentData.usage_context) return;
 
                     // Create form data for submission
                     const form = new FormData();
                     form.append('_method', 'PUT');
-                    form.append('name', this.$store.editorData.name);
-                    form.append('format', this.$store.editorData.format);
-                    form.append('content', content);
-                    form.append('usage_context', this.$store.editorData.usage_context);
-                    form.append('is_sensitive', this.$store.editorData.is_sensitive ? '1' : '0');
+                    form.append('name', this.currentData.name);
+                    form.append('format', this.currentData.format);
+                    form.append('content', this.currentData.content);
+                    form.append('usage_context', this.currentData.usage_context);
+                    form.append('is_sensitive', this.currentData.is_sensitive ? '1' : '0');
                     form.append('_token', document.querySelector('meta[name="csrf-token"]')
                         .getAttribute('content'));
 
                     // Submit to server
-                    fetch(`/dashboard/projects/${projectId}/test-cases/${testCaseId}/data/${this.$store.editorData.id}`, {
+                    fetch(`/dashboard/projects/{{ $project->id }}/test-cases/{{ $testCase->id }}/data/${this.currentData.id}`, {
                             method: 'POST',
                             body: form
                         })
                         .then(response => response.json())
                         .then(data => {
                             if (data.success) {
-                                // Update local data
-                                const updatedData = {
-                                    id: this.$store.editorData.id,
-                                    name: this.$store.editorData.name,
-                                    format: this.$store.editorData.format,
-                                    content: content,
-                                    is_sensitive: this.$store.editorData.is_sensitive,
-                                    usage_context: this.$store.editorData.usage_context
-                                };
-                                this.updateDataInList(this.$store.editorData.id, updatedData);
-                                this.showNotificationMessage('Test data updated successfully!',
-                                    'success');
+                                // Update the data in the list
+                                const index = this.testData.findIndex(d => d.id === this
+                                    .currentData.id);
+                                if (index !== -1) {
+                                    this.testData[index] = {
+                                        ...this.testData[index],
+                                        name: this.currentData.name,
+                                        format: this.currentData.format,
+                                        content: this.currentData.content,
+                                        is_sensitive: this.currentData.is_sensitive,
+                                        pivot: {
+                                            ...this.testData[index].pivot,
+                                            usage_context: this.currentData
+                                                .usage_context
+                                        }
+                                    };
+                                }
+
+                                // Show success notification and close modal
+                                this.showNotificationMessage(
+                                    'Test data updated successfully!', 'success');
+                                this.showDataEditor = false;
                             } else {
-                                throw new Error(data.message || 'Failed to update test data');
+                                throw new Error(data.message ||
+                                    'Failed to update test data');
                             }
                         })
                         .catch(error => {
                             console.error('Error updating test data:', error);
-                            this.showNotificationMessage('Failed to update test data: ' + error
-                                .message, 'error');
+                            this.showNotificationMessage(
+                                'Failed to update test data: ' + error.message,
+                                'error');
                         });
-
-                    // Close modal
-                    this.showDataEditor = false;
-                },
-
-                // Helper to update data in the testData array
-                updateDataInList(id, updatedData) {
-                    const index = this.testData.findIndex(d => d.id === id);
-                    if (index !== -1) {
-                        this.testData[index] = {
-                            ...this.testData[index],
-                            name: updatedData.name,
-                            format: updatedData.format,
-                            content: updatedData.content,
-                            is_sensitive: updatedData.is_sensitive,
-                            pivot: {
-                                ...this.testData[index].pivot,
-                                usage_context: updatedData.usage_context
-                            }
-                        };
-                    }
                 },
 
                 /**
@@ -1124,7 +1068,8 @@
                  */
                 async deleteData(id) {
                     try {
-                        const csrfToken = document.querySelector('meta[name="csrf-token"]');
+                        const csrfToken = document.querySelector(
+                            'meta[name="csrf-token"]');
                         if (!csrfToken) {
                             throw new Error('CSRF token not found');
                         }
@@ -1133,7 +1078,8 @@
                             `/dashboard/projects/{{ $project->id }}/test-cases/{{ $testCase->id }}/data/${id}`, {
                                 method: 'DELETE',
                                 headers: {
-                                    'X-CSRF-TOKEN': csrfToken.getAttribute('content'),
+                                    'X-CSRF-TOKEN': csrfToken.getAttribute(
+                                        'content'),
                                     'Accept': 'application/json',
                                 }
                             });
@@ -1141,151 +1087,23 @@
                         if (response.ok) {
                             // Remove the data from the list
                             this.testData = this.testData.filter(d => d.id !== id);
-                            this.showNotificationMessage('Test data removed successfully!',
-                                'success');
+                            this.showNotificationMessage(
+                                'Test data removed successfully!', 'success');
                         } else {
                             const errorData = await response.json();
-                            throw new Error(errorData.message || 'Failed to remove test data');
+                            throw new Error(errorData.message ||
+                                'Failed to remove test data');
                         }
                     } catch (error) {
                         console.error('Error removing test data:', error);
-                        this.showNotificationMessage('Failed to remove test data: ' + error.message,
-                            'error');
-                    }
-                },
-
-                /**
-                 * Handle data editor actions
-                 */
-                dataEditorAction(action) {
-                    if (!this.dataCodeEditor) return;
-
-                    switch (action) {
-                        case 'undo':
-                            this.dataCodeEditor.undo();
-                            break;
-                        case 'redo':
-                            this.dataCodeEditor.redo();
-                            break;
-                        case 'format':
-                            this.formatData();
-                            break;
-                        case 'validate':
-                            this.validateData();
-                            break;
-                        case 'search':
-                            this.dataCodeEditor.execCommand('find');
-                            break;
-                        case 'replace':
-                            this.dataCodeEditor.execCommand('replace');
-                            break;
-                    }
-                },
-
-                // Update Monaco language when format changes
-                updateMonacoLanguage() {
-                    if (!this.monacoEditor) return;
-
-                    const format = this.$store.editorData.format;
-                    let language;
-
-                    if (this.showScriptEditor) {
-                        language = format === 'selenium-python' ? 'python' :
-                            format === 'cypress' ? 'javascript' : 'plaintext';
-                    } else {
-                        language = format === 'json' ? 'json' :
-                            format === 'xml' ? 'xml' : 'plaintext';
-                    }
-
-                    monaco.editor.setModelLanguage(this.monacoEditor.getModel(), language);
-                },
-
-                /**
-                 * Format/prettify data
-                 */
-                formatData() {
-                    if (!this.monacoEditor) return;
-
-                    try {
-                        const format = this.$store.editorData.format;
-                        const content = this.monacoEditor.getValue();
-
-                        if (format === 'json') {
-                            // Format JSON
-                            const jsonObj = JSON.parse(content);
-                            const formattedContent = JSON.stringify(jsonObj, null, 2);
-                            this.monacoEditor.setValue(formattedContent);
-                            this.monacoEditor.getAction('editor.action.formatDocument').run();
-                            this.showNotificationMessage('JSON formatted successfully', 'success');
-                        } else {
-                            // For other formats, just use editor's formatter
-                            this.monacoEditor.getAction('editor.action.formatDocument').run();
-                            this.showNotificationMessage('Document formatted', 'success');
-                        }
-                    } catch (error) {
-                        this.showNotificationMessage('Formatting failed: ' + error.message, 'error');
-                    }
-                },
-
-                /**
-                 * Validate data
-                 */
-                validateData() {
-                    if (!this.dataCodeEditor) return;
-
-                    try {
-                        const format = this.editingData.format;
-                        const content = this.dataCodeEditor.getValue();
-
-                        if (format === 'json') {
-                            // Validate JSON
-                            JSON.parse(content);
-                            this.showNotificationMessage('JSON is valid!', 'success');
-                        } else {
-                            // For other formats, just confirm no validation is available
-                            this.showNotificationMessage('Validation for ' + format.toUpperCase() +
-                                ' format is not implemented.', 'info');
-                        }
-                    } catch (error) {
-                        this.showNotificationMessage('Validation failed: ' + error.message, 'error');
-                    }
-                },
-
-                /**
-                 * Toggle data editor theme
-                 */
-                toggleDataEditorTheme() {
-                    this.dataEditorDarkMode = !this.dataEditorDarkMode;
-                    if (this.dataCodeEditor) {
-                        this.dataCodeEditor.setOption('theme', this.dataEditorDarkMode ? 'vscode-dark' :
-                            'eclipse');
+                        this.showNotificationMessage('Failed to remove test data: ' +
+                            error.message, 'error');
                     }
                 },
 
                 // ------------------------------------------
                 // UTILITY FUNCTIONS
                 // ------------------------------------------
-
-                /**
-                 * Load generation history from localStorage
-                 */
-                loadGenerationHistory() {
-                    try {
-                        const savedScriptHistory = localStorage.getItem('script_generation_history');
-                        if (savedScriptHistory) {
-                            this.scriptGenerationHistory = JSON.parse(savedScriptHistory);
-                        }
-
-                        const savedDataHistory = localStorage.getItem('data_generation_history');
-                        if (savedDataHistory) {
-                            this.dataGenerationHistory = JSON.parse(savedDataHistory);
-                        }
-                    } catch (e) {
-                        console.error('Failed to parse generation history:', e);
-                        this.scriptGenerationHistory = [];
-                        this.dataGenerationHistory = [];
-                    }
-                },
 
                 /**
                  * Format date for display
@@ -1322,10 +1140,10 @@
                  */
                 copyToClipboard(text, type = 'Content') {
                     navigator.clipboard.writeText(text).then(
-                        () => this.showNotificationMessage(`${type} copied to clipboard!`,
-                            'success'),
-                        (err) => this.showNotificationMessage(`Failed to copy ${type}: ${err}`,
-                            'error')
+                        () => this.showNotificationMessage(
+                            `${type} copied to clipboard!`, 'success'),
+                        (err) => this.showNotificationMessage(
+                            `Failed to copy ${type}: ${err}`, 'error')
                     );
                 },
 
@@ -1389,6 +1207,36 @@
                     }));
                 }
             }));
+
+            // Notification component (unchanged)
+            Alpine.data('notification', () => ({
+                show: false,
+                message: '',
+                type: 'success',
+                timeout: null,
+
+                init() {
+                    window.addEventListener('notify', event => {
+                        this.message = event.detail.message;
+                        this.type = event.detail.type || 'success';
+                        this.show = true;
+
+                        if (this.timeout) {
+                            clearTimeout(this.timeout);
+                        }
+                        this.timeout = setTimeout(() => {
+                            this.show = false;
+                        }, 5000);
+
+                        this.$nextTick(() => {
+                            if (typeof lucide !== 'undefined') {
+                                lucide.createIcons();
+                            }
+                        });
+                    });
+                }
+            }));
+
 
             // Notification component
             Alpine.data('notification', () => ({

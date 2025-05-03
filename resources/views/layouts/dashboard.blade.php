@@ -26,6 +26,7 @@
 
     {{-- Inline Styles --}}
     <style>
+
         [x-cloak] {
             display: none !important;
         }
