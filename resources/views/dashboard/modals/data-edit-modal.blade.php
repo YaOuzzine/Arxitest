@@ -15,45 +15,45 @@
             x-transition:enter-end="opacity-100 translate-y-0" x-transition:leave="transition ease-in duration-200"
             x-transition:leave-start="opacity-100 translate-y-0" x-transition:leave-end="opacity-0 translate-y-8">
 
-            <!-- Header -->
-            <div class="px-6 py-4 border-b border-zinc-200 dark:border-zinc-700 bg-gradient-to-r from-teal-50 to-emerald-50 dark:from-teal-900/20 dark:to-emerald-900/20">
-                <div class="flex items-center justify-between">
-                    <h3 class="text-lg font-medium text-teal-900 dark:text-teal-100 flex items-center">
-                        <div class="flex items-center gap-2">
-                            <i data-lucide="database" class="w-5 h-5 text-teal-600 dark:text-teal-400"></i>
-                            <span>Edit Test Data</span>
-                        </div>
-                    </h3>
-                    <button @click="showDataEditor = false"
-                        class="text-zinc-400 hover:text-zinc-500 dark:hover:text-zinc-300">
-                        <i data-lucide="x" class="w-5 h-5"></i>
-                    </button>
+            <!-- Modal Content - Using Grid Layout -->
+            <div class="grid grid-rows-[auto_auto_auto_1fr_auto]" style="height: 80vh; max-height: 800px;">
+                <!-- Header -->
+                <div class="px-6 py-4 border-b border-zinc-200 dark:border-zinc-700 bg-gradient-to-r from-teal-50 to-emerald-50 dark:from-teal-900/20 dark:to-emerald-900/20">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-lg font-medium text-teal-900 dark:text-teal-100 flex items-center">
+                            <div class="flex items-center gap-2">
+                                <i data-lucide="database" class="w-5 h-5 text-teal-600 dark:text-teal-400"></i>
+                                <span>Edit Test Data</span>
+                            </div>
+                        </h3>
+                        <button @click="showDataEditor = false"
+                            class="text-zinc-400 hover:text-zinc-500 dark:hover:text-zinc-300">
+                            <i data-lucide="x" class="w-5 h-5"></i>
+                        </button>
+                    </div>
                 </div>
-            </div>
 
-            <!-- Content -->
-            <div class="flex flex-col h-[calc(100vh-12rem)] max-h-[800px]">
                 <!-- Settings Fields -->
-                <div class="p-4 bg-white dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700">
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="p-6 bg-white dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <!-- Name Field -->
                         <div>
-                            <label for="data-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            <label for="data-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                 Name <span class="text-red-500">*</span>
                             </label>
                             <input type="text" id="data-name" x-model="currentData.name"
-                                class="form-input w-full rounded-lg h-10 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-zinc-600"
+                                class="form-input w-full rounded-lg py-2 px-3 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-zinc-600"
                                 placeholder="Enter a name">
                         </div>
 
                         <!-- Format Field -->
                         <div>
-                            <label for="data-format" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            <label for="data-format" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                 Format <span class="text-red-500">*</span>
                             </label>
                             <select id="data-format" x-model="currentData.format"
                                 @change="changeDataEditorMode()"
-                                class="form-select w-full rounded-lg h-10 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-zinc-600">
+                                class="form-select w-full rounded-lg py-2 px-3 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-zinc-600">
                                 <option value="json">JSON</option>
                                 <option value="csv">CSV</option>
                                 <option value="xml">XML</option>
@@ -64,11 +64,11 @@
 
                         <!-- Usage Context -->
                         <div>
-                            <label for="data-usage-context" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            <label for="data-usage-context" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                 Usage Context <span class="text-red-500">*</span>
                             </label>
                             <input type="text" id="data-usage-context" x-model="currentData.usage_context"
-                                class="form-input w-full rounded-lg h-10 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-zinc-600"
+                                class="form-input w-full rounded-lg py-2 px-3 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-zinc-600"
                                 placeholder="e.g., 'Valid input scenario' or 'Edge case testing'">
                         </div>
 
@@ -85,7 +85,7 @@
                 </div>
 
                 <!-- Editor Toolbar -->
-                <div class="flex items-center px-2 py-1.5 bg-gray-100 dark:bg-zinc-700 border-b border-gray-300 dark:border-zinc-600">
+                <div class="flex items-center px-4 py-2 bg-gray-100 dark:bg-zinc-700 border-b border-gray-300 dark:border-zinc-600">
                     <div class="flex items-center space-x-2">
                         <!-- Theme toggle -->
                         <button @click="toggleDataEditorTheme()"
@@ -108,9 +108,9 @@
                     </div>
                 </div>
 
-                <!-- CodeMirror Editor Container -->
-                <div class="flex-1 relative overflow-hidden" style="flex: 1 1 auto !important; min-height: 400px;">
-                    <div id="data-editor-container" class="absolute inset-0 w-full h-full"></div>
+                <!-- CodeMirror Editor Container - Using Grid Row -->
+                <div class="w-full h-full overflow-hidden border border-gray-200 dark:border-gray-700">
+                    <div id="data-editor-container" class="w-full h-full"></div>
                 </div>
 
                 <!-- Footer with Save/Cancel -->

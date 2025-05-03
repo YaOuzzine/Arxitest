@@ -12,9 +12,6 @@
                 <input type="text" x-model="dataSearchTerm"
                     class="form-input pl-9 w-full rounded-lg bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 border-zinc-300 dark:border-zinc-600"
                     placeholder="Search test data...">
-                <div class="absolute left-0 flex items-center pl-3 pointer-events-none">
-                    <i data-lucide="search" class="w-4 h-4 text-zinc-500 dark:text-zinc-400"></i>
-                </div>
             </div>
 
             <div class="relative">

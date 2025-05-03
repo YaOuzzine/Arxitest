@@ -15,45 +15,45 @@
             x-transition:enter-end="opacity-100 translate-y-0" x-transition:leave="transition ease-in duration-200"
             x-transition:leave-start="opacity-100 translate-y-0" x-transition:leave-end="opacity-0 translate-y-8">
 
-            <!-- Header -->
-            <div class="px-6 py-4 border-b border-zinc-200 dark:border-zinc-700 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20">
-                <div class="flex items-center justify-between">
-                    <h3 class="text-lg font-medium text-indigo-900 dark:text-indigo-100 flex items-center">
-                        <div class="flex items-center gap-2">
-                            <i data-lucide="code" class="w-5 h-5 text-indigo-600 dark:text-indigo-400"></i>
-                            <span>Edit Test Script</span>
-                        </div>
-                    </h3>
-                    <button @click="showScriptEditor = false"
-                        class="text-zinc-400 hover:text-zinc-500 dark:hover:text-zinc-300">
-                        <i data-lucide="x" class="w-5 h-5"></i>
-                    </button>
+            <!-- Modal Content - Using Grid Layout -->
+            <div class="grid grid-rows-[auto_auto_auto_1fr_auto]" style="height: 80vh; max-height: 800px;">
+                <!-- Header -->
+                <div class="px-6 py-4 border-b border-zinc-200 dark:border-zinc-700 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-lg font-medium text-indigo-900 dark:text-indigo-100 flex items-center">
+                            <div class="flex items-center gap-2">
+                                <i data-lucide="code" class="w-5 h-5 text-indigo-600 dark:text-indigo-400"></i>
+                                <span>Edit Test Script</span>
+                            </div>
+                        </h3>
+                        <button @click="showScriptEditor = false"
+                            class="text-zinc-400 hover:text-zinc-500 dark:hover:text-zinc-300">
+                            <i data-lucide="x" class="w-5 h-5"></i>
+                        </button>
+                    </div>
                 </div>
-            </div>
 
-            <!-- Content -->
-            <div class="flex flex-col h-[calc(100vh-12rem)] max-h-[800px]">
                 <!-- Settings Fields -->
-                <div class="p-4 bg-white dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="p-6 bg-white dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <!-- Name Field -->
                         <div>
-                            <label for="script-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            <label for="script-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                 Name <span class="text-red-500">*</span>
                             </label>
                             <input type="text" id="script-name" x-model="currentScript.name"
-                                class="form-input w-full rounded-lg h-10 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-zinc-600"
+                                class="form-input w-full rounded-lg py-2 px-3 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-zinc-600"
                                 placeholder="Enter a name">
                         </div>
 
                         <!-- Framework Field -->
                         <div>
-                            <label for="script-framework" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            <label for="script-framework" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                 Framework <span class="text-red-500">*</span>
                             </label>
                             <select id="script-framework" x-model="currentScript.framework_type"
                                 @change="changeEditorMode()"
-                                class="form-select w-full rounded-lg h-10 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-zinc-600">
+                                class="form-select w-full rounded-lg py-2 px-3 bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 border-gray-300 dark:border-zinc-600">
                                 <option value="selenium-python">Selenium (Python)</option>
                                 <option value="cypress">Cypress (JavaScript)</option>
                                 <option value="other">Other Framework</option>
@@ -63,7 +63,7 @@
                 </div>
 
                 <!-- Editor Toolbar -->
-                <div class="flex items-center px-2 py-1.5 bg-gray-100 dark:bg-zinc-700 border-b border-gray-300 dark:border-zinc-600">
+                <div class="flex items-center px-4 py-2 bg-gray-100 dark:bg-zinc-700 border-b border-gray-300 dark:border-zinc-600">
                     <div class="flex items-center space-x-2">
                         <!-- Theme toggle -->
                         <button @click="toggleEditorTheme()"
@@ -77,9 +77,9 @@
                     </div>
                 </div>
 
-                <!-- CodeMirror Editor Container -->
-                <div class="flex-1 relative overflow-hidden" style="flex: 1 1 auto !important; min-height: 400px;">
-                    <div id="script-editor-container" class="absolute inset-0 w-full h-full"></div>
+                <!-- CodeMirror Editor Container - Using Grid Row -->
+                <div class="w-full h-full overflow-hidden border border-gray-200 dark:border-gray-700">
+                    <div id="script-editor-container" class="w-full h-full"></div>
                 </div>
 
                 <!-- Footer with Save/Cancel -->

@@ -281,35 +281,125 @@
         integrity="sha512-vswe+cgvic/XBoF1OcM/TeJ2FW0OofqAVdCZiEYkd6dwGXuxGoVZSgoqvPKrG4+DingPYFKCZmHAIU5xyzY解答=="
         crossorigin="anonymous" referrerpolicy="no-referrer" />
     <style>
-        /* CodeMirror specific styling */
+        .editor-container {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            border: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        .dark .editor-container {
+            border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        /* Make CodeMirror fill its container properly */
         .CodeMirror {
             height: 100% !important;
             width: 100% !important;
-            position: absolute !important;
-            font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
-            font-size: 14px;
-            line-height: 1.6;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Menlo', 'Monaco', monospace !important;
+            font-size: 14px !important;
+            line-height: 1.6 !important;
         }
 
-        /* Editor container styles */
-        #script-editor-container,
-        #data-editor-container {
-            position: absolute;
-            top: 0;
-            right: 0;
-            bottom: 0;
-            left: 0;
-            height: 100%;
+        /* Ensure proper gutters and line numbers */
+        .CodeMirror-gutters {
+            border-right: 1px solid rgba(0, 0, 0, 0.1) !important;
+        }
+
+        .dark .CodeMirror-gutters {
+            border-right-color: rgba(255, 255, 255, 0.1) !important;
+            background-color: #1e1e1e !important;
+        }
+
+        /* Modal layout using CSS Grid */
+        .modal-grid-layout {
+            display: grid;
+            grid-template-rows: auto auto auto 1fr auto;
+            height: 80vh;
+            max-height: 800px;
+            min-height: 500px;
+        }
+
+        /* Form elements consistent styling */
+        .form-input,
+        .form-textarea,
+        .form-select {
+            min-height: 42px;
+            padding: 0.625rem 0.75rem;
             width: 100%;
+            border-radius: 0.375rem;
+            border-width: 1px;
+            transition: all 0.2s ease;
         }
 
-        /* Fix for flex container */
-        .flex-1.relative.overflow-hidden {
-            position: relative;
-            flex: 1 1 auto;
-            min-height: 400px;
-            display: flex;
-            flex-direction: column;
+        /* Focus states for form elements */
+        .form-input:focus,
+        .form-textarea:focus,
+        .form-select:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
+            border-color: #818cf8;
+        }
+
+        .dark .form-input:focus,
+        .dark .form-textarea:focus,
+        .dark .form-select:focus {
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.4);
+        }
+
+        /* CodeMirror themes need to be properly applied */
+        .cm-s-dracula.CodeMirror {
+            background-color: #282a36 !important;
+        }
+
+        .cm-s-eclipse.CodeMirror {
+            background-color: #ffffff !important;
+        }
+
+        .dark .cm-s-eclipse.CodeMirror {
+            background-color: #1e1e1e !important;
+            color: #d4d4d4 !important;
+        }
+
+        /* Modal custom scrollbars */
+        .editor-container::-webkit-scrollbar,
+        .CodeMirror-scroll::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+
+        .editor-container::-webkit-scrollbar-thumb,
+        .CodeMirror-scroll::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 5px;
+        }
+
+        .editor-container::-webkit-scrollbar-thumb:hover,
+        .CodeMirror-scroll::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
+        .dark .editor-container::-webkit-scrollbar-thumb,
+        .dark .CodeMirror-scroll::-webkit-scrollbar-thumb {
+            background: #555;
+        }
+
+        .dark .editor-container::-webkit-scrollbar-thumb:hover,
+        .dark .CodeMirror-scroll::-webkit-scrollbar-thumb:hover {
+            background: #777;
+        }
+
+        /* Fix modal overflow issues */
+        .overflow-y-auto {
+            overflow-y: auto !important;
+        }
+
+        /* Better modal size for different screens */
+        @media (max-width: 768px) {
+            .modal-grid-layout {
+                height: calc(100vh - 2rem);
+                max-height: none;
+            }
         }
 
         /* Ensure the modal content takes the full height */
@@ -493,18 +583,24 @@
                     });
                 },
 
+                /**
+                 * Forces a refresh of the CodeMirror editor to ensure it renders correctly
+                 */
                 forceEditorRefresh() {
-                    // Set a small delay to ensure the DOM has updated
-                    setTimeout(() => {
-                        if (this.scriptEditor) {
-                            this.scriptEditor.refresh();
-                        }
-                        if (this.dataEditor) {
-                            this.dataEditor.refresh();
-                        }
-                        // Also force a window resize event which often helps editor sizing
-                        window.dispatchEvent(new Event('resize'));
-                    }, 100);
+                    // Set multiple timeouts with increasing delays to ensure the editor gets properly sized
+                    // This helps with various timing issues that can occur
+                    [50, 100, 250, 500].forEach(delay => {
+                        setTimeout(() => {
+                            if (this.scriptEditor) {
+                                this.scriptEditor.refresh();
+                            }
+                            if (this.dataEditor) {
+                                this.dataEditor.refresh();
+                            }
+                            // Also trigger a window resize event to help with responsive sizing
+                            window.dispatchEvent(new Event('resize'));
+                        }, delay);
+                    });
                 },
 
                 /**
@@ -535,13 +631,27 @@
                 },
 
                 /**
-                 * Load CodeMirror if it's not already loaded
+                 * Load CodeMirror and its dependencies consistently
                  */
                 loadCodeMirror(callback) {
+                    console.log('Loading CodeMirror...');
                     if (typeof CodeMirror !== 'undefined') {
+                        console.log('CodeMirror already loaded');
                         callback();
                         return;
                     }
+
+                    // Add a loading indicator to the container
+                    const containers = ['script-editor-container', 'data-editor-container']
+                        .map(id => document.getElementById(id))
+                        .filter(el => el);
+
+                    containers.forEach(container => {
+                        if (container) {
+                            container.innerHTML =
+                                '<div class="flex items-center justify-center h-full"><div class="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div></div>';
+                        }
+                    });
 
                     // Load main script
                     const script = document.createElement('script');
@@ -549,9 +659,7 @@
                         'https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js';
                     script.onload = () => {
                         // Load modes
-                        const modes = ['javascript', 'python', 'xml', 'htmlmixed',
-                            'css'
-                        ];
+                        const modes = ['javascript', 'python', 'xml', 'htmlmixed', 'css'];
                         let loadedCount = 0;
 
                         modes.forEach(mode => {
@@ -637,41 +745,46 @@
 
                     // If editor already exists, dispose it
                     if (this.scriptEditor) {
+                        this.scriptEditor = null;
                         container.innerHTML = '';
                     }
 
-                    // Create the editor
-                    this.scriptEditor = CodeMirror(container, {
-                        value: this.currentScript.script_content,
-                        mode: this.getCodeMirrorMode(this.currentScript.framework_type),
-                        theme: this.editorDarkMode ? 'dracula' : 'eclipse',
-                        lineNumbers: true,
-                        indentUnit: 4,
-                        tabSize: 4,
-                        autoCloseBrackets: true,
-                        matchBrackets: true,
-                        lineWrapping: true,
-                        extraKeys: {
-                            "Tab": function(cm) {
-                                if (cm.somethingSelected()) {
-                                    cm.indentSelection("add");
-                                } else {
-                                    cm.replaceSelection("    ", "end");
+                    // Apply the container class for consistent styling
+                    container.classList.add('editor-container');
+
+                    // Create the editor after a very short delay to ensure DOM is ready
+                    setTimeout(() => {
+                        this.scriptEditor = CodeMirror(container, {
+                            value: this.currentScript.script_content,
+                            mode: this.getCodeMirrorMode(this.currentScript
+                                .framework_type),
+                            theme: this.editorDarkMode ? 'dracula' : 'eclipse',
+                            lineNumbers: true,
+                            indentUnit: 4,
+                            tabSize: 4,
+                            autoCloseBrackets: true,
+                            matchBrackets: true,
+                            lineWrapping: true,
+                            extraKeys: {
+                                "Tab": function(cm) {
+                                    if (cm.somethingSelected()) {
+                                        cm.indentSelection("add");
+                                    } else {
+                                        cm.replaceSelection("    ", "end");
+                                    }
                                 }
                             }
-                        }
-                    });
+                        });
 
-                    // Set up change handler
-                    this.scriptEditor.on('change', () => {
-                        this.currentScript.script_content = this.scriptEditor.getValue();
-                    });
+                        // Set up change handler
+                        this.scriptEditor.on('change', () => {
+                            this.currentScript.script_content = this.scriptEditor
+                                .getValue();
+                        });
 
-                    // Make sure editor resizes properly
-                    this.$nextTick(() => {
-                        this.scriptEditor.refresh();
-                        window.dispatchEvent(new Event('resize'));
-                    });
+                        // Force refresh and resize to ensure proper display
+                        this.forceEditorRefresh();
+                    }, 50); // Small delay to ensure DOM is ready
                 },
                 /**
                  * Get the CodeMirror mode for a framework
@@ -880,7 +993,7 @@
                     });
                 },
                 /**
-                 * Initialize the CodeMirror editor for data
+                 * Initialize the CodeMirror editor for data with proper sizing
                  */
                 initDataEditor() {
                     const container = document.getElementById('data-editor-container');
@@ -888,37 +1001,45 @@
 
                     // If editor already exists, dispose it
                     if (this.dataEditor) {
+                        this.dataEditor = null;
                         container.innerHTML = '';
                     }
 
-                    // Create the editor
-                    this.dataEditor = CodeMirror(container, {
-                        value: this.currentData.content,
-                        mode: this.getDataEditorMode(this.currentData.format),
-                        theme: this.dataEditorDarkMode ? 'dracula' : 'eclipse',
-                        lineNumbers: true,
-                        indentUnit: 2,
-                        tabSize: 2,
-                        autoCloseBrackets: true,
-                        matchBrackets: true,
-                        lineWrapping: true,
-                        extraKeys: {
-                            "Tab": function(cm) {
-                                if (cm.somethingSelected()) {
-                                    cm.indentSelection("add");
-                                } else {
-                                    cm.replaceSelection("  ", "end");
+                    // Apply the container class for consistent styling
+                    container.classList.add('editor-container');
+
+                    // Create the editor after a very short delay to ensure DOM is ready
+                    setTimeout(() => {
+                        this.dataEditor = CodeMirror(container, {
+                            value: this.currentData.content,
+                            mode: this.getDataEditorMode(this.currentData.format),
+                            theme: this.dataEditorDarkMode ? 'dracula' : 'eclipse',
+                            lineNumbers: true,
+                            indentUnit: 2,
+                            tabSize: 2,
+                            autoCloseBrackets: true,
+                            matchBrackets: true,
+                            lineWrapping: true,
+                            extraKeys: {
+                                "Tab": function(cm) {
+                                    if (cm.somethingSelected()) {
+                                        cm.indentSelection("add");
+                                    } else {
+                                        cm.replaceSelection("  ", "end");
+                                    }
                                 }
                             }
-                        }
-                    });
+                        });
 
-                    // Set up change handler
-                    this.dataEditor.on('change', () => {
-                        this.currentData.content = this.dataEditor.getValue();
-                    });
+                        // Set up change handler
+                        this.dataEditor.on('change', () => {
+                            this.currentData.content = this.dataEditor.getValue();
+                        });
+
+                        // Force refresh and resize to ensure proper display
+                        this.forceEditorRefresh();
+                    }, 50); // Small delay to ensure DOM is ready
                 },
-
                 /**
                  * Get the CodeMirror mode for a data format
                  */
