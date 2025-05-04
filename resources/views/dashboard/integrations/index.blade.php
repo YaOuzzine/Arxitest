@@ -95,37 +95,40 @@
                         </div>
                         <div>
                             <h3 class="text-lg font-bold text-zinc-900 dark:text-white">GitHub</h3>
-                            <p class="text-sm text-zinc-500 dark:text-zinc-400">Microsoft • Version Control</p>
+                            <p class="text-sm text-zinc-500 dark:text-zinc-400">Integration • Source Code</p>
                         </div>
                     </div>
                     <p class="text-sm text-zinc-600 dark:text-zinc-300 mb-5 leading-relaxed">
-                        Connect repositories, sync test scripts, and enable CI/CD automation with GitHub Actions.
+                        Connect your GitHub repositories to use as context for test cases, scripts, and more. Browse files and create projects from repositories.
                     </p>
                     <div class="space-y-3">
                         <div class="flex items-center space-x-2 text-sm text-purple-600 dark:text-purple-400">
                             <i data-lucide="git-branch" class="w-4 h-4"></i>
-                            <span>Repo sync • Webhooks • Actions support</span>
+                            <span>Repository access • Code browsing • Project creation</span>
                         </div>
                     </div>
                 </div>
                 <div class="px-6 py-4 bg-zinc-50/50 dark:bg-zinc-800/20 border-t border-zinc-200/50 dark:border-zinc-700 flex justify-between items-center">
-                    @if($githubConnected)
+                    @if(session('github_connected', false))
                         <div class="flex items-center space-x-2">
                             <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
                             <span class="text-sm font-medium text-zinc-700 dark:text-zinc-300">Connected</span>
                         </div>
-                        <button class="text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors">
-                            Disconnect
-                        </button>
+                        <form action="{{ route('github.disconnect') }}" method="POST">
+                            @csrf
+                            <button type="submit" class="text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors">
+                                Disconnect
+                            </button>
+                        </form>
                     @else
                         <div class="flex items-center space-x-2">
                             <div class="w-2 h-2 rounded-full bg-zinc-400"></div>
                             <span class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Not connected</span>
                         </div>
-                        <button class="btn-primary px-4 py-1.5 text-sm flex items-center space-x-2 opacity-50 cursor-not-allowed" title="Coming Q4 2023">
-                            <i data-lucide="clock" class="w-4 h-4"></i>
-                            <span>Soon</span>
-                        </button>
+                        <a href="{{ route('github.redirect') }}" class="btn-primary px-4 py-1.5 text-sm flex items-center space-x-2 transition-transform hover:scale-105">
+                            <i data-lucide="plug" class="w-4 h-4"></i>
+                            <span>Connect</span>
+                        </a>
                     @endif
                 </div>
             </div>

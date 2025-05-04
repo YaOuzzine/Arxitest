@@ -9,9 +9,9 @@ use App\Models\TestCase;
 use App\Models\TestScript;
 use App\Services\AI\AIGenerationService;
 use App\Services\TestScriptService;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Request;
 use Illuminate\Support\Facades\Validator;
 use App\Traits\JsonResponse;
 
@@ -83,6 +83,7 @@ class TestScriptController extends Controller
             return redirect()->back()->with('error', $e->getMessage())->withInput();
         }
     }
+
     /**
      * Generate a test script using AI.
      */
@@ -179,6 +180,7 @@ class TestScriptController extends Controller
                 'test_case' => $test_case->id
             ])->with('success', 'Test script updated successfully.');
         } catch (\Exception $e) {
+            Log::error('Update script error: ' . $e->getMessage());
             if ($request->expectsJson()) {
                 return response()->json([
                     'success' => false,

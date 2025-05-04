@@ -1,0 +1,55 @@
+/* GitHub Integration Styles */
+.github-drag-active {
+    border: 2px dashed #4f46e5 !important;
+    background-color: rgba(79, 70, 229, 0.05) !important;
+}
+
+[data-dropzone] {
+    transition: all 0.2s ease;
+}
+
+/* File preview styles */
+.github-file-preview {
+    max-height: 300px;
+    overflow-y: auto;
+    font-family: monospace;
+    font-size: 0.875rem;
+    line-height: 1.4;
+    padding: 0.75rem;
+    border-radius: 0.375rem;
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.dark .github-file-preview {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* GitHub repo browser styles */
+#github-browser {
+    transition: all 0.3s ease;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+}
+
+.dark #github-browser {
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+}
+
+/* GitHub bubble animation */
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.4);
+    }
+    70% {
+        transform: scale(1.05);
+        box-shadow: 0 0 0 10px rgba(79, 70, 229, 0);
+    }
+    100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(79, 70, 229, 0);
+    }
+}
+
+#github-bubble-toggle {
+    animation: pulse 2s infinite;
+}

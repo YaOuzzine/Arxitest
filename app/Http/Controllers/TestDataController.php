@@ -27,26 +27,6 @@ class TestDataController extends Controller
     {
         $this->testDataService = $testDataService;
     }
-    /**
-     * Display a listing of test data for a test case.
-     */
-    // public function index(Project $project, TestCase $test_case)
-    // {
-    //     $this->authorizeAccess($project);
-
-    //     try {
-    //         $testData = $this->testDataService->getAllTestData($project, $test_case);
-
-    //         return view('dashboard.test-data.index', [
-    //             'project' => $project,
-    //             'testCase' => $test_case,
-    //             'testSuite' => $test_case->testSuite,
-    //             'testData' => $testData
-    //         ]);
-    //     } catch (\Exception $e) {
-    //         abort(404, $e->getMessage());
-    //     }
-    // }
 
     /**
      * Store a newly created test data.
@@ -58,12 +38,21 @@ class TestDataController extends Controller
         try {
             $testData = $this->testDataService->create($project, $test_case, $request->validated());
 
+            if ($request->expectsJson()) {
+                return $this->successResponse($testData, 'Test data created successfully.');
+            }
+
             return redirect()->route('dashboard.projects.test-cases.show', [
                 'project' => $project->id,
                 'test_case' => $test_case->id
             ])->with('success', 'Test data created successfully.');
         } catch (\Exception $e) {
             Log::error('Failed to create test data: ' . $e->getMessage());
+
+            if ($request->expectsJson()) {
+                return $this->errorResponse('Failed to create test data: ' . $e->getMessage(), 500);
+            }
+
             return redirect()->back()->withInput()
                 ->with('error', 'Failed to create test data: ' . $e->getMessage());
         }
@@ -86,15 +75,6 @@ class TestDataController extends Controller
                 'success' => false,
                 'errors' => $validator->errors()
             ], 422);
-        }
-
-        // Ensure test case belongs to a suite in this project
-        $suite = $test_case->testSuite;
-        if (!$suite || $suite->project_id !== $project->id) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Test case not found in this project.'
-            ], 404);
         }
 
         try {
@@ -141,8 +121,13 @@ class TestDataController extends Controller
      */
     public function update(Request $request, Project $project, TestCase $test_case, TestData $test_data)
     {
+        $this->authorizeAccess($project);
+
         try {
-            $this->testDataService->validateTestDataRelationships($project, $test_case, $test_data);
+            // First check if this test data is actually related to this test case
+            if (!$test_case->testData()->where('test_data.id', $test_data->id)->exists()) {
+                throw new \Exception('Test data not found for this test case.');
+            }
 
             // Validate the request
             $validator = Validator::make($request->all(), [
@@ -154,11 +139,10 @@ class TestDataController extends Controller
             ]);
 
             if ($validator->fails()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Validation failed',
-                    'errors' => $validator->errors()
-                ], 422);
+                if ($request->expectsJson()) {
+                    return $this->validationErrorResponse($validator);
+                }
+                return redirect()->back()->withErrors($validator)->withInput();
             }
 
             // Update the test data
@@ -173,12 +157,22 @@ class TestDataController extends Controller
                 'usage_context' => $request->input('usage_context')
             ]);
 
+            Log::info('Test data updated successfully', [
+                'test_data_id' => $test_data->id,
+                'test_case_id' => $test_case->id
+            ]);
+
             if ($request->expectsJson()) {
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Test data updated successfully.',
-                    'data' => $test_data
-                ]);
+                return $this->successResponse([
+                    'id' => $test_data->id,
+                    'name' => $test_data->name,
+                    'format' => $test_data->format,
+                    'content' => $test_data->content,
+                    'is_sensitive' => $test_data->is_sensitive,
+                    'pivot' => [
+                        'usage_context' => $request->input('usage_context')
+                    ]
+                ], 'Test data updated successfully.');
             }
 
             return redirect()->route('dashboard.projects.test-cases.show', [
@@ -186,34 +180,17 @@ class TestDataController extends Controller
                 'test_case' => $test_case->id
             ])->with('success', 'Test data updated successfully.');
         } catch (\Exception $e) {
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => $e->getMessage()
-                ], 400);
-            }
-            return redirect()->back()->with('error', $e->getMessage())->withInput();
-        }
-    }
-
-    /**
-     * Display the specified test data.
-     */
-    public function show(Project $project, TestCase $test_case, TestData $test_data)
-    {
-        $this->authorizeAccess($project);
-
-        try {
-            $testData = $this->testDataService->getTestData($project, $test_case, $test_data);
-
-            return view('dashboard.test-data.show', [
-                'project' => $project,
-                'testCase' => $test_case,
-                'testSuite' => $test_case->testSuite,
-                'testData' => $testData
+            Log::error('Error updating test data: ' . $e->getMessage(), [
+                'test_data_id' => $test_data->id,
+                'test_case_id' => $test_case->id,
+                'error' => $e->getMessage()
             ]);
-        } catch (\Exception $e) {
-            abort(404, $e->getMessage());
+
+            if ($request->expectsJson()) {
+                return $this->errorResponse('Failed to update test data: ' . $e->getMessage(), 400);
+            }
+
+            return redirect()->back()->with('error', $e->getMessage())->withInput();
         }
     }
 
@@ -226,7 +203,14 @@ class TestDataController extends Controller
 
         try {
             $dataName = $test_data->name;
-            $this->testDataService->detachFromTestCase($project, $test_case, $test_data);
+
+            // Verify the relationship
+            if (!$test_case->testData()->where('test_data.id', $test_data->id)->exists()) {
+                throw new \Exception('Test data not found for this test case.');
+            }
+
+            // Detach the test data
+            $test_case->testData()->detach($test_data->id);
 
             if (request()->expectsJson()) {
                 return $this->successResponse([], "Test data \"$dataName\" removed from this test case.");

@@ -20,6 +20,7 @@
 
     {{-- Favicon --}}
     <link rel="icon" href="{{ asset('favicon.ico') }}">
+    <link rel="stylesheet" href="{{ asset('css/github-integration.css') }}">
 
     {{-- Vite CSS --}}
     @vite(['resources/css/app.css'])
@@ -618,6 +619,8 @@
 
     {{-- Page Specific Scripts --}}
     @stack('scripts')
+    @include('components.github-bubble')
+    <script src="{{ asset('js/github-dropzones.js') }}"></script>
 </body>
 
 </html>

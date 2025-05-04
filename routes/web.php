@@ -4,6 +4,7 @@ use App\Http\Controllers\AIGenerationController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EmailRegistrationController;
 use App\Http\Controllers\EnvironmentController;
+use App\Http\Controllers\GitHubIntegrationController;
 use App\Http\Controllers\IntegrationController;
 use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\JiraImportController;
@@ -342,6 +343,28 @@ Route::prefix('api/ai')->name('api.ai.')->middleware(['web', 'auth:web'])->group
         ->name('generate')
         ->where('entity_type', 'story|test-case|test-suite|test-script|test-data');
 });
+
+// GitHub Integration Routes
+Route::prefix('/api/github')->name('api.github.')->middleware(['web', 'auth:web', 'require.team'])->group(function () {
+    Route::get('/repositories', [GitHubIntegrationController::class, 'listRepositories'])
+        ->name('repositories');
+    Route::get('/contents/{owner}/{repo}/{path?}', [GitHubIntegrationController::class, 'getContents'])
+        ->name('contents')
+        ->where('path', '.*');
+    Route::get('/file/{owner}/{repo}/{path}', [GitHubIntegrationController::class, 'getFileContent'])
+        ->name('file.content')
+        ->where('path', '.*');
+    Route::post('/create-project', [GitHubIntegrationController::class, 'createProjectFromRepo'])
+        ->name('create.project');
+});
+
+// GitHub OAuth Routes
+Route::get('/github/redirect', [GitHubIntegrationController::class, 'redirect'])
+    ->name('github.redirect');
+Route::get('/github/callback', [GitHubIntegrationController::class, 'callback'])
+    ->name('github.callback');
+Route::post('/github/disconnect', [GitHubIntegrationController::class, 'disconnect'])
+    ->name('github.disconnect');
 
 
 // DEV LOGS (REMOVE BEFORE DEPLOYMENT)
