@@ -56,7 +56,15 @@ return [
         'client_id' => env('GITHUB_OAUTH_CLIENT_ID'),
         'client_secret' => env('GITHUB_OAUTH_CLIENT_SECRET'),
         'redirect' => env('GITHUB_OAUTH_CALLBACK_URL'),
+        'redirect_uri' => env('GITHUB_REDIRECT_URI'),
         'api_uri'       => env('GITHUB_API_URI', 'https://api.github.com'),
+    ],
+
+    'github_integration' => [
+        'client_id' => env('GITHUB_INTEGRATION_CLIENT_ID'),
+        'client_secret' => env('GITHUB_INTEGRATION_CLIENT_SECRET'),
+        'redirect' => env('GITHUB_INTEGRATION_REDIRECT_URI'),
+        'api_uri' => 'https://api.github.com',
     ],
     'google' => [
         'client_id' => env('GOOGLE_OAUTH_CLIENT_ID'),

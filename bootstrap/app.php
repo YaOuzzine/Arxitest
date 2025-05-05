@@ -19,8 +19,11 @@ return Application::configure(basePath: dirname(__DIR__))
             \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
         ]);
 
+        $middleware->append(\App\Http\Middleware\CheckGitHubConnected::class);
+
         $middleware->alias([
             'require.team' => \App\Http\Middleware\RequireTeamSelection::class,
+            ''
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

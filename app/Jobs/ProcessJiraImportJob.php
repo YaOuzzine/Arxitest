@@ -66,10 +66,20 @@ class ProcessJiraImportJob implements ShouldQueue
             $importBatchId = Str::uuid()->toString();
             $importTimestamp = now();
 
+            // Track processed items to avoid duplicates
+            $processedEpicKeys = [];
+            $processedStoryKeys = [];
+
             // Process Epics -> Test Suites
             if ($importEpics) {
                 foreach ($this->issues as $issueIndex => $issue) {
                     if ($this->getIssueType($issue) === 'Epic') {
+                        // Skip if we've already processed this epic
+                        if (in_array($issue['key'], $processedEpicKeys)) {
+                            continue;
+                        }
+                        $processedEpicKeys[] = $issue['key'];
+
                         $epicName = $this->getIssueSummary($issue);
                         $epicDescription = $this->getIssueDescription($issue);
 
@@ -131,6 +141,12 @@ class ProcessJiraImportJob implements ShouldQueue
                     if ($issueType === 'Epic' || !in_array($issueType, ['Story', 'Task', 'Bug'])) {
                         continue;
                     }
+
+                    // Skip if we've already processed this story
+                    if (in_array($issue['key'], $processedStoryKeys)) {
+                        continue;
+                    }
+                    $processedStoryKeys[] = $issue['key'];
 
                     $storyTitle = $this->getIssueSummary($issue);
                     $storyDescription = $this->getIssueDescription($issue);

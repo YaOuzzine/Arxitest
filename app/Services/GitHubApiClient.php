@@ -13,7 +13,7 @@ class GitHubApiClient extends ApiClient
 
     public function __construct()
     {
-        $this->config = config('services.github', []);
+        $this->config = config('services.github_integration', []);
         parent::__construct();
     }
 
@@ -41,13 +41,21 @@ class GitHubApiClient extends ApiClient
      */
     public function exchangeCode(string $code): array
     {
+        Log::info('Exchanging GitHub code for token', ['code_preview' => substr($code, 0, 5) . '...']);
+
         $response = Http::withHeaders([
             'Accept' => 'application/json',
         ])->post('https://github.com/login/oauth/access_token', [
             'client_id' => $this->config('client_id'),
             'client_secret' => $this->config('client_secret'),
             'code' => $code,
-            'redirect_uri' => $this->config('redirect_uri'),
+            'redirect_uri' => $this->config('redirect'),
+        ]);
+
+        Log::info('GitHub token exchange response', [
+            'status' => $response->status(),
+            'is_success' => $response->successful(),
+            'content_preview' => substr($response->body(), 0, 100)
         ]);
 
         if ($response->failed()) {

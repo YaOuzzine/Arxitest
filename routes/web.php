@@ -351,14 +351,14 @@ Route::prefix('/api/github')->name('api.github.')->middleware(['web', 'auth:web'
 });
 
 // GitHub OAuth Routes
-Route::get('/github/redirect', [GitHubIntegrationController::class, 'redirect'])
-    ->name('github.redirect');
-Route::get('/github/callback', [GitHubIntegrationController::class, 'callback'])
-    ->name('github.callback');
-Route::post('/github/disconnect', [GitHubIntegrationController::class, 'disconnect'])
-    ->name('github.disconnect');
-
-
+Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
+    Route::get('/github/redirect', [GitHubIntegrationController::class, 'redirect'])
+        ->name('github.redirect');
+    Route::get('/github/callback', [GitHubIntegrationController::class, 'callback'])
+        ->name('github.callback');
+    Route::post('/github/disconnect', [GitHubIntegrationController::class, 'disconnect'])
+        ->name('github.disconnect');
+});
 // DEV LOGS (REMOVE BEFORE DEPLOYMENT)
 
 Route::get('/view-logs', function () {

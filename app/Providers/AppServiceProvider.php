@@ -14,7 +14,6 @@ use App\Http\Middleware\CheckGitHubConnected;
 use App\Services\AI\AIGenerationService;
 use App\Services\GitHubApiClient;
 use SocialiteProviders\GitHub\GitHubExtendSocialite;
-use Illuminate\Contracts\Http\Kernel;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -44,8 +43,5 @@ class AppServiceProvider extends ServiceProvider
         });
 
         View::composer('layouts.dashboard', DashboardLayoutComposer::class);
-
-        $kernel = $this->app->make(Kernel::class);
-        $kernel->pushMiddleware(CheckGitHubConnected::class);
     }
 }

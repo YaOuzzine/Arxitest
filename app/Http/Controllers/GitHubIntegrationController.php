@@ -30,6 +30,13 @@ class GitHubIntegrationController extends Controller
      */
     public function redirect(Request $request)
     {
+        Log::debug('GitHub Integration configuration check', [
+            'client_id_configured' => !empty(config('services.github_integration.client_id')),
+            'client_id_preview' => !empty(config('services.github_integration.client_id')) ?
+                substr(config('services.github_integration.client_id'), 0, 3) . '...' : 'not set',
+            'redirect_uri' => config('services.github_integration.redirect'),
+        ]);
+
         $userId = Auth::id();
         $team = $this->getCurrentTeam($request);
         $currentTeamId = $team->id;
@@ -46,11 +53,15 @@ class GitHubIntegrationController extends Controller
 
         // Build the authorization URL
         $query = http_build_query([
-            'client_id' => config('services.github.client_id'),
-            'redirect_uri' => config('services.github.redirect_uri'),
+            'client_id' => config('services.github_integration.client_id'),
+            'redirect_uri' => config('services.github_integration.redirect'),
             'scope' => implode(' ', $scopes),
             'state' => $state,
             'allow_signup' => false,
+        ]);
+
+        Log::info('Redirecting to GitHub OAuth', [
+            'url' => "https://github.com/login/oauth/authorize?{$query}"
         ]);
 
         return redirect("https://github.com/login/oauth/authorize?{$query}");
@@ -61,6 +72,16 @@ class GitHubIntegrationController extends Controller
      */
     public function callback(Request $request)
     {
+        Log::info('GitHub integration callback received', [
+            'has_code' => $request->has('code'),
+            'code_preview' => $request->has('code') ? substr($request->code, 0, 5) . '...' : 'none',
+            'has_state' => $request->has('state'),
+            'state' => $request->state,
+            'full_url' => $request->fullUrl(),
+            'error' => $request->error,
+            'error_description' => $request->error_description
+        ]);
+
         $stateParam = $request->state;
         if (empty($stateParam)) {
             return redirect()->route('dashboard.integrations.index')
@@ -140,10 +161,17 @@ class GitHubIntegrationController extends Controller
                 Auth::loginUsingId($userId, true);
                 session(['current_team' => $teamId]);
             }
+            // Explicitly set the session value for GitHub connection status
+            session(['github_connected' => true]);
+            session()->save();
 
+            // Log the session state for debugging
+            Log::info('GitHub connection saved to session', [
+                'github_connected' => session('github_connected'),
+                'session_id' => session()->getId()
+            ]);
             return redirect()->route('dashboard.integrations.index')
                 ->with('success', 'GitHub connected successfully.');
-
         } catch (\Exception $e) {
             Log::error('GitHub OAuth error', ['error' => $e->getMessage()]);
             return redirect()->route('dashboard.integrations.index')
@@ -172,9 +200,21 @@ class GitHubIntegrationController extends Controller
             ->where('integration_id', $githubIntegration->id)
             ->delete();
 
+        // Update session to reflect disconnected status
+        session(['github_connected' => false]);
+        session()->save();
+
+        Log::info('GitHub integration disconnected', [
+            'team_id' => $currentTeamId,
+            'records_deleted' => $deleted,
+            'session_updated' => true,
+            'github_connected_session' => session('github_connected')
+        ]);
+
         if ($deleted) {
             return redirect()->route('dashboard.integrations.index')
-                ->with('success', 'GitHub disconnected successfully.');
+                ->with('success', 'GitHub disconnected successfully.')
+                ->with('github_connected', false);  // Also add to flash data
         }
 
         return redirect()->route('dashboard.integrations.index')
