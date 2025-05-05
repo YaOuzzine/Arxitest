@@ -68,10 +68,16 @@ class ProcessJiraImportJob implements ShouldQueue
 
             // Process Epics -> Test Suites
             if ($importEpics) {
-                foreach ($this->issues as $issue) {
+                foreach ($this->issues as $issueIndex => $issue) {
                     if ($this->getIssueType($issue) === 'Epic') {
                         $epicName = $this->getIssueSummary($issue);
                         $epicDescription = $this->getIssueDescription($issue);
+
+                        Log::info('Processing Epic', [
+                            'epic_index' => $issueIndex,
+                            'epic_key' => $issue['key'],
+                            'epic_name' => $epicName
+                        ]);
 
                         // Create or update test suite
                         $testSuite = TestSuite::updateOrCreate(
@@ -96,6 +102,12 @@ class ProcessJiraImportJob implements ShouldQueue
                             ]
                         );
 
+                        Log::info('Created/Updated TestSuite from Epic', [
+                            'epic_key' => $issue['key'],
+                            'test_suite_id' => $testSuite->id,
+                            'test_suite_name' => $testSuite->name
+                        ]);
+
                         $epicToSuiteMap[$issue['id']] = $testSuite->id;
                         $epicCount++;
 
@@ -105,9 +117,14 @@ class ProcessJiraImportJob implements ShouldQueue
                 }
             }
 
+            Log::info('Epic processing completed', [
+                'total_epics_processed' => $epicCount,
+                'epic_to_suite_map_count' => count($epicToSuiteMap)
+            ]);
+
             // Process Stories/Tasks/Bugs -> Test Cases
             if ($importStories) {
-                foreach ($this->issues as $issue) {
+                foreach ($this->issues as $issueIndex => $issue) {
                     $issueType = $this->getIssueType($issue);
 
                     // Skip epics and unknown issue types
@@ -120,6 +137,14 @@ class ProcessJiraImportJob implements ShouldQueue
                     $parentEpicId = $this->getParentEpicId($issue);
                     $acceptanceCriteria = $this->getAcceptanceCriteria($issue);
 
+                    Log::info('Processing Story/Task/Bug', [
+                        'issue_index' => $issueIndex,
+                        'issue_key' => $issue['key'],
+                        'issue_type' => $issueType,
+                        'issue_title' => $storyTitle,
+                        'parent_epic_id' => $parentEpicId
+                    ]);
+
                     // Extract acceptance criteria
                     $criteria = $this->parseAcceptanceCriteria($acceptanceCriteria, $storyDescription);
 
@@ -127,6 +152,11 @@ class ProcessJiraImportJob implements ShouldQueue
                     $suiteId = null;
                     if ($parentEpicId && isset($epicToSuiteMap[$parentEpicId])) {
                         $suiteId = $epicToSuiteMap[$parentEpicId];
+                        Log::info('Found parent epic suite', [
+                            'issue_key' => $issue['key'],
+                            'parent_epic_id' => $parentEpicId,
+                            'suite_id' => $suiteId
+                        ]);
                     } else {
                         // Create default suite if needed
                         if (!$defaultSuite) {
@@ -145,8 +175,15 @@ class ProcessJiraImportJob implements ShouldQueue
                                     ]
                                 ]
                             );
+                            Log::info('Created default test suite for uncategorized issues', [
+                                'default_suite_id' => $defaultSuite->id
+                            ]);
                         }
                         $suiteId = $defaultSuite->id;
+                        Log::info('Using default suite', [
+                            'issue_key' => $issue['key'],
+                            'default_suite_id' => $suiteId
+                        ]);
                     }
 
                     // Create the Arxitest Story
@@ -172,6 +209,12 @@ class ProcessJiraImportJob implements ShouldQueue
                             ]
                         ]
                     );
+
+                    Log::info('Created/Updated Story', [
+                        'issue_key' => $issue['key'],
+                        'story_id' => $arxitestStory->id,
+                        'story_title' => $arxitestStory->title
+                    ]);
 
                     $storyCount++;
                     $this->updateProgress('stories', 1);
@@ -200,16 +243,43 @@ class ProcessJiraImportJob implements ShouldQueue
                         ]
                     );
 
+                    Log::info('Created/Updated TestCase', [
+                        'issue_key' => $issue['key'],
+                        'test_case_id' => $testCase->id,
+                        'test_case_title' => $testCase->title,
+                        'suite_id' => $suiteId,
+                        'step_count' => count($testSteps)
+                    ]);
+
                     $testCaseCount++;
                     $this->updateProgress('testCases', 1);
 
                     // Generate test scripts if requested
                     if ($generateTestScripts) {
-                        $this->generateTestScript($testCase, $importBatchId);
-                        $testScriptCount++;
+                        try {
+                            $this->generateTestScript($testCase, $importBatchId);
+                            $testScriptCount++;
+                            $this->updateProgress('testScripts', 1);
+                        } catch (\Exception $e) {
+                            Log::error('Failed to generate test script', [
+                                'test_case_id' => $testCase->id,
+                                'error' => $e->getMessage()
+                            ]);
+                        }
                     }
                 }
             }
+
+            // Log detailed completion summary
+            Log::info('Jira import completed successfully', [
+                'project_id' => $this->projectId,
+                'issues_processed' => count($this->issues),
+                'epics_created' => $epicCount,
+                'stories_created' => $storyCount,
+                'test_cases_created' => $testCaseCount,
+                'test_scripts_created' => $testScriptCount,
+                'import_batch_id' => $importBatchId
+            ]);
 
             // Update final progress and mark as completed
             $this->setImportCompleted(true, [
@@ -220,13 +290,6 @@ class ProcessJiraImportJob implements ShouldQueue
                 'batchId' => $importBatchId
             ]);
 
-            Log::info('Jira import completed successfully', [
-                'project_id' => $this->projectId,
-                'epics' => $epicCount,
-                'stories' => $storyCount,
-                'test_cases' => $testCaseCount,
-                'test_scripts' => $testScriptCount
-            ]);
         } catch (\Exception $e) {
             Log::error('Jira import job failed', [
                 'project_id' => $this->projectId,
@@ -248,6 +311,12 @@ class ProcessJiraImportJob implements ShouldQueue
         $progress = cache()->get($cacheKey, []);
         $progress[$key] = ($progress[$key] ?? 0) + $count;
         cache()->put($cacheKey, $progress, 3600);
+
+        Log::info("Updated progress counter", [
+            'key' => $key,
+            'increment' => $count,
+            'new_total' => $progress[$key]
+        ]);
     }
 
     /**
@@ -263,6 +332,12 @@ class ProcessJiraImportJob implements ShouldQueue
         if ($error !== null) $progress['error'] = $error;
         $progress['end_time'] = now()->timestamp;
         cache()->put($cacheKey, $progress, 3600);
+
+        Log::info("Import marked as completed", [
+            'success' => $success,
+            'stats' => $stats,
+            'error' => $error
+        ]);
     }
 
     // Helper methods for extracting data from Jira issues
@@ -507,7 +582,7 @@ class ProcessJiraImportJob implements ShouldQueue
             // Create test script record
             $testScript = new \App\Models\TestScript();
             $testScript->test_case_id = $testCase->id;
-            $testScript->creator_id = 1; // System user ID or null
+            $testScript->creator_id = auth()->id() ?? 1; // System user ID or admin
             $testScript->name = "{$testCase->title} - {$framework} Script";
             $testScript->framework_type = $framework;
             $testScript->script_content = $scriptContent['content'] ?? '';
@@ -518,16 +593,16 @@ class ProcessJiraImportJob implements ShouldQueue
             ];
             $testScript->save();
 
-            $this->updateProgress('testScripts', 1);
-
             Log::info('Generated test script for test case', [
                 'test_case_id' => $testCase->id,
                 'test_script_id' => $testScript->id
             ]);
         } catch (\Exception $e) {
             // Log error but continue with other test cases
-            Log::error("Failed to generate script for test case {$testCase->id}", [
+            Log::error('Failed to generate script for test case', [
+                'test_case_id' => $testCase->id,
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
         }
     }
