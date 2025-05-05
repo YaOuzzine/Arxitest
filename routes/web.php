@@ -145,7 +145,6 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
             ->name('available-test-cases');
         Route::post('/{test_suite}/add-test-cases', [TestSuiteController::class, 'addTestCases'])
             ->name('add-test-cases');
-
     });
 
     Route::prefix('dashboard/api')->name('dashboard.api.')->group(function () {
@@ -167,7 +166,7 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
         Route::put('/{test_case}', [TestCaseController::class, 'update'])->name('update');
         Route::delete('/{test_case}', [TestCaseController::class, 'destroy'])->name('destroy');
         Route::post('/{test_case}/remove-from-suite', [TestCaseController::class, 'removeFromSuite'])
-        ->name('remove-from-suite');
+            ->name('remove-from-suite');
     });
 
     // Test Suite-specific Test Cases
@@ -248,8 +247,6 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
             ->name('preview-import');
 
         // Import execution and progress tracking
-        Route::post('/import', [JiraImportController::class, 'importProject'])
-            ->name('import.project');
         Route::get('/import/progress/{project_id?}', [JiraImportController::class, 'getImportProgress'])
             ->name('import.progress');
     });
