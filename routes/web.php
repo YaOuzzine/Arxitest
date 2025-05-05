@@ -242,6 +242,8 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
         // Import execution and progress tracking
         Route::get('/import/progress/{project_id?}', [JiraImportController::class, 'getImportProgress'])
             ->name('import.progress');
+        Route::post('/import-project', [JiraImportController::class, 'importProject'])
+            ->name('import.project');
     });
 });
 

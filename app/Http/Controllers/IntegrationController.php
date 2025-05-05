@@ -9,6 +9,7 @@ use App\Models\ProjectIntegration;
 use App\Models\Team;
 use App\Models\User;
 use App\Services\JiraApiClient;
+use App\Services\JiraService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
@@ -87,7 +88,52 @@ class IntegrationController extends Controller
             $resources = $this->jiraClient->getResources($tokenData['access_token']);
             $site = $resources[0];
 
-            // Save credentials logic...
+            // Create or update the integration record
+            $integration = Integration::firstOrCreate(
+                ['type' => Integration::TYPE_JIRA],
+                [
+                    'name' => 'Jira',
+                    'base_url' => $site['url'],
+                    'is_active' => true
+                ]
+            );
+
+            // Find a project to store the integration with
+            $team = Team::find($teamId);
+            $project = $team->projects()->first() ?? Project::create([
+                'name' => $team->name . ' – Jira Credentials',
+                'description' => 'Holds Jira OAuth tokens for the team.',
+                'team_id' => $team->id,
+                'settings' => ['is_placeholder' => true],
+            ]);
+
+            // Store encrypted credentials
+            $credentials = [
+                'access_token' => $tokenData['access_token'],
+                'refresh_token' => $tokenData['refresh_token'],
+                'expires_at' => now()->addSeconds($tokenData['expires_in'])->timestamp,
+                'cloud_id' => $site['id'],
+                'site_url' => $site['url'],
+                'created_at' => now()->timestamp,
+            ];
+
+            $encrypted = Crypt::encryptString(json_encode($credentials));
+
+            // Update or create project integration
+            ProjectIntegration::updateOrCreate(
+                [
+                    'project_id' => $project->id,
+                    'integration_id' => $integration->id
+                ],
+                [
+                    'encrypted_credentials' => $encrypted,
+                    'is_active' => true,
+                    'project_specific_config' => [
+                        'cloud_id' => $site['id'],
+                        'site_url' => $site['url'],
+                    ],
+                ]
+            );
 
             // Important - This block ensures the user is logged in when returning from OAuth
             if (!Auth::check()) {
@@ -104,6 +150,41 @@ class IntegrationController extends Controller
             return redirect()->route('dashboard.integrations.index')
                 ->with('error', 'Jira authorization failed: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Show options for importing from Jira.
+     */
+    public function showJiraImportOptions(Request $request)
+    {
+        $team = $this->getCurrentTeam($request);
+        $teamId = $team->id;
+
+        $jiraConnected = ProjectIntegration::whereHas('project', fn($q) => $q->where('team_id', $teamId))
+            ->whereHas('integration', fn($q) => $q->where('type', Integration::TYPE_JIRA))
+            ->where('is_active', true)
+            ->exists();
+
+        if (!$jiraConnected) {
+            return redirect()->route('dashboard.integrations.index')
+                ->with('error', 'Please connect Jira before importing.');
+        }
+
+        try {
+            $jiraService = new JiraService($teamId);
+            $jiraProjects = $jiraService->getProjects();
+        } catch (\Exception $e) {
+            Log::error('Error fetching Jira projects for import options', [
+                'error' => $e->getMessage(),
+                'team_id' => $teamId
+            ]);
+            return redirect()->route('dashboard.integrations.index')
+                ->with('error', 'Could not access Jira projects: ' . $e->getMessage());
+        }
+
+        $existingProjects = $team->projects()->get(['id', 'name']);
+
+        return view('dashboard.integrations.jira-import-options', compact('jiraProjects', 'existingProjects', 'team'));
     }
 
     public function jiraDisconnect(Request $request)
