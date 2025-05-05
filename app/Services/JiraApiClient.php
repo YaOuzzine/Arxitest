@@ -78,15 +78,26 @@ class JiraApiClient extends ApiClient
 
     public function exchangeCode(string $code): array
     {
-        return $this->request('post', '/oauth/token', [
-            'form_params' => [
+        $url = rtrim($this->config('base_uri'), '/') . '/oauth/token';
+
+        try {
+            $response = Http::asForm()->post($url, [
                 'grant_type'    => 'authorization_code',
                 'client_id'     => $this->config('client_id'),
                 'client_secret' => $this->config('client_secret'),
                 'code'          => $code,
                 'redirect_uri'  => $this->config('redirect'),
-            ],
-        ]);
+            ]);
+
+            $response->throw();
+            return $response->json();
+        } catch (\Exception $e) {
+            Log::error('Jira token exchange failed', [
+                'url' => $url,
+                'error' => $e->getMessage()
+            ]);
+            throw new ApiException('Failed to exchange code for token: ' . $e->getMessage(), 400, $e);
+        }
     }
 
     /**
@@ -103,10 +114,14 @@ class JiraApiClient extends ApiClient
 
     public function getResources(string $accessToken): array
     {
-        return $this->request('get', '/oauth/token/accessible-resources', [
-            'headers' => ['Authorization' => "Bearer $accessToken"],
-        ]);
+        return Http::withHeaders([
+            'Accept'        => 'application/json',
+            'Authorization' => "Bearer $accessToken",
+        ])->get('https://api.atlassian.com/oauth/token/accessible-resources')
+            ->throw()        // optional: ensures exceptions on 4xx/5xx
+            ->json();
     }
+
 
     public function refreshToken(string $refreshToken): array
     {

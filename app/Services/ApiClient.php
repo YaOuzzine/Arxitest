@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Services;
 
 use Illuminate\Http\Client\RequestException;
@@ -16,7 +17,7 @@ abstract class ApiClient
 
     public function __construct()
     {
-        $this->baseUri = rtrim($this->config('base_uri'), '/');
+        $this->baseUri = rtrim($this->config('api_uri'), '/');
     }
 
     /** Get provider-specific config */
@@ -31,33 +32,29 @@ abstract class ApiClient
     {
         $url = $this->baseUri . '/' . ltrim($uri, '/');
 
-        try {
-            $response = Http::withHeaders($this->defaultHeaders)
-                            ->$method($url, $options)
-                            ->throw(); // will throw RequestException on 4xx/5xx
+        // Merge default and custom headers
+        $headers = array_merge(
+            $this->defaultHeaders,
+            $options['headers'] ?? []
+        );
+        $httpRequest = Http::withHeaders($headers);
 
-            return $response->json();
-        } catch (RequestException $e) {
-            Log::error("{$this->providerName()} API error", [
-                'method' => strtoupper($method),
-                'url'    => $url,
-                'body'   => $e->response?->body(),
-                'error'  => $e->getMessage(),
-            ]);
-            throw new ApiException(
-                "{$this->providerName()} API request failed: " . $e->getMessage(),
-                $e->response?->status() ?? 0,
-                $e
-            );
-        } catch (Throwable $e) {
-            Log::error("{$this->providerName()} HTTP error", [
-                'method' => strtoupper($method),
-                'url'    => $url,
-                'error'  => $e->getMessage(),
-            ]);
-            throw new ApiException("Unexpected HTTP error: " . $e->getMessage(), 0, $e);
+        // Remove headers from options before sending body/query
+        unset($options['headers']);
+
+        // Handle form parameters vs. direct payload
+        if (isset($options['form_params'])) {
+            $form = $options['form_params'];
+            unset($options['form_params']);
+            $response = $httpRequest->asForm()->{$method}($url, $form);
+        } else {
+            $response = $httpRequest->{$method}($url, $options);
         }
+
+        $response->throw();
+        return $response->json();
     }
+
 
     /** Override to provide nice name */
     protected function providerName(): string
