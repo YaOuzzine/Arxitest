@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\ProcessJiraImportJob;
 use App\Models\Integration;
 use App\Models\Project;
 use App\Models\ProjectIntegration;
@@ -156,6 +157,7 @@ class JiraImportController extends Controller
             $issues = $jiraService->getIssuesWithJql($jql, $fields, $validated['max_issues'] ?? 50);
 
             // Queue the actual import process as a job to prevent timeout
+
             dispatch(new ProcessJiraImportJob(
                 $project->id,
                 $issues,

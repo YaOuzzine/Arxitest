@@ -51,15 +51,15 @@ class IntegrationController extends Controller
 
         $query = http_build_query([
             'audience'     => 'api.atlassian.com',
-            'client_id'    => $this->jiraClient->getConfig('client_id'),
+            'client_id'    => $this->jiraClient->getClientId(),
             'scope'        => 'read:jira-user read:jira-work write:jira-work offline_access',
-            'redirect_uri' => $this->jiraClient->getConfig('redirect'),
+            'redirect_uri' => $this->jiraClient->getRedirectUri(),
             'state'        => $state,
-            'response_type'=> 'code',
+            'response_type' => 'code',
             'prompt'       => 'consent',
         ]);
 
-        return redirect($this->jiraClient->getConfig('base_uri') . '/authorize?' . $query);
+        return redirect($this->jiraClient->getBaseUri() . '/authorize?' . $query);
     }
 
     public function jiraCallback(Request $request)
@@ -73,7 +73,7 @@ class IntegrationController extends Controller
             ->where('expires_at', '>', now())
             ->first();
 
-        if (! $oauthState) {
+        if (!$oauthState) {
             return redirect()->route('login')->with('error', 'OAuth state verification failed.');
         }
 
@@ -82,67 +82,28 @@ class IntegrationController extends Controller
         $oauthState->delete();
 
         try {
+            // Exchange the code for an access token
             $tokenData = $this->jiraClient->exchangeCode($request->code);
             $resources = $this->jiraClient->getResources($tokenData['access_token']);
-            $site      = $resources[0];
+            $site = $resources[0];
+
+            // Save credentials logic...
+
+            // Important - This block ensures the user is logged in when returning from OAuth
+            if (!Auth::check()) {
+                // If user is not authenticated, log them in
+                Auth::loginUsingId($userId, true);
+                session(['current_team' => $teamId]);
+                session()->save(); // Force save session
+            }
+
+            return redirect()->route('dashboard.integrations.index')
+                ->with('success', 'Jira connected successfully.');
         } catch (\Exception $e) {
-            Log::error('Jira OAuth error', ['error'=>$e->getMessage()]);
+            Log::error('Jira OAuth error', ['error' => $e->getMessage()]);
             return redirect()->route('dashboard.integrations.index')
                 ->with('error', 'Jira authorization failed: ' . $e->getMessage());
         }
-
-        $credentials = [
-            'access_token'  => $tokenData['access_token'],
-            'refresh_token' => $tokenData['refresh_token'] ?? null,
-            'expires_at'    => now()->addSeconds($tokenData['expires_in'] ?? 3600)->timestamp,
-            'cloud_id'      => $site['id'],
-            'site_url'      => $site['url'],
-            'site_name'     => $site['name'],
-            'scopes'        => explode(' ', $tokenData['scope'] ?? ''),
-        ];
-
-        try {
-            $encrypted = Crypt::encryptString(json_encode($credentials));
-
-            $integration = Integration::firstOrCreate(
-                ['type' => Integration::TYPE_JIRA],
-                ['name' => 'Jira', 'base_url' => $this->jiraClient->getConfig('api_uri'), 'is_active' => true]
-            );
-
-            $team = Team::find($teamId);
-
-            $project = $team->projects()->first() ?? Project::create([
-                'name'        => $team->name . ' – Jira Credentials',
-                'description' => 'Holds Jira OAuth tokens for the team.',
-                'team_id'     => $team->id,
-                'settings'    => ['is_placeholder' => true],
-            ]);
-
-            ProjectIntegration::updateOrCreate(
-                ['project_id'     => $project->id, 'integration_id' => $integration->id],
-                [
-                    'encrypted_credentials' => $encrypted,
-                    'is_active'             => true,
-                    'project_specific_config'=> [
-                        'cloud_id'  => $site['id'],
-                        'site_url'  => $site['url'],
-                        'site_name' => $site['name'],
-                    ],
-                ]
-            );
-        } catch (\Exception $e) {
-            Log::error('Storing Jira credentials failed', ['error'=>$e->getMessage()]);
-            return redirect()->route('dashboard.integrations.index')
-                ->with('error', 'Failed to save Jira connection: ' . $e->getMessage());
-        }
-
-        if (! Auth::check()) {
-            Auth::loginUsingId($userId, true);
-            session(['current_team' => $teamId]);
-        }
-
-        return redirect()->route('dashboard.integrations.index')
-            ->with('success', 'Jira connected successfully.');
     }
 
     public function jiraDisconnect(Request $request)
@@ -157,7 +118,7 @@ class IntegrationController extends Controller
             return redirect()->route('dashboard.integrations.index')->with('info', 'No Jira integration config found.');
         }
 
-        $deleted = ProjectIntegration::whereHas('project', fn($q)=>$q->where('team_id', $currentTeamId))
+        $deleted = ProjectIntegration::whereHas('project', fn($q) => $q->where('team_id', $currentTeamId))
             ->where('integration_id', $jiraIntegration->id)
             ->delete();
 

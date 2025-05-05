@@ -224,13 +224,6 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
     Route::post('/integrations/jira/disconnect', [IntegrationController::class, 'jiraDisconnect'])
         ->name('integrations.jira.disconnect');
     Route::prefix('dashboard/integrations/jira')->name('integrations.jira.')->group(function () {
-        // Connection routes
-        Route::get('/redirect', [IntegrationController::class, 'jiraRedirect'])
-            ->name('redirect');
-        Route::get('/callback', [IntegrationController::class, 'jiraCallback'])
-            ->name('callback');
-        Route::post('/disconnect', [IntegrationController::class, 'jiraDisconnect'])
-            ->name('disconnect');
 
         // Import routes
         Route::get('/import-options', [IntegrationController::class, 'showJiraImportOptions'])

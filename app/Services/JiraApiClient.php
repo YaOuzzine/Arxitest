@@ -24,14 +24,43 @@ class JiraApiClient extends ApiClient
     }
 
     /**
-     * Get configuration value (public accessor)
+     * Get base URI for Atlassian API
      *
-     * @param string $key
-     * @return mixed
+     * @return string
      */
-    public function getConfig(string $key): mixed
+    public function getBaseUri(): string
     {
-        return $this->config($key);
+        return $this->atlassianConfig['base_uri'] ?? 'https://auth.atlassian.com';
+    }
+
+    /**
+     * Get client ID for Atlassian API
+     *
+     * @return string
+     */
+    public function getClientId(): string
+    {
+        return $this->atlassianConfig['client_id'] ?? '';
+    }
+
+    /**
+     * Get client secret for Atlassian API
+     *
+     * @return string
+     */
+    public function getClientSecret(): string
+    {
+        return $this->atlassianConfig['client_secret'] ?? '';
+    }
+
+    /**
+     * Get redirect URI for Atlassian API
+     *
+     * @return string
+     */
+    public function getRedirectUri(): string
+    {
+        return $this->atlassianConfig['redirect'] ?? '';
     }
 
     protected function config(string $key): mixed
@@ -59,6 +88,18 @@ class JiraApiClient extends ApiClient
             ],
         ]);
     }
+
+    /**
+     * Get configuration value (public accessor)
+     *
+     * @param string $key
+     * @return mixed
+     */
+    public function getConfig(string $key): mixed
+    {
+        return $this->config($key);
+    }
+
 
     public function getResources(string $accessToken): array
     {
