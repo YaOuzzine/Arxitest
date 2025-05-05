@@ -35,8 +35,9 @@ class JiraService
         } else {
             $this->initFromTeamId($contextOrId);
         }
-
+        Log::info('Loading credentials');
         $this->loadCredentials();
+        Log::info('Credentials Loaded');
     }
 
     private function initFromProject(Project $project): void

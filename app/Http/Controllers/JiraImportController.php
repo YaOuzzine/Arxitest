@@ -65,14 +65,7 @@ class JiraImportController extends Controller
      */
     public function importProject(Request $request)
     {
-
-        // $request->merge([
-        //     'create_new_project' => $request->has('create_new_project') &&
-        //                            ($request->input('create_new_project') === '1' ||
-        //                             $request->input('create_new_project') === 'true' ||
-        //                             $request->input('create_new_project') === true)
-        // ]);
-
+        Log::info('Import started', $request->all());
         $validated = $request->validate([
             'jira_project_key'       => 'required|string|max:100',
             'jira_project_name'      => 'required|string|max:255',
@@ -86,10 +79,13 @@ class JiraImportController extends Controller
             'max_issues'             => 'nullable|integer|min:0',
         ]);
 
+        Log::info('validation successful');
         $teamId = session('current_team');
         if (!$teamId) {
             return redirect()->route('dashboard.select-team')->with('error', 'Team selection required.');
         }
+
+
 
         if ($request->wantsJson() && $request->input('check_progress')) {
             $projectId = $request->boolean('create_new_project') ? null : $validated['arxitest_project_id'];
@@ -165,6 +161,10 @@ class JiraImportController extends Controller
             $issues = $jiraService->getIssuesWithJql($jql, $fields, $validated['max_issues'] ?? 50);
 
             // Queue the actual import process as a job to prevent timeout
+            Log::info('Attempting to dispatch job', [
+                'project_id' => $project->id,
+                'issues_count' => count($issues)
+            ]);
 
             dispatch(new ProcessJiraImportJob(
                 $project->id,
@@ -175,6 +175,8 @@ class JiraImportController extends Controller
                     'generateTestScripts' => $request->boolean('generate_test_scripts', false),
                 ]
             ));
+
+            Log::info('Job dispatched successfully');
 
             // Return appropriate response based on request type
             if ($request->wantsJson()) {

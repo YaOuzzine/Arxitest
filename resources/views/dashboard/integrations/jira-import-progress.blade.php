@@ -1,6 +1,6 @@
 @extends('layouts.dashboard')
 
-@section('title', 'Jira Import Progress')
+@section('title', 'Import Progress')
 
 @section('breadcrumbs')
     <li class="flex items-center">
@@ -11,377 +11,337 @@
     </li>
     <li class="flex items-center">
         <i data-lucide="chevron-right" class="w-4 h-4 text-zinc-400 mx-1"></i>
-        <a href="{{ route('integrations.jira.import.options') }}" class="text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white">
-            Jira Import
-        </a>
-    </li>
-    <li class="flex items-center">
-        <i data-lucide="chevron-right" class="w-4 h-4 text-zinc-400 mx-1"></i>
         <span class="text-zinc-700 dark:text-zinc-300">Import Progress</span>
     </li>
 @endsection
 
 @section('content')
-<div class="container mx-auto px-4 py-8">
-    <!-- Header -->
-    <div class="mb-8">
-        <h1 class="text-3xl font-bold text-zinc-900 dark:text-white tracking-tight">Import Progress</h1>
-        <p class="mt-2 text-zinc-600 dark:text-zinc-400 text-lg">
-            Tracking the status of your Jira data import
-        </p>
-    </div>
+<div class="container py-6">
+    <div class="max-w-4xl mx-auto">
+        <!-- Header -->
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold text-zinc-900 dark:text-white tracking-tight mb-2">Jira Import Progress</h1>
+            <p class="text-zinc-600 dark:text-zinc-400 import-status">Importing data from Jira...</p>
+        </div>
 
-    <!-- Progress Card -->
-    <div class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-700 overflow-hidden">
-        <div class="p-6">
-            <div class="mb-6 flex items-center">
-                <div id="status-indicator" class="w-3 h-3 rounded-full bg-amber-500 animate-pulse mr-2"></div>
-                <h2 id="status-title" class="text-xl font-semibold text-zinc-900 dark:text-white">Import in progress...</h2>
-            </div>
-
-            <div class="space-y-6">
-                <div class="space-y-2">
-                    <div class="flex justify-between text-sm text-zinc-600 dark:text-zinc-400 mb-1">
-                        <span>Overall Progress</span>
-                        <span id="overallProgressText">0%</span>
+        <!-- Progress Card -->
+        <div class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-700 overflow-hidden mb-8">
+            <div class="p-6">
+                <!-- Progress Bar -->
+                <div class="mb-6">
+                    <div class="flex justify-between mb-2">
+                        <span class="text-sm font-medium text-zinc-700 dark:text-zinc-300">Progress</span>
+                        <span id="progress-percentage" class="text-sm text-zinc-600 dark:text-zinc-400">0%</span>
                     </div>
-                    <div class="w-full bg-zinc-200 dark:bg-zinc-700 rounded-full h-3">
-                        <div id="overallProgressBar" class="bg-indigo-600 dark:bg-indigo-500 h-3 rounded-full transition-all duration-300" style="width: 0%"></div>
+                    <div class="h-4 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
+                        <div id="progress-bar" class="h-full bg-blue-600 rounded-full transition-all duration-500" style="width: 0%"></div>
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div class="space-y-4">
-                        <div>
-                            <div class="flex justify-between text-sm text-zinc-600 dark:text-zinc-400 mb-1">
-                                <span>Epics</span>
-                                <span id="epicCount">0</span>
-                            </div>
-                            <div class="w-full bg-zinc-200 dark:bg-zinc-700 rounded-full h-2">
-                                <div id="epicProgressBar" class="bg-emerald-600 dark:bg-emerald-500 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
-                            </div>
-                        </div>
-
-                        <div>
-                            <div class="flex justify-between text-sm text-zinc-600 dark:text-zinc-400 mb-1">
-                                <span>Stories</span>
-                                <span id="storyCount">0</span>
-                            </div>
-                            <div class="w-full bg-zinc-200 dark:bg-zinc-700 rounded-full h-2">
-                                <div id="storyProgressBar" class="bg-sky-600 dark:bg-sky-500 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
-                            </div>
-                        </div>
+                <!-- Import Stats -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <div class="bg-zinc-50 dark:bg-zinc-900 p-3 rounded-lg">
+                        <div class="text-sm text-zinc-500 dark:text-zinc-400">Epics</div>
+                        <div id="epics-count" class="text-2xl font-semibold text-zinc-900 dark:text-white">0</div>
                     </div>
-
-                    <div class="space-y-4">
-                        <div>
-                            <div class="flex justify-between text-sm text-zinc-600 dark:text-zinc-400 mb-1">
-                                <span>Test Cases</span>
-                                <span id="testCaseCount">0</span>
-                            </div>
-                            <div class="w-full bg-zinc-200 dark:bg-zinc-700 rounded-full h-2">
-                                <div id="testCaseProgressBar" class="bg-amber-600 dark:bg-amber-500 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
-                            </div>
-                        </div>
-
-                        <div>
-                            <div class="flex justify-between text-sm text-zinc-600 dark:text-zinc-400 mb-1">
-                                <span>Scripts</span>
-                                <span id="scriptCount">0</span>
-                            </div>
-                            <div class="w-full bg-zinc-200 dark:bg-zinc-700 rounded-full h-2">
-                                <div id="scriptProgressBar" class="bg-purple-600 dark:bg-purple-500 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
-                            </div>
-                        </div>
+                    <div class="bg-zinc-50 dark:bg-zinc-900 p-3 rounded-lg">
+                        <div class="text-sm text-zinc-500 dark:text-zinc-400">Stories</div>
+                        <div id="stories-count" class="text-2xl font-semibold text-zinc-900 dark:text-white">0</div>
+                    </div>
+                    <div class="bg-zinc-50 dark:bg-zinc-900 p-3 rounded-lg">
+                        <div class="text-sm text-zinc-500 dark:text-zinc-400">Test Cases</div>
+                        <div id="test-cases-count" class="text-2xl font-semibold text-zinc-900 dark:text-white">0</div>
+                    </div>
+                    <div class="bg-zinc-50 dark:bg-zinc-900 p-3 rounded-lg">
+                        <div class="text-sm text-zinc-500 dark:text-zinc-400">Test Scripts</div>
+                        <div id="test-scripts-count" class="text-2xl font-semibold text-zinc-900 dark:text-white">0</div>
                     </div>
                 </div>
 
-                <div id="importStatus" class="p-4 bg-zinc-100 dark:bg-zinc-700/30 border border-zinc-200 dark:border-zinc-700 rounded-lg text-zinc-700 dark:text-zinc-300 text-sm">
-                    Preparing import...
-                </div>
-
-                <div id="importError" class="p-4 bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg text-red-800 dark:text-red-300 text-sm hidden">
-                    Error message will appear here
-                </div>
-
-                <div id="importSuccess" class="p-4 bg-green-100 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-lg text-green-800 dark:text-green-300 text-sm hidden">
-                    <p class="mb-2 font-medium">Import completed successfully!</p>
-                    <div id="importStats" class="text-sm"></div>
-                </div>
-
-                <div class="flex justify-end space-x-3">
-                    <a href="{{ route('dashboard.integrations.index') }}" class="btn-secondary">
-                        <i data-lucide="arrow-left" class="w-4 h-4 mr-1"></i>
-                        Back to Integrations
-                    </a>
-
-                    <button id="cancelImportBtn" class="btn-secondary">
-                        <i data-lucide="x" class="w-4 h-4 mr-1"></i>
-                        Cancel Import
-                    </button>
-
-                    <a href="#" id="viewProjectBtn" class="btn-primary hidden">
-                        <i data-lucide="external-link" class="w-4 h-4 mr-1"></i>
-                        View Project
-                    </a>
+                <!-- Time Information -->
+                <div class="flex flex-col sm:flex-row justify-between text-sm text-zinc-600 dark:text-zinc-400">
+                    <div>Started: <span id="start-time">Just now</span></div>
+                    <div>Time Elapsed: <span id="elapsed-time">00:00</span></div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- Import Details (Shows when complete) -->
-    <div id="importDetails" class="mt-8 hidden">
-        <h2 class="text-xl font-semibold text-zinc-900 dark:text-white mb-4">Import Details</h2>
+        <!-- Import Messages -->
+        <div id="import-messages" class="space-y-4">
+            <div class="flex items-center text-zinc-600 dark:text-zinc-400">
+                <div class="animate-pulse mr-3">
+                    <i data-lucide="loader-2" class="w-5 h-5"></i>
+                </div>
+                <span>Preparing import process...</span>
+            </div>
+        </div>
 
-        <div class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-700 overflow-hidden">
-            <table class="min-w-full divide-y divide-zinc-200 dark:divide-zinc-700">
-                <thead class="bg-zinc-50 dark:bg-zinc-800">
-                    <tr>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Type</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Count</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Status</th>
-                    </tr>
-                </thead>
-                <tbody class="bg-white dark:bg-zinc-800 divide-y divide-zinc-200 dark:divide-zinc-700">
-                    <tr>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-white">Epics</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-white" id="detailEpics">0</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm">
-                            <span id="detailEpicsStatus" class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">
-                                Complete
-                            </span>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-white">Stories</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-white" id="detailStories">0</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm">
-                            <span id="detailStoriesStatus" class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">
-                                Complete
-                            </span>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-white">Test Cases</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-white" id="detailTestCases">0</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm">
-                            <span id="detailTestCasesStatus" class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">
-                                Complete
-                            </span>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-white">Test Scripts</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-white" id="detailScripts">0</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm">
-                            <span id="detailScriptsStatus" class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">
-                                Complete
-                            </span>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
+        <!-- Success State (Hidden by default) -->
+        <div id="success-state" class="hidden mt-8 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-6 text-center">
+            <div class="mb-4">
+                <div class="mx-auto w-16 h-16 bg-green-100 dark:bg-green-800 rounded-full flex items-center justify-center">
+                    <i data-lucide="check" class="w-8 h-8 text-green-600 dark:text-green-400"></i>
+                </div>
+            </div>
+            <h3 class="text-xl font-semibold text-green-700 dark:text-green-400 mb-2">Import Completed Successfully</h3>
+            <p class="text-green-600 dark:text-green-300 mb-4" id="success-message">
+                All items have been imported successfully.
+            </p>
+            <div class="space-x-4">
+                <a href="#" id="view-project-link" class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                    View Project
+                </a>
+                <a href="{{ route('dashboard.integrations.index') }}" class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    Back to Integrations
+                </a>
+            </div>
+        </div>
+
+        <!-- Error State (Hidden by default) -->
+        <div id="error-state" class="hidden mt-8 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-6 text-center">
+            <div class="mb-4">
+                <div class="mx-auto w-16 h-16 bg-red-100 dark:bg-red-800 rounded-full flex items-center justify-center">
+                    <i data-lucide="alert-circle" class="w-8 h-8 text-red-600 dark:text-red-400"></i>
+                </div>
+            </div>
+            <h3 class="text-xl font-semibold text-red-700 dark:text-red-400 mb-2">Import Failed</h3>
+            <p class="text-red-600 dark:text-red-300 mb-6" id="error-message">
+                An error occurred during the import process.
+            </p>
+            <div class="space-x-4">
+                <a href="{{ route('integrations.jira.import.options') }}" class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+                    Try Again
+                </a>
+                <a href="{{ route('dashboard.integrations.index') }}" class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    Back to Integrations
+                </a>
+            </div>
         </div>
     </div>
 </div>
+
+<!-- Hidden input with project ID from URL -->
+<input type="hidden" id="project-id" value="{{ $project_id ?? request()->query('project_id', '') }}">
 @endsection
-
-@push('styles')
-<style>
-    .btn-primary {
-        @apply inline-flex items-center px-4 py-2 rounded-lg font-medium bg-gradient-to-br from-indigo-600 to-indigo-700 text-white shadow-sm hover:shadow-md transition-all duration-200 hover:scale-[1.02];
-    }
-
-    .btn-secondary {
-        @apply inline-flex items-center px-3 py-2 rounded-lg font-medium bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors duration-200;
-    }
-</style>
-@endpush
 
 @push('scripts')
 <script>
     document.addEventListener('DOMContentLoaded', function() {
+        // Initialize Lucide icons
         lucide.createIcons();
 
-        // Get progress elements
-        const statusIndicator = document.getElementById('status-indicator');
-        const statusTitle = document.getElementById('status-title');
-        const overallProgressBar = document.getElementById('overallProgressBar');
-        const overallProgressText = document.getElementById('overallProgressText');
-        const epicCount = document.getElementById('epicCount');
-        const storyCount = document.getElementById('storyCount');
-        const testCaseCount = document.getElementById('testCaseCount');
-        const scriptCount = document.getElementById('scriptCount');
-        const epicProgressBar = document.getElementById('epicProgressBar');
-        const storyProgressBar = document.getElementById('storyProgressBar');
-        const testCaseProgressBar = document.getElementById('testCaseProgressBar');
-        const scriptProgressBar = document.getElementById('scriptProgressBar');
-        const importStatus = document.getElementById('importStatus');
-        const importError = document.getElementById('importError');
-        const importSuccess = document.getElementById('importSuccess');
-        const importStats = document.getElementById('importStats');
-        const viewProjectBtn = document.getElementById('viewProjectBtn');
-        const cancelImportBtn = document.getElementById('cancelImportBtn');
-        const importDetails = document.getElementById('importDetails');
+        // Elements
+        const projectId = document.getElementById('project-id').value;
+        const progressBar = document.getElementById('progress-bar');
+        const progressPercentage = document.getElementById('progress-percentage');
+        const epicsCount = document.getElementById('epics-count');
+        const storiesCount = document.getElementById('stories-count');
+        const testCasesCount = document.getElementById('test-cases-count');
+        const testScriptsCount = document.getElementById('test-scripts-count');
+        const startTime = document.getElementById('start-time');
+        const elapsedTime = document.getElementById('elapsed-time');
+        const importMessages = document.getElementById('import-messages');
+        const successState = document.getElementById('success-state');
+        const errorState = document.getElementById('error-state');
+        const errorMessage = document.getElementById('error-message');
+        const successMessage = document.getElementById('success-message');
+        const viewProjectLink = document.getElementById('view-project-link');
+        const importStatus = document.querySelector('.import-status');
 
-        // Detail table elements
-        const detailEpics = document.getElementById('detailEpics');
-        const detailStories = document.getElementById('detailStories');
-        const detailTestCases = document.getElementById('detailTestCases');
-        const detailScripts = document.getElementById('detailScripts');
-
-        // Get project ID from URL parameter if available
-        const urlParams = new URLSearchParams(window.location.search);
-        let projectId = urlParams.get('project_id');
-
-        // Start progress tracking
-        let trackingInterval = setInterval(checkImportProgress, 2000);
-
-        // Cancel import button
-        cancelImportBtn.addEventListener('click', function() {
-            if (confirm('Are you sure you want to cancel the import?')) {
-                // TODO: Implement cancel endpoint
-                alert('Cancellation not implemented yet');
-                clearInterval(trackingInterval);
-            }
-        });
-
-        function checkImportProgress() {
-            let url = '{{ route("integrations.jira.import.progress") }}';
-            if (projectId) {
-                url += '?project_id=' + projectId;
-            }
-
-            fetch(url, {
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'Accept': 'application/json'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success && data.data && data.data.progress) {
-                    updateProgressUI(data.data.progress);
-
-                    // If we have a project ID now, update the URL without refreshing
-                    if (data.data.progress.project_id && !projectId) {
-                        projectId = data.data.progress.project_id;
-                        const newUrl = new URL(window.location);
-                        newUrl.searchParams.set('project_id', projectId);
-                        window.history.pushState({}, '', newUrl);
-                    }
-
-                    // Check if import is completed
-                    if (data.data.progress.completed) {
-                        clearInterval(trackingInterval);
-
-                        if (data.data.progress.success) {
-                            showImportSuccess(data.data.progress);
-                        } else {
-                            showImportError(data.data.progress.error || 'Import failed');
-                        }
-                    }
-                }
-            })
-            .catch(error => {
-                console.error('Progress check error:', error);
-                importStatus.textContent = 'Error checking progress: ' + error.message;
-            });
+        // Check if we have a project ID
+        if (!projectId) {
+            importStatus.textContent = 'Error: No project ID provided';
+            addLogMessage('Error: No project ID provided', 'error');
+            return;
         }
 
-        function updateProgressUI(progress) {
-            // Update counts
-            epicCount.textContent = progress.epics || '0';
-            storyCount.textContent = progress.stories || '0';
-            testCaseCount.textContent = progress.testCases || '0';
-            scriptCount.textContent = progress.testScripts || '0';
+        // Update the view project link
+        viewProjectLink.href = `/dashboard/projects/${projectId}`;
 
-            // Update detail counts as well
-            detailEpics.textContent = progress.epics || '0';
-            detailStories.textContent = progress.stories || '0';
-            detailTestCases.textContent = progress.testCases || '0';
-            detailScripts.textContent = progress.testScripts || '0';
+        // Set last message timestamp to track new messages
+        let lastMessageTimestamp = 0;
 
-            // Update progress bars
-            const totalItems = 100; // Estimate for calculation
-            epicProgressBar.style.width = Math.min(100, ((progress.epics || 0) / totalItems * 100)) + '%';
-            storyProgressBar.style.width = Math.min(100, ((progress.stories || 0) / totalItems * 100)) + '%';
-            testCaseProgressBar.style.width = Math.min(100, ((progress.testCases || 0) / totalItems * 100)) + '%';
-            scriptProgressBar.style.width = Math.min(100, ((progress.testScripts || 0) / totalItems * 100)) + '%';
+        // Start polling for progress
+        let pollInterval = 2000; // Start with 2 seconds
+        let completed = false;
+        let startedAt = new Date();
+        let elapsedTimer;
 
-            // Calculate overall progress (simplified)
-            let overallPercent = 0;
-            if (progress.completed) {
-                overallPercent = 100;
-            } else {
-                const items = (progress.epics || 0) + (progress.stories || 0) +
-                              (progress.testCases || 0) + (progress.testScripts || 0);
-                overallPercent = Math.min(95, Math.floor(items / (totalItems * 2) * 100));
-            }
+        // Update elapsed time display
+        function updateElapsedTime() {
+            const now = new Date();
+            const diff = Math.floor((now - startedAt) / 1000); // seconds
 
-            overallProgressBar.style.width = overallPercent + '%';
-            overallProgressText.textContent = overallPercent + '%';
-
-            // Update status message
-            if (progress.completed) {
-                if (progress.success) {
-                    importStatus.textContent = 'Import completed successfully!';
-                    statusTitle.textContent = 'Import Completed';
-                    statusIndicator.classList.remove('bg-amber-500', 'animate-pulse');
-                    statusIndicator.classList.add('bg-green-500');
-                } else {
-                    importStatus.textContent = 'Import failed';
-                    statusTitle.textContent = 'Import Failed';
-                    statusIndicator.classList.remove('bg-amber-500', 'animate-pulse');
-                    statusIndicator.classList.add('bg-red-500');
-                }
-            } else if (progress.testScripts > 0) {
-                importStatus.textContent = 'Generating test scripts...';
-            } else if (progress.testCases > 0) {
-                importStatus.textContent = 'Creating test cases...';
-            } else if (progress.stories > 0) {
-                importStatus.textContent = 'Importing stories...';
-            } else if (progress.epics > 0) {
-                importStatus.textContent = 'Importing epics...';
-            } else {
-                importStatus.textContent = 'Processing Jira data...';
-            }
+            const minutes = Math.floor(diff / 60);
+            const seconds = diff % 60;
+            elapsedTime.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
         }
 
-        function showImportSuccess(progress) {
-            // Update status
-            statusTitle.textContent = 'Import Complete!';
-            importStatus.classList.add('hidden');
-            importSuccess.classList.remove('hidden');
-            cancelImportBtn.classList.add('hidden');
+        // Add a message to the log
+        function addLogMessage(message, type = 'info') {
+            const messageEl = document.createElement('div');
+            messageEl.className = 'flex items-center';
 
-            // Update stats
-            importStats.innerHTML = `
-                Successfully imported <strong>${progress.epics || 0}</strong> epics,
-                <strong>${progress.stories || 0}</strong> stories,
-                <strong>${progress.testCases || 0}</strong> test cases, and
-                <strong>${progress.testScripts || 0}</strong> test scripts.
+            let iconName = 'info';
+            let colorClass = 'text-blue-600 dark:text-blue-400';
+
+            switch (type) {
+                case 'success':
+                    iconName = 'check-circle';
+                    colorClass = 'text-green-600 dark:text-green-400';
+                    break;
+                case 'error':
+                    iconName = 'alert-circle';
+                    colorClass = 'text-red-600 dark:text-red-400';
+                    break;
+                case 'warning':
+                    iconName = 'alert-triangle';
+                    colorClass = 'text-yellow-600 dark:text-yellow-400';
+                    break;
+                case 'loading':
+                    iconName = 'loader-2';
+                    colorClass = 'text-zinc-600 dark:text-zinc-400';
+                    messageEl.firstChild?.classList.add('animate-spin');
+                    break;
+            }
+
+            messageEl.innerHTML = `
+                <div class="mr-3 ${type === 'loading' ? 'animate-pulse' : ''}">
+                    <i data-lucide="${iconName}" class="w-5 h-5 ${colorClass}"></i>
+                </div>
+                <span class="${colorClass}">${message}</span>
             `;
 
-            // Show details table
-            importDetails.classList.remove('hidden');
+            importMessages.appendChild(messageEl);
+            lucide.createIcons();
 
-            // Show view project button if we have a project ID
-            if (projectId) {
-                viewProjectBtn.href = '/dashboard/projects/' + projectId;
-                viewProjectBtn.classList.remove('hidden');
+            // Auto-scroll to bottom
+            messageEl.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }
+
+        // Reset messages container
+        importMessages.innerHTML = '';
+        addLogMessage('Starting import process...', 'loading');
+
+        // Initialize elapsed time updater
+        elapsedTimer = setInterval(updateElapsedTime, 1000);
+
+        // Function to check progress
+        async function checkProgress() {
+            if (completed) return;
+
+            try {
+                const response = await fetch(`/integrations/jira/import/progress/${projectId}`);
+                const data = await response.json();
+
+                if (!data.success) {
+                    throw new Error('Failed to fetch progress data');
+                }
+
+                const progress = data.data.progress;
+
+                // Update counters
+                epicsCount.textContent = progress.epics || 0;
+                storiesCount.textContent = progress.stories || 0;
+                testCasesCount.textContent = progress.testCases || 0;
+                testScriptsCount.textContent = progress.testScripts || 0;
+
+                // Calculate progress percentage (rough estimation)
+                const total = (progress.epics || 0) + (progress.stories || 0) +
+                             (progress.testCases || 0) + (progress.testScripts || 0);
+
+                // Calculate percentage - we don't know the total in advance,
+                // so we'll just show progress but cap at 90% until completed
+                let percentage = progress.completed ? 100 : Math.min(90, total);
+                progressBar.style.width = `${percentage}%`;
+                progressPercentage.textContent = `${percentage}%`;
+
+                // Update status text
+                if (total === 0 && !progress.completed) {
+                    importStatus.textContent = 'Preparing import...';
+                } else if (!progress.completed) {
+                    importStatus.textContent = `Importing data from Jira... (${total} items so far)`;
+                }
+
+                // If we have elapsed time from the server, update the display
+                if (progress.elapsed_time) {
+                    elapsedTime.textContent = progress.elapsed_time;
+                }
+
+                // If we have start time from the server
+                if (progress.start_time) {
+                    const date = new Date(progress.start_time * 1000);
+                    startTime.textContent = date.toLocaleTimeString();
+
+                    // Update our local start time to match
+                    if (!startedAt || startedAt > date) {
+                        startedAt = date;
+                    }
+                }
+
+                // Handle completion
+                if (progress.completed) {
+                    completed = true;
+                    clearInterval(elapsedTimer);
+
+                    if (progress.success) {
+                        // Show success state
+                        successState.classList.remove('hidden');
+                        importStatus.textContent = 'Import completed successfully!';
+                        importStatus.className = 'text-green-600 dark:text-green-400 import-status';
+
+                        // Update success message with stats
+                        const epicStr = progress.stats?.epicCount === 1 ? 'epic' : 'epics';
+                        const storyStr = progress.stats?.storyCount === 1 ? 'story' : 'stories';
+                        const caseStr = progress.stats?.testCaseCount === 1 ? 'test case' : 'test cases';
+                        const scriptStr = progress.stats?.testScriptCount === 1 ? 'test script' : 'test scripts';
+
+                        const statsMsg = `Successfully imported ${progress.stats?.epicCount || 0} ${epicStr}, ${progress.stats?.storyCount || 0} ${storyStr}, ${progress.stats?.testCaseCount || 0} ${caseStr}, and generated ${progress.stats?.testScriptCount || 0} ${scriptStr}.`;
+                        successMessage.textContent = statsMsg;
+
+                        // Add to log
+                        addLogMessage('Import process complete!', 'success');
+                        addLogMessage(statsMsg, 'success');
+                    } else {
+                        // Show error state
+                        errorState.classList.remove('hidden');
+                        importStatus.textContent = 'Import failed';
+                        importStatus.className = 'text-red-600 dark:text-red-400 import-status';
+
+                        // Set error message
+                        if (progress.error) {
+                            errorMessage.textContent = progress.error;
+                            addLogMessage(`Error: ${progress.error}`, 'error');
+                        }
+                    }
+
+                    // Stop polling
+                    return;
+                }
+
+                // Adjust polling interval based on activity
+                // If we're seeing changes, poll more frequently
+                if (total > 0) {
+                    pollInterval = 2000; // 2 seconds when active
+                } else {
+                    pollInterval = Math.min(pollInterval + 1000, 10000); // Gradually increase up to 10 seconds
+                }
+
+                // Schedule next poll
+                setTimeout(checkProgress, pollInterval);
+
+            } catch (error) {
+                console.error('Error checking progress:', error);
+                addLogMessage(`Error fetching progress: ${error.message}`, 'error');
+
+                // Continue polling despite errors, but slow down
+                pollInterval = Math.min(pollInterval + 2000, 15000);
+                setTimeout(checkProgress, pollInterval);
             }
         }
 
-        function showImportError(errorMessage) {
-            statusTitle.textContent = 'Import Failed';
-            statusIndicator.classList.remove('bg-amber-500', 'animate-pulse');
-            statusIndicator.classList.add('bg-red-500');
-            importStatus.classList.add('hidden');
-            importError.textContent = errorMessage;
-            importError.classList.remove('hidden');
-            cancelImportBtn.classList.add('hidden');
-        }
+        // Start the progress check
+        checkProgress();
     });
 </script>
 @endpush
