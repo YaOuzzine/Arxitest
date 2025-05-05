@@ -65,6 +65,14 @@ class JiraImportController extends Controller
      */
     public function importProject(Request $request)
     {
+
+        // $request->merge([
+        //     'create_new_project' => $request->has('create_new_project') &&
+        //                            ($request->input('create_new_project') === '1' ||
+        //                             $request->input('create_new_project') === 'true' ||
+        //                             $request->input('create_new_project') === true)
+        // ]);
+
         $validated = $request->validate([
             'jira_project_key'       => 'required|string|max:100',
             'jira_project_name'      => 'required|string|max:255',

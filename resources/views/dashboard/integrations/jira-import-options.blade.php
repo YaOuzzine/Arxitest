@@ -17,150 +17,195 @@
 
 @section('content')
 <div class="container mx-auto px-4 py-8">
-    <!-- Header -->
-    <div class="mb-8">
-        <h1 class="text-3xl font-bold text-zinc-900 dark:text-white tracking-tight">Import from Jira</h1>
-        <p class="mt-2 text-zinc-600 dark:text-zinc-400 text-lg">
-            Import projects, epics, stories and create test cases from your Jira issues
-        </p>
+    <!-- Animated Header -->
+    <div class="mb-8 transform transition-all duration-300 ease-out">
+        <div class="space-y-1">
+            <h1 class="text-3xl font-bold text-zinc-900 dark:text-white bg-gradient-to-r from-zinc-900 dark:from-zinc-100 to-zinc-600 dark:to-zinc-400 bg-clip-text text-transparent animate-fade-in-down">
+                Import from Jira
+            </h1>
+            <p class="mt-2 text-zinc-600 dark:text-zinc-400 text-lg transition-opacity duration-300">
+                Import projects, epics, stories and create test cases from your Jira issues
+            </p>
+        </div>
     </div>
 
-    <!-- Import Form -->
-    <div class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-700 overflow-hidden">
-        <div class="p-6">
-            <form id="jiraImportForm" action="{{ route('integrations.jira.import.project') }}" method="POST" class="space-y-6">
+    <!-- Glassmorphism Form Container -->
+    <div class="bg-white/70 dark:bg-zinc-800/50 rounded-2xl shadow-2xl border border-zinc-200/50 dark:border-zinc-700/30 backdrop-blur-lg transition-all duration-300 hover:shadow-2xl">
+        <div class="p-8">
+            <form id="jiraImportForm" action="{{ route('integrations.jira.import.project') }}" method="POST" class="space-y-8">
                 @csrf
 
-                <div class="space-y-4">
-                    <h2 class="text-xl font-semibold text-zinc-900 dark:text-white">Step 1: Select Jira Project</h2>
+                <!-- Step 1: Select Jira Project -->
+                <div class="space-y-6">
+                    <div class="animate-fade-in-left">
+                        <h2 class="text-xl font-semibold text-zinc-800 dark:text-zinc-100 mb-2 bg-gradient-to-r from-zinc-800 to-zinc-600 dark:from-zinc-200 dark:to-zinc-400 bg-clip-text text-transparent">
+                            Step 1: Select Jira Project
+                        </h2>
+                    </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div class="col-span-2">
-                            <label for="jira_project_key" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Jira Project</label>
-                            <select id="jira_project_key" name="jira_project_key" class="form-select w-full rounded-lg border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500" required>
-                                <option value="">Select a Jira project...</option>
-                                @foreach($jiraProjects as $project)
-                                    <option value="{{ $project['key'] }}" data-name="{{ $project['name'] }}">
-                                        {{ $project['name'] }} ({{ $project['key'] }})
-                                    </option>
-                                @endforeach
-                            </select>
+                        <div class="md:col-span-2">
+                            <div class="relative">
+                                <select id="jira_project_key" name="jira_project_key" class="peer h-12 w-full border-0 bg-zinc-100/50 dark:bg-zinc-700/30 rounded-xl shadow-inner shadow-zinc-300/50 dark:shadow-zinc-800/50 pl-4 pr-12 text-zinc-700 dark:text-zinc-200 placeholder-transparent focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300" required>
+                                    <option value="">Select a Jira project...</option>
+                                    @foreach($jiraProjects as $project)
+                                        <option value="{{ $project['key'] }}" data-name="{{ $project['name'] }}">
+                                            {{ $project['name'] }} ({{ $project['key'] }})
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <label class="absolute left-4 -top-2.5 px-1 bg-zinc-100/50 dark:bg-zinc-800/50 text-sm text-zinc-600 dark:text-zinc-400 transition-all duration-300">
+                                    Jira Project <span class="text-red-400">*</span>
+                                </label>
+                            </div>
                             <input type="hidden" id="jira_project_name" name="jira_project_name" value="">
                         </div>
 
                         <div>
-                            <label for="max_issues" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Max Issues</label>
-                            <input type="number" id="max_issues" name="max_issues" min="0" max="300" value="50"
-                                class="form-input w-full rounded-lg border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                            <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                            <div class="relative">
+                                <input type="number" id="max_issues" name="max_issues" min="0" max="300" value="50"
+                                    class="peer h-12 w-full border-0 bg-zinc-100/50 dark:bg-zinc-700/30 rounded-xl shadow-inner shadow-zinc-300/50 dark:shadow-zinc-800/50 pl-4 pr-12 text-zinc-700 dark:text-zinc-200 placeholder-transparent focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300">
+                                <label class="absolute left-4 -top-2.5 px-1 bg-zinc-100/50 dark:bg-zinc-800/50 text-sm text-zinc-600 dark:text-zinc-400 transition-all duration-300">
+                                    Max Issues
+                                </label>
+                            </div>
+                            <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
                                 Set to 0 for unlimited (may take longer)
                             </p>
                         </div>
                     </div>
                 </div>
 
-                <div class="space-y-4">
-                    <h2 class="text-xl font-semibold text-zinc-900 dark:text-white">Step 2: Import Options</h2>
+                <!-- Gradient Divider -->
+                <div class="my-8 h-px bg-gradient-to-r from-transparent via-zinc-300/70 dark:via-zinc-600/50 to-transparent animate-scale-in-x"></div>
 
-                    <div class="flex flex-col md:flex-row gap-6">
-                        <div class="flex-1">
-                            <div class="flex items-start mb-4">
-                                <div class="flex items-center h-5">
-                                    <input id="create_new_project" name="create_new_project" type="checkbox" checked
+                <!-- Step 2: Import Options -->
+                <div class="space-y-6">
+                    <div class="animate-fade-in-left delay-100">
+                        <h2 class="text-xl font-semibold text-zinc-800 dark:text-zinc-100 mb-2 bg-gradient-to-r from-zinc-800 to-zinc-600 dark:from-zinc-200 dark:to-zinc-400 bg-clip-text text-transparent">
+                            Step 2: Import Options
+                        </h2>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <!-- Project Selection -->
+                        <div class="space-y-4">
+                            <div class="flex items-start">
+                                <div class="flex items-center h-5 mr-3">
+                                    <input type="hidden" name="create_new_project" value="0">
+                                    <input id="create_new_project" name="create_new_project" type="checkbox" value="1" checked
                                         class="h-4 w-4 rounded border-zinc-300 dark:border-zinc-600 text-indigo-600 focus:ring-indigo-500">
                                 </div>
-                                <div class="ml-3 text-sm">
-                                    <label for="create_new_project" class="font-medium text-zinc-700 dark:text-zinc-300">Create new Arxitest project</label>
-                                    <p class="text-zinc-500 dark:text-zinc-400">Create a new project in Arxitest for imported data</p>
+                                <div class="flex-1">
+                                    <label for="create_new_project" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300">Create new Arxitest project</label>
+                                    <p class="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Create a new project in Arxitest for imported data</p>
                                 </div>
                             </div>
 
-                            <div id="new-project-container" class="mb-4 pl-7">
-                                <label for="new_project_name" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">New Project Name</label>
-                                <input type="text" id="new_project_name" name="new_project_name"
-                                    class="form-input w-full rounded-lg border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                            <div id="new-project-container" class="ml-8 space-y-4">
+                                <div class="relative">
+                                    <input type="text" id="new_project_name" name="new_project_name"
+                                        class="peer h-12 w-full border-0 bg-zinc-100/50 dark:bg-zinc-700/30 rounded-xl shadow-inner shadow-zinc-300/50 dark:shadow-zinc-800/50 pl-4 pr-12 text-zinc-700 dark:text-zinc-200 placeholder-transparent focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300">
+                                    <label class="absolute left-4 -top-2.5 px-1 bg-zinc-100/50 dark:bg-zinc-800/50 text-sm text-zinc-600 dark:text-zinc-400 transition-all duration-300">
+                                        New Project Name
+                                    </label>
+                                </div>
                             </div>
 
-                            <div id="existing-project-container" class="mb-4 pl-7 hidden">
-                                <label for="arxitest_project_id" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Existing Project</label>
-                                <select id="arxitest_project_id" name="arxitest_project_id"
-                                    class="form-select w-full rounded-lg border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                                    <option value="">Select a project...</option>
-                                    @foreach($existingProjects as $project)
-                                        <option value="{{ $project->id }}">{{ $project->name }}</option>
-                                    @endforeach
-                                </select>
+                            <div id="existing-project-container" class="ml-8 hidden">
+                                <div class="relative">
+                                    <select id="arxitest_project_id" name="arxitest_project_id"
+                                        class="peer h-12 w-full border-0 bg-zinc-100/50 dark:bg-zinc-700/30 rounded-xl shadow-inner shadow-zinc-300/50 dark:shadow-zinc-800/50 pl-4 pr-12 text-zinc-700 dark:text-zinc-200 placeholder-transparent focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300">
+                                        <option value="">Select a project...</option>
+                                        @foreach($existingProjects as $project)
+                                            <option value="{{ $project->id }}">{{ $project->name }}</option>
+                                        @endforeach
+                                    </select>
+                                    <label class="absolute left-4 -top-2.5 px-1 bg-zinc-100/50 dark:bg-zinc-800/50 text-sm text-zinc-600 dark:text-zinc-400 transition-all duration-300">
+                                        Existing Project
+                                    </label>
+                                </div>
                             </div>
                         </div>
 
-                        <div class="flex-1">
-                            <div class="space-y-4">
-                                <div class="flex items-start">
-                                    <div class="flex items-center h-5">
-                                        <input id="import_epics" name="import_epics" type="checkbox" checked
-                                            class="h-4 w-4 rounded border-zinc-300 dark:border-zinc-600 text-indigo-600 focus:ring-indigo-500">
-                                    </div>
-                                    <div class="ml-3 text-sm">
-                                        <label for="import_epics" class="font-medium text-zinc-700 dark:text-zinc-300">Import Epics</label>
-                                        <p class="text-zinc-500 dark:text-zinc-400">Import epics as test suites</p>
-                                    </div>
+                        <!-- Import Options -->
+                        <div class="space-y-4">
+                            <div class="flex items-start">
+                                <div class="flex items-center h-5 mr-3">
+                                    <input type="hidden" name="import_epics" value="0">
+                                    <input id="import_epics" name="import_epics" type="checkbox" value="1" checked
+                                        class="h-4 w-4 rounded border-zinc-300 dark:border-zinc-600 text-indigo-600 focus:ring-indigo-500">
                                 </div>
-
-                                <div class="flex items-start">
-                                    <div class="flex items-center h-5">
-                                        <input id="import_stories" name="import_stories" type="checkbox" checked
-                                            class="h-4 w-4 rounded border-zinc-300 dark:border-zinc-600 text-indigo-600 focus:ring-indigo-500">
-                                    </div>
-                                    <div class="ml-3 text-sm">
-                                        <label for="import_stories" class="font-medium text-zinc-700 dark:text-zinc-300">Import Stories</label>
-                                        <p class="text-zinc-500 dark:text-zinc-400">Import stories, tasks, and bugs</p>
-                                    </div>
+                                <div>
+                                    <label for="import_epics" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300">Import Epics</label>
+                                    <p class="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Import epics as test suites</p>
                                 </div>
+                            </div>
 
-                                <div class="flex items-start">
-                                    <div class="flex items-center h-5">
-                                        <input id="generate_test_scripts" name="generate_test_scripts" type="checkbox"
-                                            class="h-4 w-4 rounded border-zinc-300 dark:border-zinc-600 text-indigo-600 focus:ring-indigo-500">
-                                    </div>
-                                    <div class="ml-3 text-sm">
-                                        <label for="generate_test_scripts" class="font-medium text-zinc-700 dark:text-zinc-300">Generate Test Scripts</label>
-                                        <p class="text-zinc-500 dark:text-zinc-400">Automatically generate test scripts using AI</p>
-                                    </div>
+                            <div class="flex items-start">
+                                <div class="flex items-center h-5 mr-3">
+                                    <input type="hidden" name="import_stories" value="0">
+                                    <input id="import_stories" name="import_stories" type="checkbox" value="1" checked
+                                        class="h-4 w-4 rounded border-zinc-300 dark:border-zinc-600 text-indigo-600 focus:ring-indigo-500">
+                                </div>
+                                <div>
+                                    <label for="import_stories" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300">Import Stories</label>
+                                    <p class="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Import stories, tasks, and bugs</p>
+                                </div>
+                            </div>
+
+                            <div class="flex items-start">
+                                <div class="flex items-center h-5 mr-3">
+                                    <input type="hidden" name="generate_test_scripts" value="0">
+                                    <input id="generate_test_scripts" name="generate_test_scripts" type="checkbox" value="1"
+                                        class="h-4 w-4 rounded border-zinc-300 dark:border-zinc-600 text-indigo-600 focus:ring-indigo-500">
+                                </div>
+                                <div>
+                                    <label for="generate_test_scripts" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300">Generate Test Scripts</label>
+                                    <p class="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Automatically generate test scripts using AI</p>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="space-y-4">
-                    <h2 class="text-xl font-semibold text-zinc-900 dark:text-white">Step 3: Advanced Filters (Optional)</h2>
+                <!-- Gradient Divider -->
+                <div class="my-8 h-px bg-gradient-to-r from-transparent via-zinc-300/70 dark:via-zinc-600/50 to-transparent animate-scale-in-x"></div>
 
-                    <div>
-                        <label for="jql_filter" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">JQL Filter</label>
+                <!-- Step 3: Advanced Filters -->
+                <div class="space-y-6">
+                    <div class="animate-fade-in-left delay-200">
+                        <h2 class="text-xl font-semibold text-zinc-800 dark:text-zinc-100 mb-2 bg-gradient-to-r from-zinc-800 to-zinc-600 dark:from-zinc-200 dark:to-zinc-400 bg-clip-text text-transparent">
+                            Step 3: Advanced Filters
+                        </h2>
+                    </div>
+
+                    <div class="relative">
                         <textarea id="jql_filter" name="jql_filter" rows="2"
-                            class="form-textarea w-full rounded-lg border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            class="peer h-24 w-full border-0 bg-zinc-100/50 dark:bg-zinc-700/30 rounded-xl shadow-inner shadow-zinc-300/50 dark:shadow-zinc-800/50 pl-4 pr-12 text-zinc-700 dark:text-zinc-200 placeholder-transparent focus:ring-2 focus:ring-indigo-500/50 transition-all duration-300"
                             placeholder="status in (Open, 'In Progress') AND labels = 'frontend'"></textarea>
-                        <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-                            Optional JQL for filtering issues. Will be combined with project filter.
-                        </p>
+                        <label class="absolute left-4 -top-2.5 px-1 bg-zinc-100/50 dark:bg-zinc-800/50 text-sm text-zinc-600 dark:text-zinc-400 transition-all duration-300">
+                            JQL Filter
+                        </label>
                     </div>
                 </div>
 
-                <div class="pt-6 flex justify-between border-t border-zinc-200 dark:border-zinc-700">
-                    <a href="{{ route('dashboard.integrations.index') }}" class="btn-secondary">
-                        <i data-lucide="arrow-left" class="w-4 h-4 mr-1"></i>
+                <!-- Form Actions -->
+                <div class="pt-8 flex justify-between items-center border-t border-zinc-200 dark:border-zinc-700">
+                    <a href="{{ route('dashboard.integrations.index') }}"
+                       class="group inline-flex items-center px-4 py-2.5 border border-zinc-200 dark:border-zinc-700 rounded-xl shadow-sm text-sm font-medium text-zinc-700 dark:text-zinc-200 bg-white/70 dark:bg-zinc-800/50 hover:bg-white dark:hover:bg-zinc-700/50 backdrop-blur-sm transition-all duration-300 hover:shadow-md hover:-translate-y-0.5">
+                        <i data-lucide="arrow-left" class="mr-2 -ml-1 w-4 h-4 transition-transform group-hover:-translate-x-1"></i>
                         Back to Integrations
                     </a>
 
                     <div class="flex space-x-3">
-                        <button type="button" id="previewImportBtn" class="btn-secondary">
-                            <i data-lucide="eye" class="w-4 h-4 mr-1"></i>
-                            Preview Import
-                        </button>
-
-                        <button type="submit" id="startImportBtn" class="btn-primary">
-                            <i data-lucide="download" class="w-4 h-4 mr-1"></i>
-                            Start Import
+                        <button type="submit" id="startImportBtn"
+                                class="group relative px-6 py-2.5 text-white bg-gradient-to-r from-gray-600 to-gray-700 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5">
+                            <span class="relative z-10 flex items-center">
+                                <i data-lucide="download" class="w-4 h-4 mr-2"></i>
+                                Start Import
+                            </span>
+                            <div class="absolute inset-3 bg-gradient-to-r from-gray-700 to-gray-600 rounded-xl blur-md group-hover:blur-lg transition-all duration-300 opacity-0 group-hover:opacity-100"></div>
                         </button>
                     </div>
                 </div>
@@ -261,22 +306,25 @@
 
 @push('styles')
 <style>
-    .btn-primary {
-        @apply inline-flex items-center px-4 py-2 rounded-lg font-medium bg-gradient-to-br from-indigo-600 to-indigo-700 text-white shadow-sm hover:shadow-md transition-all duration-200 hover:scale-[1.02];
+    @keyframes fade-in-down {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fade-in-left {
+        from { opacity: 0; transform: translateX(-20px); }
+        to { opacity: 1; transform: translateX(0); }
+    }
+    @keyframes scale-in-x {
+        from { transform: scaleX(0); }
+        to { transform: scaleX(1); }
     }
 
-    .btn-secondary {
-        @apply inline-flex items-center px-3 py-2 rounded-lg font-medium bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors duration-200;
-    }
+    .animate-fade-in-down { animation: fade-in-down 0.6s ease-out; }
+    .animate-fade-in-left { animation: fade-in-left 0.6s ease-out; }
+    .animate-scale-in-x { animation: scale-in-x 0.6s ease-out; }
 
-    /* Animations */
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
-    }
-    .animate-pulse-slow {
-      animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-    }
+    .delay-100 { animation-delay: 0.1s; }
+    .delay-200 { animation-delay: 0.2s; }
 </style>
 @endpush
 
@@ -373,7 +421,7 @@
             startImportTracking();
 
             // Submit the form via AJAX
-            const formData = new FormData(this);
+            formData.set('create_new_project', document.getElementById('create_new_project').checked ? 1 : 0);
 
             fetch(this.action, {
                 method: 'POST',
