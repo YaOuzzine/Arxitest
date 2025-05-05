@@ -2,29 +2,44 @@
 
 namespace App\Services;
 
-use App\Services\ApiClient;
-use App\Services\ApiException;
-use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Arr;
 
 class JiraApiClient extends ApiClient
 {
-    protected array $atlassianConfig;
+    /**
+     * Atlassian configuration array
+     *
+     * @var array
+     */
+    protected array $atlassianConfig = [];
 
     public function __construct()
     {
-        parent::__construct();
-
-        // Load once, so IDE sees it
+        // Initialize the config array before parent::__construct() calls config()
         $this->atlassianConfig = config('services.atlassian', []);
+
+        parent::__construct();
+    }
+
+    /**
+     * Get configuration value (public accessor)
+     *
+     * @param string $key
+     * @return mixed
+     */
+    public function getConfig(string $key): mixed
+    {
+        return $this->config($key);
     }
 
     protected function config(string $key): mixed
     {
-        if (! Arr::has($this->atlassianConfig, $key)) {
+        if (!Arr::has($this->atlassianConfig, $key)) {
             throw new \InvalidArgumentException("Atlassian config key [$key] is not defined.");
         }
-        return $this->atlassianConfig[$key];
+        return Arr::get($this->atlassianConfig, $key);
     }
 
     protected function providerName(): string

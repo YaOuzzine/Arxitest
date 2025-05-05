@@ -51,15 +51,15 @@ class IntegrationController extends Controller
 
         $query = http_build_query([
             'audience'     => 'api.atlassian.com',
-            'client_id'    => $this->jiraClient->config('client_id'),
+            'client_id'    => $this->jiraClient->getConfig('client_id'),
             'scope'        => 'read:jira-user read:jira-work write:jira-work offline_access',
-            'redirect_uri' => $this->jiraClient->config('redirect'),
+            'redirect_uri' => $this->jiraClient->getConfig('redirect'),
             'state'        => $state,
             'response_type'=> 'code',
             'prompt'       => 'consent',
         ]);
 
-        return redirect($this->jiraClient->config('base_uri') . '/authorize?' . $query);
+        return redirect($this->jiraClient->getConfig('base_uri') . '/authorize?' . $query);
     }
 
     public function jiraCallback(Request $request)
@@ -106,7 +106,7 @@ class IntegrationController extends Controller
 
             $integration = Integration::firstOrCreate(
                 ['type' => Integration::TYPE_JIRA],
-                ['name' => 'Jira', 'base_url' => $this->jiraClient->config('api_uri'), 'is_active' => true]
+                ['name' => 'Jira', 'base_url' => $this->jiraClient->getConfig('api_uri'), 'is_active' => true]
             );
 
             $team = Team::find($teamId);
