@@ -482,12 +482,12 @@ class CreateProjectFromGitHubRepo implements ShouldQueue
 
         foreach ($tree as $item) {
             if ($item['type'] === 'dir') {
-                $result .= "$indent📁 {$item['name']}/\n";
+                $result .= $indent . "📁 {$item['name']}/\n";
                 if (isset($item['children']) && !empty($item['children'])) {
                     $result .= $this->formatProjectTree($item['children'], $depth + 1);
                 }
             } else {
-                $result .= "$indent📄 {$item['name']}\n";
+                $result .= $indent . "📄 {$item['name']}\n";
             }
         }
 
@@ -639,15 +639,20 @@ class CreateProjectFromGitHubRepo implements ShouldQueue
     }
 
     /**
-     * Estimate token count for a text based on file type
+     * A quick token estimation algorithm without requiring a full tokenizer
      */
     protected function estimateTokens(string $text, string $fileType = 'default'): int
     {
         $fileType = strtolower($fileType);
         $ratio = $this->tokenRatios[$fileType] ?? $this->tokenRatios['default'];
-        return (int) ceil(strlen($text) * $ratio);
-    }
 
+        // Simple heuristic: whitespace and punctuation adjustment
+        $wordCount = count(preg_split('/\s+/', $text));
+        $punctuationCount = preg_match_all('/[.,:;!?()[\]{}"`\']/u', $text, $matches);
+
+        // Estimate based on characters plus additional token-splitting rules
+        return (int) ceil(strlen($text) * $ratio + ($punctuationCount * 0.1));
+    }
     /**
      * Generate prompt for the AI to create comprehensive test structure
      */
@@ -771,7 +776,7 @@ EOT;
     }
 
     /**
-     * Send request to advanced AI model (GPT-4.1)
+     * Send request to advanced AI model (GPT-4.1) with rate limit handling
      */
     protected function sendToAdvancedAI(string $prompt): array
     {
@@ -779,67 +784,325 @@ EOT;
         $apiKey = config('ai.providers.openai.api_key');
         $model = 'gpt-4.1'; // The advanced model
 
-        $headers = [
-            'Authorization' => "Bearer {$apiKey}",
-            'Content-Type' => 'application/json'
+        // Break down the files data into smaller chunks to avoid rate limits
+        $chunks = $this->chunkRepositoryData($prompt);
+        Log::info('Split prompt into chunks for processing', [
+            'chunks_count' => count($chunks),
+            'original_tokens' => $this->tokensUsed
+        ]);
+
+        $combinedResults = [
+            'test_suites' => [],
+            'environments' => []
         ];
 
-        $data = [
-            'model' => $model,
-            'messages' => [
-                ['role' => 'system', 'content' => 'You are a specialized AI for creating comprehensive test structures. Your response should be valid JSON following the specified format.'],
-                ['role' => 'user', 'content' => $prompt]
-            ],
-            'response_format' => ['type' => 'json_object'],
-            'temperature' => 0.5
+        // Process each chunk with appropriate waiting time between requests
+        foreach ($chunks as $index => $chunk) {
+            Log::info('Processing chunk', [
+                'chunk_index' => $index + 1,
+                'chunk_size' => strlen($chunk['prompt']),
+                'estimated_tokens' => $chunk['tokens']
+            ]);
+
+            $success = false;
+            $attempts = 0;
+            $maxAttempts = 5;
+            $backoffSeconds = 2;
+
+            // Update progress to show current chunk
+            $this->updateProgress(
+                50 + (int)((30 * $index) / count($chunks)),
+                "Processing data chunk " . ($index + 1) . " of " . count($chunks)
+            );
+
+            while (!$success && $attempts < $maxAttempts) {
+                try {
+                    $attempts++;
+
+                    // If not the first attempt, wait with exponential backoff
+                    if ($attempts > 1) {
+                        $sleepTime = $backoffSeconds * (2 ** ($attempts - 2));
+                        Log::info("Rate limit hit, backing off", [
+                            'attempt' => $attempts,
+                            'sleep_seconds' => $sleepTime
+                        ]);
+                        sleep($sleepTime);
+                    }
+
+                    $headers = [
+                        'Authorization' => "Bearer {$apiKey}",
+                        'Content-Type' => 'application/json'
+                    ];
+
+                    $data = [
+                        'model' => $model,
+                        'messages' => [
+                            ['role' => 'system', 'content' => $chunk['system']],
+                            ['role' => 'user', 'content' => $chunk['prompt']]
+                        ],
+                        'response_format' => ['type' => 'json_object'],
+                        'temperature' => 0.7
+                    ];
+
+                    Log::info('Sending chunk to AI', [
+                        'chunk_index' => $index + 1,
+                        'estimated_tokens' => $chunk['tokens']
+                    ]);
+
+                    $response = Http::withHeaders($headers)
+                        ->timeout(180)  // 3 minute timeout for large requests
+                        ->post('https://api.openai.com/v1/chat/completions', $data);
+
+                    if ($response->failed()) {
+                        $statusCode = $response->status();
+                        $body = $response->body();
+
+                        // Check if it's a rate limit error
+                        if ($statusCode === 429) {
+                            // Let the loop retry with backoff
+                            Log::warning('Rate limit hit, will retry', [
+                                'status' => $statusCode,
+                                'body' => $body,
+                                'attempt' => $attempts
+                            ]);
+                            continue;
+                        }
+
+                        // Other error
+                        Log::error('Failed to get response from AI', [
+                            'status' => $statusCode,
+                            'body' => $body
+                        ]);
+                        throw new \Exception('Failed to get response from AI: ' . $statusCode . ' ' . $body);
+                    }
+
+                    $responseData = $response->json();
+                    $content = $responseData['choices'][0]['message']['content'] ?? null;
+
+                    if (empty($content)) {
+                        throw new \Exception('Empty response from AI');
+                    }
+
+                    Log::info('Received response from AI for chunk', [
+                        'chunk_index' => $index + 1,
+                        'response_size' => strlen($content),
+                        'completion_tokens' => $responseData['usage']['completion_tokens'] ?? 'unknown'
+                    ]);
+
+                    // Parse JSON response
+                    $parsed = json_decode($content, true);
+
+                    if (json_last_error() !== JSON_ERROR_NONE) {
+                        throw new \Exception('Failed to parse JSON response: ' . json_last_error_msg());
+                    }
+
+                    // Merge the results from this chunk with the combined results
+                    $this->mergeResults($combinedResults, $parsed);
+                    $success = true;
+                } catch (\Exception $e) {
+                    if ($attempts >= $maxAttempts) {
+                        Log::error('Maximum retry attempts reached for chunk ' . ($index + 1), [
+                            'error' => $e->getMessage()
+                        ]);
+                        throw $e;
+                    }
+
+                    Log::warning('Error processing chunk, will retry', [
+                        'chunk_index' => $index + 1,
+                        'attempt' => $attempts,
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+
+            // Add a delay between chunks to respect rate limits
+            if ($index < count($chunks) - 1) {
+                sleep(10); // Wait 10 seconds between chunks
+            }
+        }
+
+        return $combinedResults;
+    }
+
+    /**
+     * Chunk the repository data into smaller pieces to avoid rate limits
+     */
+    protected function chunkRepositoryData(string $fullPrompt): array
+    {
+        // Extract the system and context parts
+        $systemPrompt = 'You are a specialized AI for creating comprehensive test structures. Your response should be valid JSON following the specified format.';
+
+        // Split the full prompt into sections
+        $sections = $this->splitPromptIntoSections($fullPrompt);
+
+        // Basic task description and required output format - always include these
+        $basePrompt = $sections['intro'] . "\n\n" . $sections['required_format'];
+        $baseTokens = $this->estimateTokens($basePrompt);
+
+        // Calculate max tokens per chunk (leaving room for system prompt and response)
+        $maxTokensPerChunk = 20000; // Safe limit well below the 30k TPM
+        $availableTokens = $maxTokensPerChunk - $baseTokens - $this->estimateTokens($systemPrompt) - 2000; // Buffer for response
+
+        $chunks = [];
+
+        // First chunk always includes the README and project structure
+        $firstChunkContent = $basePrompt . "\n\n## Project Structure\n" . $sections['project_structure'];
+
+        if (isset($sections['readme'])) {
+            $firstChunkContent .= "\n\n## README\n" . $sections['readme'];
+        }
+
+        $firstChunkTokens = $this->estimateTokens($firstChunkContent);
+
+        $chunks[] = [
+            'system' => $systemPrompt,
+            'prompt' => $firstChunkContent,
+            'tokens' => $firstChunkTokens
         ];
 
-        try {
-            Log::info('Sending request to advanced AI', [
-                'model' => $model,
-                'prompt_size' => strlen($prompt),
-                'estimated_input_tokens' => $this->tokensUsed
-            ]);
+        // Now handle config and code files
+        $fileChunks = [];
+        $currentChunk = '';
+        $currentTokens = 0;
 
-            $response = Http::withHeaders($headers)
-                ->timeout(300)  // 5 minute timeout for large requests
-                ->post('https://api.openai.com/v1/chat/completions', $data);
+        // Process config files first
+        if (isset($sections['config_files'])) {
+            $configFilesSection = "## Configuration Files\n" . $sections['config_files'];
+            $configTokens = $this->estimateTokens($configFilesSection);
 
-            if ($response->failed()) {
-                Log::error('Failed to get response from advanced AI', [
-                    'status' => $response->status(),
-                    'body' => $response->body()
-                ]);
-                throw new \Exception('Failed to get response from AI: ' . $response->status() . ' ' . $response->body());
+            if ($currentTokens + $configTokens <= $availableTokens) {
+                $currentChunk .= "\n\n" . $configFilesSection;
+                $currentTokens += $configTokens;
+            } else {
+                $fileChunks[] = [
+                    'content' => "## Configuration Files\n" . $sections['config_files'],
+                    'tokens' => $configTokens
+                ];
             }
+        }
 
-            $responseData = $response->json();
-            $content = $responseData['choices'][0]['message']['content'] ?? null;
+        // Process code files section
+        if (isset($sections['code_files'])) {
+            // Split code files into individual file entries
+            $codeFiles = $this->splitCodeFilesSection($sections['code_files']);
 
-            if (empty($content)) {
-                throw new \Exception('Empty response from AI');
+            foreach ($codeFiles as $file) {
+                $fileTokens = $this->estimateTokens($file);
+
+                if ($currentTokens + $fileTokens <= $availableTokens) {
+                    $currentChunk .= "\n\n" . $file;
+                    $currentTokens += $fileTokens;
+                } else {
+                    // Current chunk is full, add it to fileChunks
+                    if (!empty($currentChunk)) {
+                        $fileChunks[] = [
+                            'content' => $currentChunk,
+                            'tokens' => $currentTokens
+                        ];
+                    }
+
+                    // Start a new chunk
+                    $currentChunk = $file;
+                    $currentTokens = $fileTokens;
+                }
             }
+        }
 
-            Log::info('Received response from advanced AI', [
-                'response_size' => strlen($content),
-                'completion_tokens' => $responseData['usage']['completion_tokens'] ?? 'unknown'
-            ]);
+        // Add the last chunk if not empty
+        if (!empty($currentChunk)) {
+            $fileChunks[] = [
+                'content' => $currentChunk,
+                'tokens' => $currentTokens
+            ];
+        }
 
-            // Parse JSON response
-            $parsed = json_decode($content, true);
+        // Create the actual chunks with base prompt + file chunks
+        foreach ($fileChunks as $chunk) {
+            $chunkPrompt = $basePrompt . "\n\n" . $chunk['content'];
+            $chunks[] = [
+                'system' => $systemPrompt,
+                'prompt' => $chunkPrompt,
+                'tokens' => $baseTokens + $chunk['tokens']
+            ];
+        }
 
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                throw new \Exception('Failed to parse JSON response: ' . json_last_error_msg());
+        return $chunks;
+    }
+
+    /**
+     * Split the full prompt into logical sections
+     */
+    protected function splitPromptIntoSections(string $prompt): array
+    {
+        $sections = [];
+
+        // Extract introduction section
+        if (preg_match('/^(.*?)(?=## Project Structure)/s', $prompt, $matches)) {
+            $sections['intro'] = trim($matches[0]);
+        }
+
+        // Extract project structure section
+        if (preg_match('/## Project Structure(.*?)(?=##|$)/s', $prompt, $matches)) {
+            $sections['project_structure'] = trim($matches[1]);
+        }
+
+        // Extract readme section
+        if (preg_match('/## README(.*?)(?=##|$)/s', $prompt, $matches)) {
+            $sections['readme'] = trim($matches[1]);
+        }
+
+        // Extract configuration files section
+        if (preg_match('/## Configuration Files(.*?)(?=##|$)/s', $prompt, $matches)) {
+            $sections['config_files'] = trim($matches[1]);
+        }
+
+        // Extract code files section
+        if (preg_match('/## Code Files(.*?)(?=##|$)/s', $prompt, $matches)) {
+            $sections['code_files'] = trim($matches[1]);
+        }
+
+        // Extract required output format section
+        if (preg_match('/## Required Output Format(.*?)$/s', $prompt, $matches)) {
+            $sections['required_format'] = trim($matches[1]);
+        }
+
+        return $sections;
+    }
+
+    /**
+     * Split code files section into individual file entries
+     */
+    protected function splitCodeFilesSection(string $codeFilesSection): array
+    {
+        $files = [];
+        $pattern = '/FILE: (.*?)(?=FILE:|$)/s';
+
+        if (preg_match_all($pattern, $codeFilesSection, $matches)) {
+            foreach ($matches[0] as $fileContent) {
+                $files[] = trim($fileContent);
             }
+        }
 
-            return $parsed;
-        } catch (\Exception $e) {
-            Log::error('Error sending request to advanced AI', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
+        return $files;
+    }
 
-            throw new \Exception('Failed to process AI request: ' . $e->getMessage());
+    /**
+     * Merge results from multiple API responses
+     */
+    protected function mergeResults(array &$combinedResults, array $chunkResults): void
+    {
+        // Merge test suites
+        if (isset($chunkResults['test_suites']) && is_array($chunkResults['test_suites'])) {
+            foreach ($chunkResults['test_suites'] as $suite) {
+                $combinedResults['test_suites'][] = $suite;
+            }
+        }
+
+        // Merge environments
+        if (isset($chunkResults['environments']) && is_array($chunkResults['environments'])) {
+            foreach ($chunkResults['environments'] as $env) {
+                $combinedResults['environments'][] = $env;
+            }
         }
     }
 
