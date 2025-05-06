@@ -346,7 +346,7 @@ class GitHubIntegrationController extends Controller
             'owner' => 'required|string',
             'repo' => 'required|string',
             'project_name' => 'required|string|max:100',
-            'max_file_size' => 'nullable|integer|min:1|max:5120', // Maximum file size in KB (default 1MB)
+            'max_file_size' => 'nullable|integer|min:1|max:128', // Maximum file size in KB (1-128KB)
             'auto_generate_tests' => 'nullable|boolean',
         ]);
 
@@ -373,7 +373,7 @@ class GitHubIntegrationController extends Controller
             // Initialize progress at 0%
             cache()->put("github_project_progress_{$jobId}", [
                 'progress' => 0,
-                'status' => 'initializing',
+                'status' => 'Initializing project creation',
                 'team_id' => $team->id,
                 'started_at' => now()->timestamp,
                 'job_id' => $jobId
@@ -386,21 +386,28 @@ class GitHubIntegrationController extends Controller
                 'owner' => $request->input('owner'),
                 'repo' => $request->input('repo'),
                 'project_name' => $request->input('project_name'),
-                'max_file_size' => $request->input('max_file_size', 1024), // Default 1MB in KB
-                'auto_generate_tests' => $request->input('auto_generate_tests', false),
+                'max_file_size' => $request->input('max_file_size', 64), // Default 64KB
+                'auto_generate_tests' => true, // Always use AI generation with our improved method
                 'user_id' => Auth::id(),
                 'job_id' => $jobId
             ]);
 
             dispatch($job);
 
-            return $this->successResponse(['job_id' => $jobId], 'Project creation has been queued. You will be notified when it completes.');
+            return $this->successResponse([
+                'job_id' => $jobId,
+                'message' => 'Project creation has been queued. You will be notified when it completes.',
+                'estimated_time' => '3-10 minutes'
+            ]);
         } catch (\Exception $e) {
             Log::error('Error creating project from repo', ['error' => $e->getMessage()]);
             return $this->errorResponse('Failed to create project: ' . $e->getMessage(), 500);
         }
     }
 
+    /**
+     * Get job progress information
+     */
     public function getJobProgress(Request $request, string $jobId)
     {
         try {
@@ -416,12 +423,61 @@ class GitHubIntegrationController extends Controller
                 return $this->errorResponse('Unauthorized access to job data', 403);
             }
 
+            // Add additional info for completed jobs
+            if (isset($progressData['completed']) && $progressData['completed']) {
+                // Calculate total duration
+                $duration = $progressData['duration'] ?? 0;
+                $progressData['duration_formatted'] = $this->formatDuration($duration);
+
+                // Token stats summary if available
+                if (isset($progressData['token_stats'])) {
+                    $progressData['token_summary'] = $this->formatTokenSummary($progressData['token_stats']);
+                }
+            }
+
             return $this->successResponse($progressData);
         } catch (\Exception $e) {
             Log::error('Error getting job progress', ['error' => $e->getMessage()]);
             return $this->errorResponse('Failed to get job progress: ' . $e->getMessage(), 500);
         }
     }
+
+    /**
+     * Format duration in seconds to human-readable string
+     */
+    protected function formatDuration(int $seconds): string
+    {
+        if ($seconds < 60) {
+            return "{$seconds} seconds";
+        }
+
+        $minutes = floor($seconds / 60);
+        $remainingSeconds = $seconds % 60;
+
+        if ($minutes < 60) {
+            return "{$minutes} minutes, {$remainingSeconds} seconds";
+        }
+
+        $hours = floor($minutes / 60);
+        $remainingMinutes = $minutes % 60;
+
+        return "{$hours} hours, {$remainingMinutes} minutes";
+    }
+
+    /**
+     * Format token usage stats into a readable summary
+     */
+    protected function formatTokenSummary(array $stats): array
+    {
+        return [
+            'files_processed' => $stats['files_included'] ?? 0,
+            'files_skipped' => $stats['files_skipped'] ?? 0,
+            'directories_scanned' => $stats['directories_included'] ?? 0,
+            'tokens_used' => number_format($stats['estimated_tokens'] ?? 0),
+            'characters_processed' => number_format($stats['total_chars'] ?? 0)
+        ];
+    }
+
     /**
      * Get the GitHub integration for a team
      */

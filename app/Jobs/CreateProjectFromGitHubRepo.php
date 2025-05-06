@@ -7,6 +7,10 @@ use App\Models\Project;
 use App\Models\ProjectIntegration;
 use App\Models\TestSuite;
 use App\Models\Story;
+use App\Models\TestCase;
+use App\Models\TestData;
+use App\Models\TestScript;
+use App\Models\Environment;
 use App\Services\GitHubApiClient;
 use App\Services\AI\AIGenerationService;
 use Illuminate\Bus\Queueable;
@@ -16,13 +20,16 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 
 class CreateProjectFromGitHubRepo implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     protected array $data;
+
+    // Directories to ignore when collecting files
     protected array $ignoreDirs = [
         'node_modules',
         'vendor',
@@ -32,6 +39,8 @@ class CreateProjectFromGitHubRepo implements ShouldQueue
         'bootstrap/cache',
         'tests'
     ];
+
+    // Files to ignore when collecting
     protected array $ignoreFiles = [
         '.gitignore',
         '.env',
@@ -39,6 +48,23 @@ class CreateProjectFromGitHubRepo implements ShouldQueue
         'package-lock.json',
         'composer.lock'
     ];
+
+    // Priority files to include first
+    protected array $priorityFiles = [
+        'README.md',
+        'readme.md',
+        'README',
+        'package.json',
+        'composer.json',
+        'config.json',
+        '.npmrc',
+        '.yarnrc',
+        'tsconfig.json',
+        'webpack.config.js',
+        'vite.config.js'
+    ];
+
+    // File extensions to collect
     protected array $fileExtensions = [
         'php',
         'js',
@@ -56,10 +82,11 @@ class CreateProjectFromGitHubRepo implements ShouldQueue
         'vue',
         'json',
         'yml',
-        'yaml'
+        'yaml',
+        'md'
     ];
 
-    // Estimated token counts per character for different file types
+    // Token estimation ratios for different file types
     protected array $tokenRatios = [
         'default' => 0.25, // 4 chars per token as a default
         'php' => 0.3,
@@ -70,6 +97,23 @@ class CreateProjectFromGitHubRepo implements ShouldQueue
         'html' => 0.2,
         'css' => 0.2,
         'json' => 0.2,
+        'md' => 0.2,
+        'txt' => 0.15,
+    ];
+
+    // GPT-4.1 context limits
+    protected int $maxInputTokens = 1000000; // 1M tokens
+    protected int $tokenSafetyMargin = 50000; // 50K safety margin
+    protected int $maxEffectiveTokens;
+    protected int $tokensUsed = 0;
+
+    // Token usage tracking
+    protected array $tokenUsageStats = [
+        'total_chars' => 0,
+        'estimated_tokens' => 0,
+        'files_included' => 0,
+        'files_skipped' => 0,
+        'directories_included' => 0
     ];
 
     /**
@@ -78,15 +122,16 @@ class CreateProjectFromGitHubRepo implements ShouldQueue
     public function __construct(array $data)
     {
         $this->data = $data;
+        $this->maxEffectiveTokens = $this->maxInputTokens - $this->tokenSafetyMargin;
     }
 
     /**
      * Execute the job.
      */
-    public function handle(GitHubApiClient $githubClient, AIGenerationService $aiService): void
+    public function handle(GitHubApiClient $githubClient): void
     {
         try {
-            Log::info('Starting GitHub project creation job', [
+            Log::info('Starting improved GitHub project creation job', [
                 'repo' => $this->data['owner'] . '/' . $this->data['repo'],
                 'project_name' => $this->data['project_name'],
                 'job_id' => $this->data['job_id'] ?? null
@@ -129,49 +174,59 @@ class CreateProjectFromGitHubRepo implements ShouldQueue
             $project->save();
 
             // Update progress to 20%
-            $this->updateProgress(20, 'Collecting repository contents');
+            $this->updateProgress(20, 'Building project tree and collecting repository contents');
 
-            // Collect repo contents
-            list($files, $totalSize) = $this->collectRepositoryContents(
+            // Get the project tree
+            $projectTree = $this->buildProjectTree($githubClient, $this->data['owner'], $this->data['repo']);
+
+            // Log the project tree for analysis
+            Log::info('Project tree built', [
+                'tree_size' => strlen(json_encode($projectTree)),
+                'top_level_items' => count($projectTree)
+            ]);
+
+            // Collect key repository contents - now with token tracking
+            $collectedData = $this->collectRepositoryContents(
                 $githubClient,
                 $this->data['owner'],
                 $this->data['repo'],
-                $this->data['max_file_size'] ?? 1024 // Default to 1MB in KB
+                $projectTree,
+                $this->data['max_file_size'] ?? 64 // Default to 64KB
             );
 
+            // Update progress to 40%
+            $this->updateProgress(
+                40,
+                "Collected {$this->tokenUsageStats['files_included']} files, with approximately {$this->tokenUsageStats['estimated_tokens']} tokens"
+            );
+
+            // Generate the comprehensive prompt for GPT-4.1
+            $prompt = $this->generateAIPrompt($project, $repository, $collectedData);
+
+            // Log prompt stats
+            Log::info('Generated prompt for AI', [
+                'prompt_length' => strlen($prompt),
+                'estimated_prompt_tokens' => strlen($prompt) / 4, // Rough estimation
+                'token_stats' => $this->tokenUsageStats
+            ]);
+
             // Update progress to 50%
-            $this->updateProgress(50, 'Processing ' . count($files) . ' files');
+            $this->updateProgress(50, 'Sending request to advanced AI model for test generation');
 
-            if (count($files) === 0) {
-                Log::warning('No files collected from repository', [
-                    'repo' => $this->data['owner'] . '/' . $this->data['repo']
-                ]);
+            // Send to GPT-4.1
+            $aiResponse = $this->sendToAdvancedAI($prompt);
 
-                // Create a default test suite
-                $this->createDefaultTestSuite($project);
+            // Update progress to 70%
+            $this->updateProgress(70, 'Processing AI response and creating Arxitest entities');
 
-                // Update progress to 100%
-                $this->updateProgress(100, 'Project created with default test suite (no source files were collected)', true);
-
-                // Notify user of completion
-                $this->notifyCompletion($project->id, true, 'Project created, but no source files were collected.');
-                return;
-            }
-
-            // Generate test suites and stories using collected files
-            if ($this->data['auto_generate_tests'] ?? false) {
-                $this->updateProgress(60, 'Generating test suites and stories');
-                $this->generateTestSuitesAndStories($project, $files, $aiService);
-            } else {
-                $this->updateProgress(60, 'Creating default test suite');
-                $this->createDefaultTestSuite($project);
-            }
+            // Process the AI response to create Arxitest entities
+            $this->processAIResponse($project, $aiResponse);
 
             // Update progress to 100%
-            $this->updateProgress(100, 'Project created successfully', true);
+            $this->updateProgress(100, 'Project created successfully with comprehensive test structure', true);
 
             // Notify user of completion
-            $this->notifyCompletion($project->id, true, 'Project created successfully.');
+            $this->notifyCompletion($project->id, true, 'Project created successfully with comprehensive test suite structure.');
         } catch (\Exception $e) {
             Log::error('Failed to create project from GitHub repo', [
                 'repo' => $this->data['owner'] . '/' . $this->data['repo'],
@@ -184,6 +239,746 @@ class CreateProjectFromGitHubRepo implements ShouldQueue
 
             // Notify user of failure
             $this->notifyCompletion(null, false, 'Failed to create project: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Build a tree representation of the project structure
+     */
+    protected function buildProjectTree(GitHubApiClient $client, string $owner, string $repo, string $path = ''): array
+    {
+        try {
+            $contents = $client->getRepositoryContents($owner, $repo, $path);
+            $tree = [];
+
+            foreach ($contents as $item) {
+                // Skip ignored directories and files
+                $itemName = basename($item['path']);
+                if ($item['type'] === 'dir' && in_array($itemName, $this->ignoreDirs)) {
+                    continue;
+                }
+                if ($item['type'] === 'file' && in_array($itemName, $this->ignoreFiles)) {
+                    continue;
+                }
+
+                // Add this item to the tree
+                $treeItem = [
+                    'name' => $itemName,
+                    'path' => $item['path'],
+                    'type' => $item['type'],
+                    'size' => $item['size'] ?? 0
+                ];
+
+                // Recursively build tree for directories
+                if ($item['type'] === 'dir') {
+                    $treeItem['children'] = $this->buildProjectTree($client, $owner, $repo, $item['path']);
+                    $this->tokenUsageStats['directories_included']++;
+                }
+
+                $tree[] = $treeItem;
+            }
+
+            return $tree;
+        } catch (\Exception $e) {
+            Log::warning("Error building project tree for path: {$path}", [
+                'error' => $e->getMessage()
+            ]);
+            return [];
+        }
+    }
+
+    /**
+     * Collect repository contents with token tracking
+     */
+    protected function collectRepositoryContents(
+        GitHubApiClient $client,
+        string $owner,
+        string $repo,
+        array $projectTree,
+        int $maxFileSizeKB = 64
+    ): array {
+        $collectedData = [
+            'project_structure' => $this->formatProjectTree($projectTree),
+            'readme' => '',
+            'config_files' => [],
+            'code_files' => [],
+        ];
+
+        $maxFileSizeBytes = $maxFileSizeKB * 1024;
+
+        // First pass: collect README and configuration files
+        $readme = $this->findReadmeFile($projectTree);
+        if ($readme) {
+            try {
+                $content = $client->getFileContent($owner, $repo, $readme['path']);
+                $collectedData['readme'] = $content;
+
+                // Track token usage
+                $tokens = $this->estimateTokens($content, 'md');
+                $this->tokensUsed += $tokens;
+                $this->tokenUsageStats['total_chars'] += strlen($content);
+                $this->tokenUsageStats['estimated_tokens'] += $tokens;
+                $this->tokenUsageStats['files_included']++;
+
+                Log::info('README file collected', [
+                    'path' => $readme['path'],
+                    'size' => strlen($content),
+                    'estimated_tokens' => $tokens
+                ]);
+            } catch (\Exception $e) {
+                Log::warning('Failed to get README content', [
+                    'path' => $readme['path'],
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
+
+        // Second pass: collect priority config files
+        $configFiles = $this->findConfigFiles($projectTree);
+        foreach ($configFiles as $configFile) {
+            if ($this->tokensUsed >= $this->maxEffectiveTokens) {
+                Log::warning('Token limit reached during config files collection', [
+                    'tokens_used' => $this->tokensUsed,
+                    'token_limit' => $this->maxEffectiveTokens
+                ]);
+                break;
+            }
+
+            try {
+                // Check file size before fetching
+                if ($configFile['size'] > $maxFileSizeBytes) {
+                    Log::info('Skipping large config file', [
+                        'path' => $configFile['path'],
+                        'size' => $configFile['size'],
+                        'max_size' => $maxFileSizeBytes
+                    ]);
+                    $this->tokenUsageStats['files_skipped']++;
+                    continue;
+                }
+
+                $content = $client->getFileContent($owner, $repo, $configFile['path']);
+                $extension = pathinfo($configFile['path'], PATHINFO_EXTENSION);
+
+                // Track token usage
+                $tokens = $this->estimateTokens($content, $extension);
+
+                // Check if adding this file would exceed token limit
+                if ($this->tokensUsed + $tokens > $this->maxEffectiveTokens) {
+                    Log::info('Skipping config file due to token limit', [
+                        'path' => $configFile['path'],
+                        'tokens' => $tokens,
+                        'tokens_used' => $this->tokensUsed,
+                        'token_limit' => $this->maxEffectiveTokens
+                    ]);
+                    $this->tokenUsageStats['files_skipped']++;
+                    continue;
+                }
+
+                $this->tokensUsed += $tokens;
+                $this->tokenUsageStats['total_chars'] += strlen($content);
+                $this->tokenUsageStats['estimated_tokens'] += $tokens;
+                $this->tokenUsageStats['files_included']++;
+
+                $collectedData['config_files'][] = [
+                    'path' => $configFile['path'],
+                    'content' => $content,
+                    'estimated_tokens' => $tokens
+                ];
+
+                Log::info('Config file collected', [
+                    'path' => $configFile['path'],
+                    'size' => strlen($content),
+                    'estimated_tokens' => $tokens
+                ]);
+            } catch (\Exception $e) {
+                Log::warning('Failed to get config file content', [
+                    'path' => $configFile['path'],
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
+
+        // Third pass: collect code files with importance scoring
+        $codeFiles = $this->findCodeFiles($projectTree);
+
+        // Sort code files by importance (this is a simple implementation - can be made more sophisticated)
+        $scoredFiles = $this->scoreFilesByImportance($codeFiles);
+
+        foreach ($scoredFiles as $file) {
+            if ($this->tokensUsed >= $this->maxEffectiveTokens) {
+                Log::warning('Token limit reached during code files collection', [
+                    'tokens_used' => $this->tokensUsed,
+                    'token_limit' => $this->maxEffectiveTokens
+                ]);
+                break;
+            }
+
+            try {
+                // Check file size before fetching
+                if ($file['size'] > $maxFileSizeBytes) {
+                    Log::info('Skipping large code file', [
+                        'path' => $file['path'],
+                        'size' => $file['size'],
+                        'max_size' => $maxFileSizeBytes
+                    ]);
+                    $this->tokenUsageStats['files_skipped']++;
+                    continue;
+                }
+
+                $content = $client->getFileContent($owner, $repo, $file['path']);
+                $extension = pathinfo($file['path'], PATHINFO_EXTENSION);
+
+                // Track token usage
+                $tokens = $this->estimateTokens($content, $extension);
+
+                // Check if adding this file would exceed token limit
+                if ($this->tokensUsed + $tokens > $this->maxEffectiveTokens) {
+                    Log::info('Skipping code file due to token limit', [
+                        'path' => $file['path'],
+                        'tokens' => $tokens,
+                        'tokens_used' => $this->tokensUsed,
+                        'token_limit' => $this->maxEffectiveTokens
+                    ]);
+                    $this->tokenUsageStats['files_skipped']++;
+                    continue;
+                }
+
+                $this->tokensUsed += $tokens;
+                $this->tokenUsageStats['total_chars'] += strlen($content);
+                $this->tokenUsageStats['estimated_tokens'] += $tokens;
+                $this->tokenUsageStats['files_included']++;
+
+                $collectedData['code_files'][] = [
+                    'path' => $file['path'],
+                    'content' => $content,
+                    'importance_score' => $file['importance_score'],
+                    'estimated_tokens' => $tokens
+                ];
+
+                Log::info('Code file collected', [
+                    'path' => $file['path'],
+                    'size' => strlen($content),
+                    'estimated_tokens' => $tokens,
+                    'importance_score' => $file['importance_score']
+                ]);
+            } catch (\Exception $e) {
+                Log::warning('Failed to get code file content', [
+                    'path' => $file['path'],
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
+
+        return $collectedData;
+    }
+
+    /**
+     * Format project tree for inclusion in the prompt
+     */
+    protected function formatProjectTree(array $tree, int $depth = 0): string
+    {
+        $result = '';
+        $indent = str_repeat('  ', $depth);
+
+        foreach ($tree as $item) {
+            if ($item['type'] === 'dir') {
+                $result .= "$indent📁 {$item['name']}/\n";
+                if (isset($item['children']) && !empty($item['children'])) {
+                    $result .= $this->formatProjectTree($item['children'], $depth + 1);
+                }
+            } else {
+                $result .= "$indent📄 {$item['name']}\n";
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Find README file in project tree
+     */
+    protected function findReadmeFile(array $tree): ?array
+    {
+        foreach ($tree as $item) {
+            if (
+                $item['type'] === 'file' &&
+                preg_match('/^readme(\.md)?$/i', $item['name'])
+            ) {
+                return $item;
+            }
+
+            if ($item['type'] === 'dir' && isset($item['children'])) {
+                $found = $this->findReadmeFile($item['children']);
+                if ($found) {
+                    return $found;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Find configuration files in project tree
+     */
+    protected function findConfigFiles(array $tree): array
+    {
+        $configFiles = [];
+
+        foreach ($tree as $item) {
+            if (
+                $item['type'] === 'file' &&
+                (in_array($item['name'], $this->priorityFiles) ||
+                    preg_match('/\.(json|yml|yaml|toml|xml|config)$/i', $item['name']))
+            ) {
+                $configFiles[] = $item;
+            }
+
+            if ($item['type'] === 'dir' && isset($item['children'])) {
+                $configFiles = array_merge($configFiles, $this->findConfigFiles($item['children']));
+            }
+        }
+
+        return $configFiles;
+    }
+
+    /**
+     * Find code files in project tree
+     */
+    protected function findCodeFiles(array $tree): array
+    {
+        $codeFiles = [];
+
+        foreach ($tree as $item) {
+            if ($item['type'] === 'file') {
+                $extension = pathinfo($item['name'], PATHINFO_EXTENSION);
+                if (
+                    in_array(strtolower($extension), $this->fileExtensions) &&
+                    !in_array($item['name'], $this->priorityFiles)
+                ) {
+                    $codeFiles[] = $item;
+                }
+            }
+
+            if ($item['type'] === 'dir' && isset($item['children'])) {
+                $codeFiles = array_merge($codeFiles, $this->findCodeFiles($item['children']));
+            }
+        }
+
+        return $codeFiles;
+    }
+
+    /**
+     * Score files by their importance for test generation
+     */
+    protected function scoreFilesByImportance(array $files): array
+    {
+        foreach ($files as &$file) {
+            $score = 0;
+            $path = strtolower($file['path']);
+            $name = strtolower($file['name']);
+
+            // Score based on file path and name
+            if (strpos($path, 'model') !== false || strpos($path, 'entity') !== false) {
+                $score += 10; // Models/entities are important for understanding data structure
+            }
+            if (strpos($path, 'controller') !== false || strpos($path, 'service') !== false) {
+                $score += 8; // Controllers/services show business logic
+            }
+            if (strpos($path, 'api') !== false || strpos($path, 'route') !== false) {
+                $score += 7; // API/routes show endpoints
+            }
+            if (strpos($path, 'util') !== false || strpos($path, 'helper') !== false) {
+                $score += 5; // Utils/helpers
+            }
+            if (strpos($path, 'component') !== false || strpos($path, 'view') !== false) {
+                $score += 6; // UI components
+            }
+
+            // Score based on file extension
+            $extension = pathinfo($name, PATHINFO_EXTENSION);
+            switch (strtolower($extension)) {
+                case 'php':
+                case 'js':
+                case 'ts':
+                case 'py':
+                    $score += 5; // Core language files
+                    break;
+                case 'jsx':
+                case 'tsx':
+                    $score += 4; // React/UI files
+                    break;
+                case 'html':
+                case 'css':
+                case 'scss':
+                    $score += 3; // Frontend files
+                    break;
+                default:
+                    $score += 1;
+            }
+
+            // Size factor (smaller files often contain more concentrated logic)
+            $sizeKB = ($file['size'] ?? 0) / 1024;
+            if ($sizeKB < 5) {
+                $score += 3;
+            } else if ($sizeKB < 20) {
+                $score += 2;
+            } else if ($sizeKB < 50) {
+                $score += 1;
+            }
+
+            $file['importance_score'] = $score;
+        }
+
+        // Sort by importance score (descending)
+        usort($files, function ($a, $b) {
+            return $b['importance_score'] - $a['importance_score'];
+        });
+
+        return $files;
+    }
+
+    /**
+     * Estimate token count for a text based on file type
+     */
+    protected function estimateTokens(string $text, string $fileType = 'default'): int
+    {
+        $fileType = strtolower($fileType);
+        $ratio = $this->tokenRatios[$fileType] ?? $this->tokenRatios['default'];
+        return (int) ceil(strlen($text) * $ratio);
+    }
+
+    /**
+     * Generate prompt for the AI to create comprehensive test structure
+     */
+    protected function generateAIPrompt(Project $project, array $repository, array $collectedData): string
+    {
+        $projectName = $project->name;
+        $repoName = $repository['name'];
+        $repoDescription = $repository['description'] ?? "No description available";
+        $repoUrl = $repository['html_url'];
+
+        $projectStructure = $collectedData['project_structure'];
+        $readme = $collectedData['readme'];
+
+        // Format config files section
+        $configFilesContent = '';
+        foreach ($collectedData['config_files'] as $file) {
+            $configFilesContent .= "FILE: {$file['path']}\n```\n{$file['content']}\n```\n\n";
+        }
+
+        // Format code files section - limit based on token count
+        $codeFilesContent = '';
+        foreach ($collectedData['code_files'] as $file) {
+            $codeFilesContent .= "FILE: {$file['path']} (Importance: {$file['importance_score']})\n```\n{$file['content']}\n```\n\n";
+        }
+
+        // Create the master prompt
+        $prompt = <<<EOT
+# Comprehensive Test Structure Generation for Arxitest Project
+
+## Repository Information
+- Project Name: {$projectName}
+- Repository: {$repoName}
+- Description: {$repoDescription}
+- URL: {$repoUrl}
+
+## Your Task
+You need to create a comprehensive testing structure for this project, including test suites, user stories, test cases, test data, test scripts and environment configurations.
+
+The test structure should follow Arxitest's format, which includes:
+
+1. **Test Suites** - Logical groupings of related functionality (not one test case per suite)
+2. **User Stories** - Following the format "As a [user role], I want [goal] so that [reason]"
+3. **Test Cases** - Detailed verification steps for each user story
+4. **Test Data** - Sample data for test execution
+5. **Test Scripts** - Executable test scripts (Selenium Python or similar)
+6. **Environments** - Test environment configurations
+
+## Project Structure
+{$projectStructure}
+
+## README
+{$readme}
+
+## Configuration Files
+{$configFilesContent}
+
+## Code Files
+{$codeFilesContent}
+
+## Required Output Format
+Please respond with a structured JSON that contains all necessary elements for creating a comprehensive Arxitest project. Follow this exact format:
+
+```json
+{
+  "test_suites": [
+    {
+      "name": "Suite name",
+      "description": "Suite description",
+      "stories": [
+        {
+          "title": "Story title (As a X, I want Y, so that Z)",
+          "description": "Detailed story description",
+          "test_cases": [
+            {
+              "title": "Test case title",
+              "description": "Test case description",
+              "steps": ["Step 1", "Step 2", "..."],
+              "expected_results": "Expected results",
+              "priority": "high|medium|low",
+              "test_data": {
+                "name": "Test data name",
+                "format": "json|csv|xml|plain",
+                "content": "Test data content"
+              },
+              "test_script": {
+                "name": "Script name",
+                "framework_type": "selenium-python",
+                "content": "Python script code"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "environments": [
+    {
+      "name": "Environment name",
+      "description": "Environment description",
+      "configuration": {
+        "key1": "value1",
+        "key2": "value2"
+      }
+    }
+  ]
+}
+Guidelines:
+
+Each test suite should be focused on a logical component or feature area
+User stories must follow "As a [user role], I want [goal] so that [reason]" format
+Each user story should have 2-5 test cases covering different aspects
+Each test case must include steps, expected results, and relevant test data
+Test scripts should be real, executable code that would work with the actual application
+Include at least development, staging, and production environments
+The structure should be comprehensive and professional
+Base the structure on your understanding of what the project does
+
+Do not include placeholder text or "lorem ipsum" - everything should be detailed and specific to this project.
+EOT;
+        return $prompt;
+    }
+
+    /**
+     * Send request to advanced AI model (GPT-4.1)
+     */
+    protected function sendToAdvancedAI(string $prompt): array
+    {
+        // API configuration
+        $apiKey = config('ai.providers.openai.api_key');
+        $model = 'gpt-4.1'; // The advanced model
+
+        $headers = [
+            'Authorization' => "Bearer {$apiKey}",
+            'Content-Type' => 'application/json'
+        ];
+
+        $data = [
+            'model' => $model,
+            'messages' => [
+                ['role' => 'system', 'content' => 'You are a specialized AI for creating comprehensive test structures. Your response should be valid JSON following the specified format.'],
+                ['role' => 'user', 'content' => $prompt]
+            ],
+            'response_format' => ['type' => 'json_object'],
+            'temperature' => 0.5
+        ];
+
+        try {
+            Log::info('Sending request to advanced AI', [
+                'model' => $model,
+                'prompt_size' => strlen($prompt),
+                'estimated_input_tokens' => $this->tokensUsed
+            ]);
+
+            $response = Http::withHeaders($headers)
+                ->timeout(300)  // 5 minute timeout for large requests
+                ->post('https://api.openai.com/v1/chat/completions', $data);
+
+            if ($response->failed()) {
+                Log::error('Failed to get response from advanced AI', [
+                    'status' => $response->status(),
+                    'body' => $response->body()
+                ]);
+                throw new \Exception('Failed to get response from AI: ' . $response->status() . ' ' . $response->body());
+            }
+
+            $responseData = $response->json();
+            $content = $responseData['choices'][0]['message']['content'] ?? null;
+
+            if (empty($content)) {
+                throw new \Exception('Empty response from AI');
+            }
+
+            Log::info('Received response from advanced AI', [
+                'response_size' => strlen($content),
+                'completion_tokens' => $responseData['usage']['completion_tokens'] ?? 'unknown'
+            ]);
+
+            // Parse JSON response
+            $parsed = json_decode($content, true);
+
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                throw new \Exception('Failed to parse JSON response: ' . json_last_error_msg());
+            }
+
+            return $parsed;
+        } catch (\Exception $e) {
+            Log::error('Error sending request to advanced AI', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            throw new \Exception('Failed to process AI request: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Process AI response to create Arxitest entities
+     */
+    protected function processAIResponse(Project $project, array $aiResponse): void
+    {
+        Log::info('Processing AI response to create Arxitest entities', [
+            'suites_count' => count($aiResponse['test_suites'] ?? []),
+            'environments_count' => count($aiResponse['environments'] ?? [])
+        ]);
+
+        // Create environments
+        $environments = [];
+        foreach ($aiResponse['environments'] ?? [] as $envData) {
+            $environment = new Environment();
+            $environment->name = $envData['name'];
+            $environment->is_global = false;
+            $environment->is_active = true;
+            $environment->configuration = $envData['configuration'] ?? [];
+            $environment->save();
+
+            // Link environment to project
+            $project->environments()->attach($environment->id);
+
+            $environments[] = $environment;
+
+            Log::info('Created environment', [
+                'environment_id' => $environment->id,
+                'name' => $environment->name
+            ]);
+        }
+
+        // Process test suites
+        foreach ($aiResponse['test_suites'] ?? [] as $suiteData) {
+            // Create test suite
+            $suite = new TestSuite();
+            $suite->project_id = $project->id;
+            $suite->name = $suiteData['name'];
+            $suite->description = $suiteData['description'] ?? '';
+            $suite->settings = [
+                'default_priority' => 'medium',
+                'execution_mode' => 'sequential',
+                'created_from_ai' => true
+            ];
+            $suite->save();
+
+            Log::info('Created test suite', [
+                'suite_id' => $suite->id,
+                'name' => $suite->name,
+                'stories_count' => count($suiteData['stories'] ?? [])
+            ]);
+
+            // Process user stories
+            foreach ($suiteData['stories'] ?? [] as $storyData) {
+                // Create story
+                $story = new Story();
+                $story->project_id = $project->id;
+                $story->title = $storyData['title'];
+                $story->description = $storyData['description'] ?? '';
+                $story->source = 'github';
+                $story->metadata = [
+                    'created_through' => 'ai',
+                    'github_repo' => $this->data['owner'] . '/' . $this->data['repo']
+                ];
+                $story->save();
+
+                Log::info('Created story', [
+                    'story_id' => $story->id,
+                    'title' => $story->title,
+                    'test_cases_count' => count($storyData['test_cases'] ?? [])
+                ]);
+
+                // Process test cases
+                foreach ($storyData['test_cases'] ?? [] as $caseData) {
+                    // Create test case
+                    $testCase = new TestCase();
+                    $testCase->suite_id = $suite->id;
+                    $testCase->story_id = $story->id;
+                    $testCase->title = $caseData['title'];
+                    $testCase->description = $caseData['description'] ?? '';
+                    $testCase->expected_results = $caseData['expected_results'] ?? '';
+                    $testCase->steps = $caseData['steps'] ?? [];
+                    $testCase->priority = $caseData['priority'] ?? 'medium';
+                    $testCase->status = 'draft';
+                    $testCase->tags = ['github', 'auto-generated'];
+                    $testCase->save();
+
+                    Log::info('Created test case', [
+                        'test_case_id' => $testCase->id,
+                        'title' => $testCase->title
+                    ]);
+
+                    // Create test data if available
+                    if (isset($caseData['test_data']) && !empty($caseData['test_data'])) {
+                        $testData = new TestData();
+                        $testData->name = $caseData['test_data']['name'] ?? "Data for {$testCase->title}";
+                        $testData->content = $caseData['test_data']['content'] ?? '';
+                        $testData->format = $caseData['test_data']['format'] ?? 'json';
+                        $testData->is_sensitive = false;
+                        $testData->metadata = [
+                            'created_through' => 'ai',
+                            'created_at' => now()->toDateTimeString()
+                        ];
+                        $testData->save();
+
+                        // Associate data with test case
+                        $testCase->testData()->attach($testData->id, [
+                            'usage_context' => 'Generated with AI'
+                        ]);
+
+                        Log::info('Created test data', [
+                            'test_data_id' => $testData->id,
+                            'name' => $testData->name
+                        ]);
+                    }
+
+                    // Create test script if available
+                    if (isset($caseData['test_script']) && !empty($caseData['test_script'])) {
+                        $testScript = new TestScript();
+                        $testScript->test_case_id = $testCase->id;
+                        $testScript->creator_id = $this->data['user_id'] ?? null;
+                        $testScript->name = $caseData['test_script']['name'] ?? "Script for {$testCase->title}";
+                        $testScript->framework_type = $caseData['test_script']['framework_type'] ?? 'selenium-python';
+                        $testScript->script_content = $caseData['test_script']['content'] ?? '';
+                        $testScript->metadata = [
+                            'created_through' => 'ai',
+                            'created_at' => now()->toDateTimeString()
+                        ];
+                        $testScript->save();
+
+                        Log::info('Created test script', [
+                            'test_script_id' => $testScript->id,
+                            'name' => $testScript->name
+                        ]);
+                    }
+                }
+            }
         }
     }
 
@@ -215,6 +1010,9 @@ class CreateProjectFromGitHubRepo implements ShouldQueue
             $progressData['completed_at'] = now()->timestamp;
             $progressData['success'] = $success;
             $progressData['duration'] = now()->timestamp - ($progressData['started_at'] ?? now()->timestamp);
+
+            // Add token usage stats for completed jobs
+            $progressData['token_stats'] = $this->tokenUsageStats;
         }
 
         cache()->put($cacheKey, $progressData, 3600); // Store for 1 hour
@@ -228,233 +1026,8 @@ class CreateProjectFromGitHubRepo implements ShouldQueue
     }
 
     /**
-     * Collect repository contents and filter by file size
+     * Create notification for user
      */
-    protected function collectRepositoryContents(
-        GitHubApiClient $client,
-        string $owner,
-        string $repo,
-        int $maxFileSizeKB = 1024
-    ): array {
-        $files = [];
-        $totalSize = 0;
-        $processedFiles = 0;
-        $skippedFiles = 0;
-        $queue = ['']; // Start with root directory
-        $maxFileSizeBytes = $maxFileSizeKB * 1024;
-
-        while (!empty($queue)) {
-            $path = array_shift($queue);
-
-            try {
-                $contents = $client->getRepositoryContents($owner, $repo, $path);
-                $processedItems = 0;
-                $totalItems = count($contents);
-
-                // Process each item in the directory
-                foreach ($contents as $item) {
-                    $processedItems++;
-
-                    // Update progress occasionally
-                    if ($processedItems % 10 === 0 || $processedItems === $totalItems) {
-                        $progressMsg = "Scanning repository: $path ($processedItems/$totalItems)";
-                        $progressPercentage = 20 + min(25, (int)(($processedFiles / ($processedFiles + count($queue))) * 25));
-                        $this->updateProgress($progressPercentage, $progressMsg);
-                    }
-
-                    // Skip ignored directories
-                    if ($item['type'] === 'dir') {
-                        $dirName = basename($item['path']);
-                        if (!in_array($dirName, $this->ignoreDirs)) {
-                            $queue[] = $item['path'];
-                        }
-                        continue;
-                    }
-
-                    // Process files
-                    if ($item['type'] === 'file') {
-                        $fileName = basename($item['path']);
-                        $extension = pathinfo($fileName, PATHINFO_EXTENSION);
-
-                        // Skip ignored files or non-code files
-                        if (in_array($fileName, $this->ignoreFiles) || !in_array($extension, $this->fileExtensions)) {
-                            $skippedFiles++;
-                            continue;
-                        }
-
-                        // Skip large files
-                        if ($item['size'] > $maxFileSizeBytes) {
-                            Log::info('Skipping large file', [
-                                'path' => $item['path'],
-                                'size' => $item['size'],
-                                'max_size' => $maxFileSizeBytes
-                            ]);
-                            $skippedFiles++;
-                            continue;
-                        }
-
-                        // Get file content
-                        $content = $client->getFileContent($owner, $repo, $item['path']);
-
-                        // Add file to collection
-                        $files[] = [
-                            'path' => $item['path'],
-                            'name' => $fileName,
-                            'content' => $content,
-                            'size' => $item['size']
-                        ];
-
-                        $totalSize += $item['size'];
-                        $processedFiles++;
-                    }
-                }
-            } catch (\Exception $e) {
-                Log::warning('Error getting repository contents', [
-                    'path' => $path,
-                    'error' => $e->getMessage()
-                ]);
-                continue;
-            }
-        }
-
-        Log::info('Repository contents collected', [
-            'file_count' => count($files),
-            'total_size' => $totalSize,
-            'processed_files' => $processedFiles,
-            'skipped_files' => $skippedFiles
-        ]);
-
-        return [$files, $totalSize];
-    }
-
-    /**
-     * Generate test suites and stories based on collected files
-     */
-    protected function generateTestSuitesAndStories(
-        Project $project,
-        array $files,
-        AIGenerationService $aiService
-    ): void {
-        // Group files by directory
-        $filesByDirectory = [];
-        foreach ($files as $file) {
-            $directory = dirname($file['path']);
-            if ($directory === '.') {
-                $directory = 'Root Directory';
-            }
-
-            if (!isset($filesByDirectory[$directory])) {
-                $filesByDirectory[$directory] = [];
-            }
-
-            $filesByDirectory[$directory][] = $file;
-        }
-
-        $totalDirs = count($filesByDirectory);
-        $processedDirs = 0;
-
-        // Process each directory as a potential test suite
-        foreach ($filesByDirectory as $directory => $directoryFiles) {
-            $processedDirs++;
-            $progressPercentage = 60 + (int)(($processedDirs / $totalDirs) * 35);
-            $this->updateProgress($progressPercentage, "Generating test suite for: $directory");
-
-            // If too many files in one directory, split them up
-            $chunks = array_chunk($directoryFiles, min(5, ceil(count($directoryFiles) / 3)));
-
-            foreach ($chunks as $index => $chunkFiles) {
-                $suiteName = $directory;
-                if (count($chunks) > 1) {
-                    $suiteName .= " (Part " . ($index + 1) . ")";
-                }
-
-                // Create a context string from files
-                $context = $this->buildContextFromFiles($chunkFiles);
-
-                // Use AI to generate test suite
-                try {
-                    $suiteData = $aiService->generateTestSuite(
-                        "Create a test suite for the code in: {$suiteName}",
-                        [
-                            'project_id' => $project->id,
-                            'code' => $context,
-                        ]
-                    );
-
-                    // Create story for this test suite
-                    $story = new Story();
-                    $story->project_id = $project->id;
-                    $story->title = "Feature: " . substr($suiteData->name, 0, 80);
-                    $story->description = "Implementation for {$directory} module.";
-                    $story->source = 'github';
-                    $story->metadata = [
-                        'github_directory' => $directory,
-                        'files_analyzed' => array_column($chunkFiles, 'path'),
-                    ];
-                    $story->save();
-
-                    // Create a test case
-                    $testCase = $aiService->generateTestCase(
-                        "Create a test case for the main functionality in: {$suiteName}",
-                        [
-                            'suite_id' => $suiteData->id,
-                            'story_id' => $story->id,
-                            'code' => $context,
-                        ]
-                    );
-
-                    Log::info('Created test suite and test case from GitHub directory', [
-                        'directory' => $directory,
-                        'suite_id' => $suiteData->id,
-                        'story_id' => $story->id,
-                        'test_case_id' => $testCase->id
-                    ]);
-                } catch (\Exception $e) {
-                    Log::error('Failed to generate test suite from GitHub directory', [
-                        'directory' => $directory,
-                        'error' => $e->getMessage()
-                    ]);
-
-                    // Create default test suite on error
-                    $this->createDefaultTestSuite($project, $directory);
-                }
-            }
-        }
-    }
-
-    /**
-     * Build context string from files
-     */
-    protected function buildContextFromFiles(array $files): string
-    {
-        $context = '';
-
-        foreach ($files as $file) {
-            $context .= "--- File: {$file['path']} ---\n";
-            $context .= "{$file['content']}\n\n";
-        }
-
-        return $context;
-    }
-
-    /**
-     * Create a default test suite when we can't generate one
-     */
-    protected function createDefaultTestSuite(Project $project, ?string $name = null): TestSuite
-    {
-        $suite = new TestSuite();
-        $suite->project_id = $project->id;
-        $suite->name = $name ? "Tests for {$name}" : "Default Test Suite";
-        $suite->description = "Default test suite created from GitHub repository";
-        $suite->settings = [
-            'default_priority' => 'medium',
-            'execution_mode' => 'sequential',
-        ];
-        $suite->save();
-
-        return $suite;
-    }
-
     protected function notifyCompletion(?string $projectId, bool $success, string $message): void
     {
         if (!isset($this->data['user_id'])) {
@@ -471,7 +1044,8 @@ class CreateProjectFromGitHubRepo implements ShouldQueue
                 'success' => $success,
                 'project_id' => $projectId,
                 'repository' => $this->data['owner'] . '/' . $this->data['repo'],
-                'job_id' => $this->data['job_id'] ?? null
+                'job_id' => $this->data['job_id'] ?? null,
+                'token_stats' => $this->tokenUsageStats
             ];
             $notification->save();
 

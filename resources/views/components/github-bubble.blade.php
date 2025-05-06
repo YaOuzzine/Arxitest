@@ -148,10 +148,10 @@
                                     </label>
                                     <input type="number" id="max-file-size"
                                         class="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-md shadow-sm placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-zinc-800 dark:text-zinc-200"
-                                        placeholder="Default: 1024 KB (1MB)" value="1024" min="1"
-                                        max="5120">
+                                        placeholder="Default: 64 KB" value="64" min="1"
+                                        max="128">
                                     <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                                        Files larger than this size will be skipped (1-5120 KB)
+                                        Files larger than this size will be skipped (1-128 KB)
                                     </p>
                                 </div>
 
@@ -832,7 +832,7 @@
 
             document.getElementById('create-project-confirm').addEventListener('click', function() {
                 const projectName = document.getElementById('project-name').value.trim();
-                const maxFileSize = parseInt(document.getElementById('max-file-size').value) || 1024;
+                const maxFileSize = parseInt(document.getElementById('max-file-size').value) || 64;
                 const autoGenerateTests = document.getElementById('auto-generate-tests').checked;
 
                 if (!projectName) {
