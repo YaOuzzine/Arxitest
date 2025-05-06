@@ -465,7 +465,10 @@
                 // Show progress indicator
                 progressIndicator.classList.remove('hidden');
 
-                // Set interval to check progress
+                // Initial check immediately
+                checkJobProgress();
+
+                // Then set interval for regular updates
                 progressInterval = setInterval(checkJobProgress, 2000);
             }
 
@@ -477,22 +480,35 @@
 
                 const minutes = Math.floor(diff / 60);
                 const seconds = diff % 60;
+                const hours = Math.floor(minutes / 60);
+                const displayMinutes = minutes % 60;
 
-                progressTime.textContent =
-                    `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                if (hours > 0) {
+                    progressTime.textContent =
+                        `${hours}:${displayMinutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                } else {
+                    progressTime.textContent =
+                        `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                }
             }
 
             function checkJobProgress() {
                 if (!currentJobId) return;
 
                 fetch(`/api/github/job-progress/${currentJobId}`)
-                    .then(response => response.json())
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`Server responded with status: ${response.status}`);
+                        }
+                        return response.json();
+                    })
                     .then(data => {
                         if (data.success) {
                             const progress = data.data.progress || 0;
                             const status = data.data.status || 'Processing...';
 
-                            // Update progress UI
+                            // Smooth progress bar animation
+                            progressBar.style.transition = 'width 0.5s ease-in-out';
                             progressBar.style.width = `${progress}%`;
                             progressPercentage.textContent = `${progress}%`;
                             progressText.textContent = status;
@@ -523,13 +539,24 @@
                                     failureIndicator.classList.remove('hidden');
                                     errorMessage.textContent = data.data.status || 'An error occurred';
                                 }
+
+                                // Persist progress display for a while even after completion
+                                setTimeout(() => {
+                                    if (!progressIndicator.matches(':hover')) {
+                                        progressIndicator.classList.add('hidden');
+                                    }
+                                }, 10000); // Hide after 10 seconds if not being hovered
                             }
                         } else {
                             console.error('Error checking job progress:', data.message);
+                            progressText.textContent = 'Error fetching progress';
                         }
                     })
                     .catch(error => {
                         console.error('Error checking job progress:', error);
+                        progressText.textContent = 'Connection error';
+
+                        // Don't stop trying automatically, let the user dismiss if needed
                     });
             }
 
@@ -539,7 +566,6 @@
                     progressInterval = null;
                 }
 
-                progressIndicator.classList.add('hidden');
                 currentJobId = null;
                 startTime = null;
             }

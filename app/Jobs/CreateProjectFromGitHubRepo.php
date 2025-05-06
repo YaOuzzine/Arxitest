@@ -24,15 +24,39 @@ class CreateProjectFromGitHubRepo implements ShouldQueue
 
     protected array $data;
     protected array $ignoreDirs = [
-        'node_modules', 'vendor', '.git', 'public/build', 'storage',
-        'bootstrap/cache', 'tests'
+        'node_modules',
+        'vendor',
+        '.git',
+        'public/build',
+        'storage',
+        'bootstrap/cache',
+        'tests'
     ];
     protected array $ignoreFiles = [
-        '.gitignore', '.env', '.env.example', 'package-lock.json', 'composer.lock'
+        '.gitignore',
+        '.env',
+        '.env.example',
+        'package-lock.json',
+        'composer.lock'
     ];
     protected array $fileExtensions = [
-        'php', 'js', 'jsx', 'ts', 'tsx', 'py', 'rb', 'java', 'go', 'cs',
-        'html', 'css', 'scss', 'vue', 'json', 'yml', 'yaml'
+        'php',
+        'js',
+        'jsx',
+        'ts',
+        'tsx',
+        'py',
+        'rb',
+        'java',
+        'go',
+        'cs',
+        'html',
+        'css',
+        'scss',
+        'vue',
+        'json',
+        'yml',
+        'yaml'
     ];
 
     // Estimated token counts per character for different file types
@@ -431,17 +455,16 @@ class CreateProjectFromGitHubRepo implements ShouldQueue
         return $suite;
     }
 
-    /**
-     * Notify user of job completion
-     */
     protected function notifyCompletion(?string $projectId, bool $success, string $message): void
     {
-        if (isset($this->data['user_id'])) {
-            $userId = $this->data['user_id'];
+        if (!isset($this->data['user_id'])) {
+            return;
+        }
 
-            // Create notification
+        try {
+            // Create the notification
             $notification = new \App\Models\Notification();
-            $notification->actor_id = null; // System notification
+            $notification->actor_id = null;
             $notification->type = 'github_project_creation';
             $notification->data = [
                 'message' => $message,
@@ -452,16 +475,21 @@ class CreateProjectFromGitHubRepo implements ShouldQueue
             ];
             $notification->save();
 
-            // Link notification to user
-            $userNotification = new \App\Models\UserNotification();
-            $userNotification->notification_id = $notification->id;
-            $userNotification->user_id = $userId;
-            $userNotification->save();
+            // Directly insert the relationship record with a DB query
+            \Illuminate\Support\Facades\DB::insert(
+                'INSERT INTO user_notifications (notification_id, user_id, is_read) VALUES (?, ?, ?)',
+                [$notification->id, $this->data['user_id'], false]
+            );
 
             Log::info('GitHub project creation notification sent', [
-                'user_id' => $userId,
+                'user_id' => $this->data['user_id'],
                 'success' => $success
             ]);
+        } catch (\Exception $e) {
+            Log::error('Error creating notification: ' . $e->getMessage(), [
+                'exception' => $e
+            ]);
+            // Don't let notification errors stop the process
         }
     }
 }

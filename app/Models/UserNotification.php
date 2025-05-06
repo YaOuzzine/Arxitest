@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Relations\Pivot;
 
 class UserNotification extends Pivot
 {
+
     /**
      * Indicates if the IDs are auto-incrementing.
      *
