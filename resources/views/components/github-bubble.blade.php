@@ -1,8 +1,8 @@
 @if (session('github_connected', false))
-    <div id="github-bubble" class="fixed bottom-6 right-6 z-50">
+    <div id="github-bubble" class="fixed bottom-14 right-6 z-50">
         <!-- Bubble Button -->
         <button id="github-bubble-toggle"
-            class="group bg-gradient-to-br from-indigo-600 to-purple-700 dark:from-indigo-700 dark:to-purple-800 text-white p-3.5 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center hover:scale-105 hover:rotate-3 ring-offset-2 ring-offset-white dark:ring-offset-zinc-900 hover:ring-2 ring-indigo-300">
+            class="group bg-gradient-to-br from-green-600 to-green-700 dark:from-gray-700 dark:to-gray-800 text-white p-3.5 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center hover:scale-105 hover:rotate-3 ring-offset-2 ring-offset-white dark:ring-offset-zinc-900 hover:ring-2 ring-indigo-300">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
                 class="w-6 h-6 transform group-hover:scale-110 transition-transform">
@@ -145,7 +145,7 @@
 
         <!-- Browser Panel with Fixed Height Structure -->
         <div id="github-browser"
-            class="hidden fixed right-6 bottom-20 bg-white dark:bg-zinc-800 shadow-2xl rounded-xl w-96 border border-zinc-200 dark:border-zinc-700 transform transition-all duration-300 scale-95 opacity-0 flex flex-col h-[650px] max-h-[80vh]">
+            class="hidden fixed right-20 bottom-20 bg-white dark:bg-zinc-800 shadow-2xl rounded-xl w-96 border border-zinc-200 dark:border-zinc-700 transform transition-all duration-300 scale-95 opacity-0 flex flex-col h-[650px] max-h-[80vh]">
             <!-- Fixed Header -->
             <div
                 class="flex-shrink-0 px-4 py-3 border-b border-zinc-200 dark:border-zinc-700 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/30 dark:to-purple-900/30 flex justify-between items-center">
