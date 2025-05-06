@@ -64,8 +64,14 @@ class CreateProjectFromGitHubRepo implements ShouldQueue
         try {
             Log::info('Starting GitHub project creation job', [
                 'repo' => $this->data['owner'] . '/' . $this->data['repo'],
-                'project_name' => $this->data['project_name']
+                'project_name' => $this->data['project_name'],
+                'job_id' => $this->data['job_id'] ?? null
             ]);
+
+            $jobId = $this->data['job_id'] ?? null;
+
+            // Update progress to 5%
+            $this->updateProgress(5, 'Initializing project creation');
 
             // Get integration and credentials
             $integration = ProjectIntegration::findOrFail($this->data['integration_id']);
@@ -75,8 +81,14 @@ class CreateProjectFromGitHubRepo implements ShouldQueue
             // Set up GitHub client
             $githubClient->setAccessToken($accessToken);
 
+            // Update progress to 10%
+            $this->updateProgress(10, 'Fetching repository information');
+
             // Get repository information
             $repository = $githubClient->getRepository($this->data['owner'], $this->data['repo']);
+
+            // Update progress to 15%
+            $this->updateProgress(15, 'Creating project');
 
             // Create the project
             $project = new Project();
@@ -92,14 +104,19 @@ class CreateProjectFromGitHubRepo implements ShouldQueue
             ];
             $project->save();
 
+            // Update progress to 20%
+            $this->updateProgress(20, 'Collecting repository contents');
+
             // Collect repo contents
-            list($files, $totalTokens) = $this->collectRepositoryContents(
+            list($files, $totalSize) = $this->collectRepositoryContents(
                 $githubClient,
                 $this->data['owner'],
                 $this->data['repo'],
-                $this->data['max_files'],
-                $this->data['max_tokens']
+                $this->data['max_file_size'] ?? 1024 // Default to 1MB in KB
             );
+
+            // Update progress to 50%
+            $this->updateProgress(50, 'Processing ' . count($files) . ' files');
 
             if (count($files) === 0) {
                 Log::warning('No files collected from repository', [
@@ -109,13 +126,25 @@ class CreateProjectFromGitHubRepo implements ShouldQueue
                 // Create a default test suite
                 $this->createDefaultTestSuite($project);
 
+                // Update progress to 100%
+                $this->updateProgress(100, 'Project created with default test suite (no source files were collected)', true);
+
                 // Notify user of completion
                 $this->notifyCompletion($project->id, true, 'Project created, but no source files were collected.');
                 return;
             }
 
             // Generate test suites and stories using collected files
-            $this->generateTestSuitesAndStories($project, $files, $aiService);
+            if ($this->data['auto_generate_tests'] ?? false) {
+                $this->updateProgress(60, 'Generating test suites and stories');
+                $this->generateTestSuitesAndStories($project, $files, $aiService);
+            } else {
+                $this->updateProgress(60, 'Creating default test suite');
+                $this->createDefaultTestSuite($project);
+            }
+
+            // Update progress to 100%
+            $this->updateProgress(100, 'Project created successfully', true);
 
             // Notify user of completion
             $this->notifyCompletion($project->id, true, 'Project created successfully.');
@@ -126,33 +155,89 @@ class CreateProjectFromGitHubRepo implements ShouldQueue
                 'trace' => $e->getTraceAsString()
             ]);
 
+            // Update progress to indicate error
+            $this->updateProgress(100, 'Error: ' . $e->getMessage(), true, false);
+
             // Notify user of failure
             $this->notifyCompletion(null, false, 'Failed to create project: ' . $e->getMessage());
         }
     }
 
     /**
-     * Collect repository contents and estimate token usage
+     * Update job progress
+     */
+    protected function updateProgress(int $percentage, string $status, bool $completed = false, bool $success = true): void
+    {
+        $jobId = $this->data['job_id'] ?? null;
+
+        if (!$jobId) {
+            return;
+        }
+
+        $cacheKey = "github_project_progress_{$jobId}";
+        $progressData = cache()->get($cacheKey, [
+            'progress' => 0,
+            'status' => 'initializing',
+            'team_id' => $this->data['team_id'],
+            'started_at' => now()->timestamp,
+            'job_id' => $jobId
+        ]);
+
+        $progressData['progress'] = $percentage;
+        $progressData['status'] = $status;
+
+        if ($completed) {
+            $progressData['completed'] = true;
+            $progressData['completed_at'] = now()->timestamp;
+            $progressData['success'] = $success;
+            $progressData['duration'] = now()->timestamp - ($progressData['started_at'] ?? now()->timestamp);
+        }
+
+        cache()->put($cacheKey, $progressData, 3600); // Store for 1 hour
+
+        Log::info('Updated job progress', [
+            'job_id' => $jobId,
+            'progress' => $percentage,
+            'status' => $status,
+            'completed' => $completed
+        ]);
+    }
+
+    /**
+     * Collect repository contents and filter by file size
      */
     protected function collectRepositoryContents(
         GitHubApiClient $client,
         string $owner,
         string $repo,
-        int $maxFiles = 20,
-        int $maxTokens = 10000
+        int $maxFileSizeKB = 1024
     ): array {
         $files = [];
-        $totalTokens = 0;
+        $totalSize = 0;
+        $processedFiles = 0;
+        $skippedFiles = 0;
         $queue = ['']; // Start with root directory
+        $maxFileSizeBytes = $maxFileSizeKB * 1024;
 
-        while (!empty($queue) && count($files) < $maxFiles && $totalTokens < $maxTokens) {
+        while (!empty($queue)) {
             $path = array_shift($queue);
 
             try {
                 $contents = $client->getRepositoryContents($owner, $repo, $path);
+                $processedItems = 0;
+                $totalItems = count($contents);
 
                 // Process each item in the directory
                 foreach ($contents as $item) {
+                    $processedItems++;
+
+                    // Update progress occasionally
+                    if ($processedItems % 10 === 0 || $processedItems === $totalItems) {
+                        $progressMsg = "Scanning repository: $path ($processedItems/$totalItems)";
+                        $progressPercentage = 20 + min(25, (int)(($processedFiles / ($processedFiles + count($queue))) * 25));
+                        $this->updateProgress($progressPercentage, $progressMsg);
+                    }
+
                     // Skip ignored directories
                     if ($item['type'] === 'dir') {
                         $dirName = basename($item['path']);
@@ -169,43 +254,34 @@ class CreateProjectFromGitHubRepo implements ShouldQueue
 
                         // Skip ignored files or non-code files
                         if (in_array($fileName, $this->ignoreFiles) || !in_array($extension, $this->fileExtensions)) {
+                            $skippedFiles++;
+                            continue;
+                        }
+
+                        // Skip large files
+                        if ($item['size'] > $maxFileSizeBytes) {
+                            Log::info('Skipping large file', [
+                                'path' => $item['path'],
+                                'size' => $item['size'],
+                                'max_size' => $maxFileSizeBytes
+                            ]);
+                            $skippedFiles++;
                             continue;
                         }
 
                         // Get file content
                         $content = $client->getFileContent($owner, $repo, $item['path']);
 
-                        // Estimate tokens
-                        $ratio = $this->tokenRatios[$extension] ?? $this->tokenRatios['default'];
-                        $estimatedTokens = ceil(strlen($content) * $ratio);
-
-                        // Check if adding this file would exceed token limit
-                        if ($totalTokens + $estimatedTokens > $maxTokens) {
-                            Log::info('Reached token limit', [
-                                'total_tokens' => $totalTokens,
-                                'max_tokens' => $maxTokens
-                            ]);
-                            break 2; // Break out of both loops
-                        }
-
                         // Add file to collection
                         $files[] = [
                             'path' => $item['path'],
                             'name' => $fileName,
                             'content' => $content,
-                            'tokens' => $estimatedTokens
+                            'size' => $item['size']
                         ];
 
-                        $totalTokens += $estimatedTokens;
-
-                        // Check if we've reached file limit
-                        if (count($files) >= $maxFiles) {
-                            Log::info('Reached file limit', [
-                                'file_count' => count($files),
-                                'max_files' => $maxFiles
-                            ]);
-                            break 2; // Break out of both loops
-                        }
+                        $totalSize += $item['size'];
+                        $processedFiles++;
                     }
                 }
             } catch (\Exception $e) {
@@ -219,10 +295,12 @@ class CreateProjectFromGitHubRepo implements ShouldQueue
 
         Log::info('Repository contents collected', [
             'file_count' => count($files),
-            'total_tokens' => $totalTokens
+            'total_size' => $totalSize,
+            'processed_files' => $processedFiles,
+            'skipped_files' => $skippedFiles
         ]);
 
-        return [$files, $totalTokens];
+        return [$files, $totalSize];
     }
 
     /**
@@ -248,8 +326,15 @@ class CreateProjectFromGitHubRepo implements ShouldQueue
             $filesByDirectory[$directory][] = $file;
         }
 
+        $totalDirs = count($filesByDirectory);
+        $processedDirs = 0;
+
         // Process each directory as a potential test suite
         foreach ($filesByDirectory as $directory => $directoryFiles) {
+            $processedDirs++;
+            $progressPercentage = 60 + (int)(($processedDirs / $totalDirs) * 35);
+            $this->updateProgress($progressPercentage, "Generating test suite for: $directory");
+
             // If too many files in one directory, split them up
             $chunks = array_chunk($directoryFiles, min(5, ceil(count($directoryFiles) / 3)));
 
@@ -363,6 +448,7 @@ class CreateProjectFromGitHubRepo implements ShouldQueue
                 'success' => $success,
                 'project_id' => $projectId,
                 'repository' => $this->data['owner'] . '/' . $this->data['repo'],
+                'job_id' => $this->data['job_id'] ?? null
             ];
             $notification->save();
 

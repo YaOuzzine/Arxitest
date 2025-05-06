@@ -348,6 +348,8 @@ Route::prefix('/api/github')->name('api.github.')->middleware(['web', 'auth:web'
         ->where('path', '.*');
     Route::post('/create-project', [GitHubIntegrationController::class, 'createProjectFromRepo'])
         ->name('create.project');
+    Route::get('/job-progress/{jobId}', [GitHubIntegrationController::class, 'getJobProgress'])
+        ->name('job.progress');
 });
 
 // GitHub OAuth Routes

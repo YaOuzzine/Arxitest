@@ -14,18 +14,63 @@
 
         <!-- Progress Indicator -->
         <div id="github-progress-indicator"
-            class="hidden fixed bottom-6 right-20 bg-white dark:bg-zinc-800 shadow-lg rounded-full p-2 flex items-center gap-2 border border-zinc-200 dark:border-zinc-700 animate-fade-in">
-            <div class="relative h-5 w-5 flex-shrink-0">
-                <svg class="animate-spin h-5 w-5 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none"
-                    viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor"
-                        stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
-                    </path>
-                </svg>
+            class="hidden fixed bottom-6 right-20 bg-white dark:bg-zinc-800 shadow-lg rounded-lg p-3 flex flex-col items-start gap-2 border border-zinc-200 dark:border-zinc-700 animate-fade-in min-w-[300px]">
+            <div class="flex items-center justify-between w-full">
+                <h3 class="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                    Creating Project
+                </h3>
+                <button id="close-progress"
+                    class="text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200">
+                    <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
             </div>
-            <span id="github-progress-text" class="text-sm text-zinc-800 dark:text-zinc-200">Creating project...</span>
+            <div class="text-sm text-zinc-600 dark:text-zinc-400" id="progress-text">Initializing...</div>
+            <div class="w-full bg-zinc-200 dark:bg-zinc-700 rounded-full h-2.5 mb-1">
+                <div id="progress-bar"
+                    class="bg-gradient-to-r from-indigo-600 to-purple-600 h-2.5 rounded-full transition-all duration-300"
+                    style="width: 0%"></div>
+            </div>
+            <div class="flex items-center justify-between w-full text-xs text-zinc-500 dark:text-zinc-500">
+                <span id="progress-percentage">0%</span>
+                <span id="progress-time">00:00</span>
+            </div>
+            <!-- Success/Failure Indicator - Hidden by default -->
+            <div id="progress-complete" class="hidden pt-2 mt-2 border-t border-zinc-200 dark:border-zinc-700 w-full">
+                <div id="success-indicator"
+                    class="hidden flex items-center text-sm text-emerald-600 dark:text-emerald-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round" class="w-5 h-5 mr-1.5">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                        <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                    </svg>
+                    <span>Project created successfully!</span>
+                </div>
+                <div id="failure-indicator" class="hidden flex items-center text-sm text-red-600 dark:text-red-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round" class="w-5 h-5 mr-1.5">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="15" y1="9" x2="9" y2="15"></line>
+                        <line x1="9" y1="9" x2="15" y2="15"></line>
+                    </svg>
+                    <span id="error-message">An error occurred</span>
+                </div>
+                <div class="mt-2 flex justify-end">
+                    <button id="view-project-btn"
+                        class="hidden text-xs px-3 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors">
+                        View Project
+                    </button>
+                    <button id="dismiss-progress-btn"
+                        class="text-xs px-3 py-1.5 bg-zinc-200 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-200 rounded-md hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors ml-2">
+                        Dismiss
+                    </button>
+                </div>
+            </div>
         </div>
 
         <!-- Create Project Modal -->
@@ -97,15 +142,16 @@
                                 </div>
 
                                 <div class="mb-4">
-                                    <label for="max-files"
+                                    <label for="max-file-size"
                                         class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                                        Max Files to Import (Optional)
+                                        Maximum File Size (KB)
                                     </label>
-                                    <input type="number" id="max-files"
+                                    <input type="number" id="max-file-size"
                                         class="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-md shadow-sm placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-zinc-800 dark:text-zinc-200"
-                                        placeholder="Default: 20" value="20" min="1" max="100">
+                                        placeholder="Default: 1024 KB (1MB)" value="1024" min="1"
+                                        max="5120">
                                     <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                                        Limit the number of files to analyze (1-100)
+                                        Files larger than this size will be skipped (1-5120 KB)
                                     </p>
                                 </div>
 
@@ -343,6 +389,17 @@
             const actions = document.getElementById('github-actions');
             const successToast = document.getElementById('success-toast');
             const toastMessage = document.getElementById('toast-message');
+            const progressIndicator = document.getElementById('github-progress-indicator');
+            const progressBar = document.getElementById('progress-bar');
+            const progressText = document.getElementById('progress-text');
+            const progressPercentage = document.getElementById('progress-percentage');
+            const progressTime = document.getElementById('progress-time');
+            const progressComplete = document.getElementById('progress-complete');
+            const successIndicator = document.getElementById('success-indicator');
+            const failureIndicator = document.getElementById('failure-indicator');
+            const errorMessage = document.getElementById('error-message');
+            const viewProjectBtn = document.getElementById('view-project-btn');
+            const dismissProgressBtn = document.getElementById('dismiss-progress-btn');
 
             // Selection related elements
             const selectionToolbar = document.getElementById('selection-toolbar');
@@ -362,6 +419,10 @@
             let currentFileContent = '';
             let selectionMode = false;
             let selectedFiles = [];
+            let currentJobId = null;
+            let progressInterval = null;
+            let projectId = null;
+            let startTime = null;
 
             // Show/hide functions
             function showBrowser() {
@@ -380,6 +441,118 @@
                     browser.classList.add('hidden');
                 }, 300);
             }
+
+            // Progress tracking functions
+            function startProgressTracking(jobId) {
+                currentJobId = jobId;
+                startTime = new Date();
+                updateProgressTime();
+
+                // Clear any existing interval
+                if (progressInterval) {
+                    clearInterval(progressInterval);
+                }
+
+                // Reset progress UI
+                progressBar.style.width = '0%';
+                progressPercentage.textContent = '0%';
+                progressText.textContent = 'Initializing...';
+                progressComplete.classList.add('hidden');
+                successIndicator.classList.add('hidden');
+                failureIndicator.classList.add('hidden');
+                viewProjectBtn.classList.add('hidden');
+
+                // Show progress indicator
+                progressIndicator.classList.remove('hidden');
+
+                // Set interval to check progress
+                progressInterval = setInterval(checkJobProgress, 2000);
+            }
+
+            function updateProgressTime() {
+                if (!startTime) return;
+
+                const now = new Date();
+                const diff = Math.floor((now - startTime) / 1000); // difference in seconds
+
+                const minutes = Math.floor(diff / 60);
+                const seconds = diff % 60;
+
+                progressTime.textContent =
+                    `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }
+
+            function checkJobProgress() {
+                if (!currentJobId) return;
+
+                fetch(`/api/github/job-progress/${currentJobId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            const progress = data.data.progress || 0;
+                            const status = data.data.status || 'Processing...';
+
+                            // Update progress UI
+                            progressBar.style.width = `${progress}%`;
+                            progressPercentage.textContent = `${progress}%`;
+                            progressText.textContent = status;
+
+                            // Update elapsed time
+                            updateProgressTime();
+
+                            // Check if job is completed
+                            if (data.data.completed) {
+                                clearInterval(progressInterval);
+                                progressInterval = null;
+
+                                // Show completion UI
+                                progressComplete.classList.remove('hidden');
+
+                                if (data.data.success) {
+                                    successIndicator.classList.remove('hidden');
+
+                                    // If project ID is available, show view project button
+                                    if (data.data.project_id) {
+                                        projectId = data.data.project_id;
+                                        viewProjectBtn.classList.remove('hidden');
+                                        viewProjectBtn.addEventListener('click', function() {
+                                            window.location.href = `/dashboard/projects/${projectId}`;
+                                        });
+                                    }
+                                } else {
+                                    failureIndicator.classList.remove('hidden');
+                                    errorMessage.textContent = data.data.status || 'An error occurred';
+                                }
+                            }
+                        } else {
+                            console.error('Error checking job progress:', data.message);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error checking job progress:', error);
+                    });
+            }
+
+            function stopProgressTracking() {
+                if (progressInterval) {
+                    clearInterval(progressInterval);
+                    progressInterval = null;
+                }
+
+                progressIndicator.classList.add('hidden');
+                currentJobId = null;
+                startTime = null;
+            }
+
+            // Progress control button handlers
+            document.getElementById('close-progress').addEventListener('click', function() {
+                progressIndicator.classList.add('hidden');
+            });
+
+            dismissProgressBtn.addEventListener('click', function() {
+                progressIndicator.classList.add('hidden');
+                stopProgressTracking();
+            });
 
             // Toggle browser visibility
             bubble.addEventListener('click', function() {
@@ -633,7 +806,7 @@
 
             document.getElementById('create-project-confirm').addEventListener('click', function() {
                 const projectName = document.getElementById('project-name').value.trim();
-                const maxFiles = parseInt(document.getElementById('max-files').value) || 20;
+                const maxFileSize = parseInt(document.getElementById('max-file-size').value) || 1024;
                 const autoGenerateTests = document.getElementById('auto-generate-tests').checked;
 
                 if (!projectName) {
@@ -645,9 +818,11 @@
                 document.getElementById('create-project-modal').classList.add('hidden');
 
                 // Show the progress indicator
-                const progressIndicator = document.getElementById('github-progress-indicator');
                 progressIndicator.classList.remove('hidden');
-                document.getElementById('github-progress-text').textContent = 'Initializing project...';
+                progressText.textContent = 'Initializing project...';
+                progressBar.style.width = '0%';
+                progressPercentage.textContent = '0%';
+                progressComplete.classList.add('hidden');
 
                 // Hide the browser
                 hideBrowser();
@@ -664,48 +839,31 @@
                             owner: currentOwner,
                             repo: currentRepo,
                             project_name: projectName,
-                            max_files: maxFiles,
+                            max_file_size: maxFileSize,
                             auto_generate_tests: autoGenerateTests
                         })
                     })
                     .then(response => response.json())
                     .then(data => {
                         if (data.success) {
-                            // Update progress text
-                            document.getElementById('github-progress-text').textContent =
-                                'Project queued successfully';
-
-                            // Show toast
-                            showToast('Project creation started. You\'ll be notified when it\'s ready');
-
-                            // Hide progress indicator after a delay
-                            setTimeout(() => {
-                                progressIndicator.classList.add('hidden');
-                            }, 5000);
+                            // Start tracking progress
+                            startProgressTracking(data.data.job_id);
                         } else {
-                            // Hide progress indicator
-                            progressIndicator.classList.add('hidden');
+                            // Show error
+                            progressComplete.classList.remove('hidden');
+                            failureIndicator.classList.remove('hidden');
+                            errorMessage.textContent = data.message || 'An error occurred';
                             showToast('Error: ' + data.message, 'error');
                         }
                     })
                     .catch(error => {
                         // Hide progress indicator
-                        progressIndicator.classList.add('hidden');
+                        progressComplete.classList.remove('hidden');
+                        failureIndicator.classList.remove('hidden');
+                        errorMessage.textContent = error.message || 'An unexpected error occurred';
                         showToast('Error: ' + error.message, 'error');
                     });
             });
-
-            function updateProjectProgress(status) {
-                const progressIndicator = document.getElementById('github-progress-indicator');
-                const progressText = document.getElementById('github-progress-text');
-
-                if (status) {
-                    progressIndicator.classList.remove('hidden');
-                    progressText.textContent = status;
-                } else {
-                    progressIndicator.classList.add('hidden');
-                }
-            }
 
             // Use file as context
             useFileBtn.addEventListener('click', function() {
@@ -1058,7 +1216,7 @@
                             // Load the file content
                             fetch(
                                     `/api/github/file/${data.owner}/${data.repo}/${encodeURIComponent(data.path)}`
-                                    )
+                                )
                                 .then(response => response.json())
                                 .then(result => {
                                     if (result.success) {

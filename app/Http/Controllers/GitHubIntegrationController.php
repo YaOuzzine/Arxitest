@@ -345,8 +345,8 @@ class GitHubIntegrationController extends Controller
             'owner' => 'required|string',
             'repo' => 'required|string',
             'project_name' => 'required|string|max:100',
-            'max_files' => 'nullable|integer|min:1|max:100',
-            'max_tokens' => 'nullable|integer|min:1000|max:50000',
+            'max_file_size' => 'nullable|integer|min:1|max:5120', // Maximum file size in KB (default 1MB)
+            'auto_generate_tests' => 'nullable|boolean',
         ]);
 
         if ($validator->fails()) {
@@ -366,6 +366,18 @@ class GitHubIntegrationController extends Controller
 
             $this->githubClient->setAccessToken($accessToken);
 
+            // Create a unique job ID for tracking progress
+            $jobId = Str::uuid()->toString();
+
+            // Initialize progress at 0%
+            cache()->put("github_project_progress_{$jobId}", [
+                'progress' => 0,
+                'status' => 'initializing',
+                'team_id' => $team->id,
+                'started_at' => now()->timestamp,
+                'job_id' => $jobId
+            ], 3600);
+
             // Create a job to handle this expensive operation
             $job = new \App\Jobs\CreateProjectFromGitHubRepo([
                 'team_id' => $team->id,
@@ -373,20 +385,42 @@ class GitHubIntegrationController extends Controller
                 'owner' => $request->input('owner'),
                 'repo' => $request->input('repo'),
                 'project_name' => $request->input('project_name'),
-                'max_files' => $request->input('max_files', 20),
-                'max_tokens' => $request->input('max_tokens', 10000),
+                'max_file_size' => $request->input('max_file_size', 1024), // Default 1MB in KB
+                'auto_generate_tests' => $request->input('auto_generate_tests', false),
                 'user_id' => Auth::id(),
+                'job_id' => $jobId
             ]);
 
             dispatch($job);
 
-            return $this->successResponse([], 'Project creation has been queued. You will be notified when it completes.');
+            return $this->successResponse(['job_id' => $jobId], 'Project creation has been queued. You will be notified when it completes.');
         } catch (\Exception $e) {
             Log::error('Error creating project from repo', ['error' => $e->getMessage()]);
             return $this->errorResponse('Failed to create project: ' . $e->getMessage(), 500);
         }
     }
 
+    public function getJobProgress(Request $request, string $jobId)
+    {
+        try {
+            $progressData = cache()->get("github_project_progress_{$jobId}");
+
+            if (!$progressData) {
+                return $this->errorResponse('Job not found or has expired', 404);
+            }
+
+            // Check if the job belongs to this user's team
+            $team = $this->getCurrentTeam($request);
+            if ($progressData['team_id'] !== $team->id) {
+                return $this->errorResponse('Unauthorized access to job data', 403);
+            }
+
+            return $this->successResponse($progressData);
+        } catch (\Exception $e) {
+            Log::error('Error getting job progress', ['error' => $e->getMessage()]);
+            return $this->errorResponse('Failed to get job progress: ' . $e->getMessage(), 500);
+        }
+    }
     /**
      * Get the GitHub integration for a team
      */
