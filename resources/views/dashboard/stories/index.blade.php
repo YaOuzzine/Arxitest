@@ -1,4 +1,9 @@
-<!-- dashboard/stories/index.blade.php -->
+{{-- resources/views/dashboard/stories/index.blade.php --}}
+@php
+    // Pre-calculate the title to avoid "undefined variable" errors
+    $pageTitle = isset($project) ? "Stories for {$project->name}" : 'All Stories';
+@endphp
+
 
 @extends('layouts.dashboard')
 
@@ -20,29 +25,10 @@
 @endsection
 
 @section('content')
-    <div class="h-full space-y-6">
+    <div class="h-full space-y-6" x-data="storiesManager">
         <!-- Header -->
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-                <h1 class="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                    @if (isset($project))
-                        Stories for {{ $project->name }}
-                    @else
-                        All Stories
-                    @endif
-                </h1>
-                <p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400 transition-colors duration-200">
-                    Manage and view your user stories
-                </p>
-            </div>
-            <div class="flex space-x-2">
-                <a href="{{ route('dashboard.stories.create') }}"
-                    class="btn-primary inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-lg hover:shadow-indigo-500/30 transition-all duration-200">
-                    <i data-lucide="plus" class="w-4 h-4"></i> New Story
-                </a>
-            </div>
-        </div>
-
+        <x-index-header title="{{ $pageTitle }}" description="Manage and view your user stories" :createRoute="route('dashboard.stories.create')"
+            createText="New Story" createIcon="plus" />
         <!-- Filters -->
         <div
             class="bg-white dark:bg-zinc-800/50 shadow-sm rounded-xl border border-zinc-200/70 dark:border-zinc-700/50 p-4 backdrop-blur-sm relative z-10">
@@ -105,8 +91,10 @@
                                                         <button type="button"
                                                             @click="selectProject(project.id, project.name)"
                                                             class="w-full text-left px-4 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-700"
-                                                            :class="{ 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300': selectedId ===
-                                                                    project.id }">
+                                                            :class="{
+                                                                'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300': selectedId ===
+                                                                    project.id
+                                                            }">
                                                             <span x-text="project.name"></span>
                                                         </button>
                                                     </li>
@@ -169,168 +157,99 @@
         </div>
 
         <!-- Stories List -->
-        <div
-            class="bg-white dark:bg-zinc-800/50 shadow-sm rounded-xl border border-zinc-200/70 dark:border-zinc-700/50 backdrop-blur-sm overflow-hidden">
-            @if ($stories->isEmpty())
-                <div class="p-10 text-center">
-                    <div
-                        class="bg-zinc-100/50 dark:bg-zinc-700/20 p-6 rounded-xl inline-flex flex-col items-center justify-center mb-4">
-                        <i data-lucide="file-question"
-                            class="h-12 w-12 text-zinc-400 dark:text-zinc-500 mb-4 animate-pulse"></i>
-                        <h3 class="text-lg font-medium text-zinc-900 dark:text-white">No stories found</h3>
-                        <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-                            @if (request('search') || request('project_id') || !empty($selectedSources))
-                                Try adjusting your search or filters.
-                            @else
-                                Get started by creating your first story.
-                            @endif
-                        </p>
-                        <div class="mt-6">
-                            <a href="{{ route('dashboard.stories.create') }}"
-                                class="btn-primary inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-lg hover:shadow-indigo-500/30 transition-all duration-200">
-                                <i data-lucide="plus" class="h-4 w-4"></i>
-                                <span>Create Story</span>
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            @else
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-zinc-200/50 dark:divide-zinc-700/50">
-                        <thead class="bg-zinc-50/50 dark:bg-zinc-800/30">
-                            <tr>
-                                @foreach ([
+        <x-list-view :items="$stories" :columns="[
             'title' => 'Title',
             'source' => 'Source',
             'external_id' => 'External ID',
             'updated_at' => 'Last Updated',
-        ] as $field => $label)
-                                    <th scope="col"
-                                        class="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                                        <a href="{{ request()->fullUrlWithQuery([
-                                            'sort' => $field,
-                                            'direction' => request('sort') === $field && request('direction') === 'asc' ? 'desc' : 'asc',
-                                        ]) }}"
-                                            class="group inline-flex items-center hover:text-zinc-700 dark:hover:text-zinc-200 transition-colors duration-200">
-                                            {{ $label }}
-                                            <span class="ml-1.5 relative">
-                                                @if (request('sort') === $field)
-                                                    <i data-lucide="{{ request('direction') === 'asc' ? 'chevron-up' : 'chevron-down' }}"
-                                                        class="h-4 w-4 text-indigo-600 dark:text-indigo-400 animate-spring"></i>
-                                                @else
-                                                    <i data-lucide="chevrons-up-down"
-                                                        class="h-4 w-4 text-zinc-400 dark:text-zinc-500 opacity-0 group-hover:opacity-100 transition-opacity duration-200"></i>
-                                                @endif
-                                            </span>
-                                        </a>
-                                    </th>
-                                @endforeach
-                                <th scope="col"
-                                    class="px-6 py-3 text-right text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                                    Actions
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-zinc-200/50 dark:divide-zinc-700/50">
-                            @foreach ($stories as $story)
-                                <tr class="hover:bg-zinc-50/30 dark:hover:bg-zinc-700/20 transition-colors duration-200">
-                                    <td class="px-6 py-4 whitespace-nowrap">
-                                        <div class="text-sm font-medium text-zinc-900 dark:text-white">
-                                            <a href="{{ route('dashboard.stories.show', $story->id) }}"
-                                                class="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors duration-200 group">
-                                                {{ \Illuminate\Support\Str::limit($story->title, 50) }}
-                                                <i data-lucide="arrow-up-right"
-                                                    class="h-3 w-3 ml-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200"></i>
-                                            </a>
-                                        </div>
-                                        <div class="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-                                            {{ \Illuminate\Support\Str::limit($story->description, 70) }}
-                                        </div>
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
-                                        <div class="inline-flex items-center space-x-1.5">
-                                            @switch($story->source)
-                                                @case('jira')
-                                                    <i data-lucide="square" class="w-4 h-4 text-blue-500"></i>
-                                                @break
+            'actions' => 'Actions',
+        ]" :sortField="$sortField" :sortDirection="$sortDirection" entityName="Story"
+            emptyStateTitle="No stories found" :emptyStateDescription="request('search') || request('project_id') || !empty($selectedSources)
+                ? 'Try adjusting your search or filters.'
+                : 'Get started by creating your first story.'" emptyStateIcon="file-question" :createRoute="route('dashboard.stories.create')"
+            createLabel="Create Story">
+            @foreach ($stories as $story)
+                <tr class="hover:bg-zinc-50/30 dark:hover:bg-zinc-700/20 transition-colors duration-200">
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm font-medium text-zinc-900 dark:text-white">
+                            <a href="{{ route('dashboard.stories.show', $story->id) }}"
+                                class="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors duration-200 group">
+                                {{ \Illuminate\Support\Str::limit($story->title, 50) }}
+                                <i data-lucide="arrow-up-right"
+                                    class="h-3 w-3 ml-1 inline-block opacity-0 group-hover:opacity-100 transition-opacity duration-200"></i>
+                            </a>
+                        </div>
+                        <div class="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+                            {{ \Illuminate\Support\Str::limit($story->description, 70) }}
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="inline-flex items-center space-x-1.5">
+                            @switch($story->source)
+                                @case('jira')
+                                    <i data-lucide="square" class="w-4 h-4 text-blue-500"></i>
+                                @break
 
-                                                @case('github')
-                                                    <i data-lucide="github" class="w-4 h-4 text-purple-500"></i>
-                                                @break
+                                @case('github')
+                                    <i data-lucide="github" class="w-4 h-4 text-purple-500"></i>
+                                @break
 
-                                                @case('azure')
-                                                    <i data-lucide="microsoft" class="w-4 h-4 text-cyan-500"></i>
-                                                @break
+                                @case('azure')
+                                    <i data-lucide="microsoft" class="w-4 h-4 text-cyan-500"></i>
+                                @break
 
-                                                @default
-                                                    <i data-lucide="file-edit" class="w-4 h-4 text-zinc-500"></i>
-                                            @endswitch
-                                            <span
-                                                class="px-2.5 py-1 text-xs font-medium rounded-full
-                                    {{ match ($story->source) {
-                                        'jira' => 'bg-blue-100/80 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
-                                        'github' => 'bg-purple-100/80 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
-                                        'azure' => 'bg-cyan-100/80 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300',
-                                        'manual' => 'bg-zinc-100/80 text-zinc-800 dark:bg-zinc-700/30 dark:text-zinc-300',
-                                        default => 'bg-zinc-100/80 text-zinc-800 dark:bg-zinc-700/30 dark:text-zinc-300',
-                                    } }}">
-                                                {{ ucfirst($story->source) }}
-                                            </span>
-                                        </div>
-                                    </td>
-                                    <td
-                                        class="px-6 py-4 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400 font-mono">
-                                        {{ $story->external_id ?? '-' }}
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400">
-                                        <div class="flex items-center">
-                                            <i data-lucide="clock"
-                                                class="w-4 h-4 mr-1.5 text-zinc-400 dark:text-zinc-500"></i>
-                                            <span
-                                                class="whitespace-nowrap">{{ $story->updated_at->diffForHumans() }}</span>
-                                        </div>
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        <div class="flex justify-end space-x-3">
-                                            <a href="{{ route('dashboard.stories.edit', $story->id) }}"
-                                                class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300 transition-colors duration-200 relative group"
-                                                title="Edit">
-                                                <i data-lucide="edit" class="h-4 w-4"></i>
-                                                <span
-                                                    class="absolute -top-5 left-1/2 -translate-x-1/2 px-2 py-1 text-xs bg-zinc-800 text-white rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 shadow-lg">
-                                                    Edit
-                                                </span>
-                                            </a>
-                                            <button type="button"
-                                                onclick="if(confirm('Are you sure you want to delete this story?')) { document.getElementById('delete-form-{{ $story->id }}').submit(); }"
-                                                class="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300 transition-colors duration-200 relative group"
-                                                title="Delete">
-                                                <i data-lucide="trash-2" class="h-4 w-4"></i>
-                                                <span
-                                                    class="absolute -top-5 left-1/2 -translate-x-1/2 px-2 py-1 text-xs bg-zinc-800 text-white rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 shadow-lg">
-                                                    Delete
-                                                </span>
-                                            </button>
-                                            <form id="delete-form-{{ $story->id }}"
-                                                action="{{ route('dashboard.stories.destroy', $story->id) }}"
-                                                method="POST" class="hidden">
-                                                @csrf
-                                                @method('DELETE')
-                                            </form>
-                                        </div>
-                                    </td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
+                                @default
+                                    <i data-lucide="file-edit" class="w-4 h-4 text-zinc-500"></i>
+                            @endswitch
+                            <span
+                                class="px-2.5 py-1 text-xs font-medium rounded-full
+                            {{ match ($story->source) {
+                                'jira' => 'bg-blue-100/80 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
+                                'github' => 'bg-purple-100/80 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
+                                'azure' => 'bg-cyan-100/80 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300',
+                                'manual' => 'bg-zinc-100/80 text-zinc-800 dark:bg-zinc-700/30 dark:text-zinc-300',
+                                default => 'bg-zinc-100/80 text-zinc-800 dark:bg-zinc-700/30 dark:text-zinc-300',
+                            } }}">
+                                {{ ucfirst($story->source) }}
+                            </span>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400 font-mono">
+                        {{ $story->external_id ?? '-' }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400">
+                        <div class="flex items-center">
+                            <i data-lucide="clock" class="w-4 h-4 mr-1.5 text-zinc-400 dark:text-zinc-500"></i>
+                            <span class="whitespace-nowrap">{{ $story->updated_at->diffForHumans() }}</span>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div class="flex justify-end space-x-3">
+                            <a href="{{ route('dashboard.stories.edit', $story->id) }}"
+                                class="text-amber-600 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-300 p-1.5 rounded-full hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors">
+                                <i data-lucide="pencil" class="w-4 h-4"></i>
+                            </a>
+                            <button type="button"
+                                @click="openDeleteModal('{{ $story->id }}', '{{ addslashes($story->title) }}')"
+                                class="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300 transition-colors duration-200 relative group"
+                                title="Delete">
+                                <i data-lucide="trash-2" class="h-4 w-4"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            @endforeach
 
-                <!-- Pagination -->
-                <div class="px-6 py-4 border-t border-zinc-200/50 dark:border-zinc-700/50">
+            <!-- Pagination slot -->
+            @if ($stories instanceof \Illuminate\Pagination\LengthAwarePaginator)
+                <x-slot name="pagination">
                     {{ $stories->onEachSide(1)->links() }}
-                </div>
+                </x-slot>
             @endif
-        </div>
+        </x-list-view>
+
+        <x-modals.delete-confirmation title="Delete Story" message="Are you sure you want to delete the story"
+            itemName="deleteStoryName" dangerText="This action cannot be undone." confirmText="Delete Story" />
     </div>
 @endsection
 
@@ -394,7 +313,7 @@
                     const isActive = (value === 'all' && selectedSourcesState.length === 0) ||
                         // 'All' is active if no specific sources are selected
                         (value !== 'all' && selectedSourcesState.includes(
-                        value)); // Specific source is active if it's in the state array
+                            value)); // Specific source is active if it's in the state array
 
                     if (isActive) {
                         pill.classList.add('bg-indigo-100', 'dark:bg-indigo-900/30', 'border-indigo-300',
@@ -428,6 +347,71 @@
                 // If selectedSourcesState is empty, no 'sources[]' inputs are added,
                 // which correctly signals "all" to the backend filter logic.
             }
+        });
+
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('storiesManager', () => ({
+                showDeleteModal: false,
+                deleteConfirmed: false,
+                isDeleting: false,
+                deleteStoryId: null,
+                deleteStoryName: '',
+
+                openDeleteModal(id, name) {
+                    this.deleteStoryId = id;
+                    this.deleteStoryName = name;
+                    this.deleteConfirmed = false;
+                    this.showDeleteModal = true;
+                },
+
+                closeDeleteModal() {
+                    if (!this.isDeleting) {
+                        this.showDeleteModal = false;
+                        this.deleteStoryId = null;
+                        this.deleteStoryName = '';
+                        this.deleteConfirmed = false;
+                    }
+                },
+
+                async confirmDelete() {
+                    if (!this.deleteStoryId) return;
+                    this.isDeleting = true;
+                    try {
+                        const response = await fetch(`/dashboard/stories/${this.deleteStoryId}`, {
+                            method: 'DELETE',
+                            headers: {
+                                'X-CSRF-TOKEN': document.querySelector(
+                                    'meta[name="csrf-token"]').content,
+                                'Accept': 'application/json'
+                            }
+                        });
+
+                        const result = await response.json();
+
+                        if (response.ok) {
+                            // Remove row from DOM or reload page
+                            const row = document.querySelector(
+                                `tr[data-story-id="${this.deleteStoryId}"]`);
+                            if (row) {
+                                row.remove();
+                            } else {
+                                location.reload();
+                            }
+
+                            // Show success notification
+                            showNotification('success', 'Story deleted successfully');
+                        } else {
+                            throw new Error(result.message || 'Failed to delete story');
+                        }
+                    } catch (error) {
+                        console.error(error);
+                        showNotification('error', error.message || 'An error occurred');
+                    } finally {
+                        this.isDeleting = false;
+                        this.closeDeleteModal();
+                    }
+                }
+            }));
         });
     </script>
 @endpush

@@ -77,7 +77,7 @@ class TestSuiteController extends Controller
             $query->where('project_id', $filterProjectId);
         }
 
-        $testSuites = $query->get();
+        $testSuites = $query->paginate(15);
 
         return view('dashboard.test-suites.index', [
             'testSuites' => $testSuites,
@@ -89,13 +89,15 @@ class TestSuiteController extends Controller
     // --- index ---
     public function index(Project $project)
     {
-        $this->authorizeAccess($project);
+
         $testSuites = $project->testSuites()
             ->withCount('testCases')
-            ->orderBy('updated_at', 'desc')
-            ->get();
+            ->orderBy(request('sort', 'updated_at'), request('direction', 'desc'))
+            ->paginate(15);
+        $isGenericIndex = false;
 
-        return view('dashboard.test-suites.index', compact('project', 'testSuites'));
+        // Return the view with test suites
+        return view('dashboard.test-suites.index', compact('testSuites', 'project', 'isGenericIndex'));
     }
 
     // --- create ---

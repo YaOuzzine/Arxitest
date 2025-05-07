@@ -25,6 +25,22 @@
         ? url('dashboard/projects')
         : route('dashboard.projects.test-suites.index', $project->id);
 
+    // Pre-calculate the description to avoid "undefined variable" errors
+    if ($isGenericIndex) {
+        $headerDescription =
+            "Viewing all test suites for team '" . ($team->name ?? 'your team') . "'. Use the filter below.";
+    } else {
+        $headerDescription = isset($project)
+            ? "Manage and organize test suites within the '{$project->name}' project."
+            : 'Manage and organize test suites.';
+    }
+
+    // Pre-calculate the create route
+    $createButtonRoute = null;
+    if ($currentProjectId || $selectedProjectId) {
+        $createButtonRoute = route('dashboard.projects.test-suites.create', [$currentProjectId ?: $selectedProjectId]);
+    }
+
 @endphp
 
 @extends('layouts.dashboard')
@@ -62,41 +78,13 @@
     <div x-data="testSuiteEnhanced" x-init="initNotifications()" class="relative space-y-8">
 
         <!-- Header Section -->
-        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div class="space-y-1">
-                <h1 class="text-3xl font-bold text-zinc-900 dark:text-white">{{ $pageTitle }}</h1>
-                <p class="text-sm text-zinc-600 dark:text-zinc-400">
-                    @if ($isGenericIndex)
-                        Viewing all test suites for team '{{ $team->name ?? 'your team' }}'. Use the filter below.
-                    @else
-                        Manage and organize test suites within the '{{ $project->name }}' project.
-                    @endif
-                </p>
-            </div>
-            {{-- "New Test Suite" Button --}}
-            <div class="flex-shrink-0">
-                {{-- Link to create route only if project context exists, otherwise suggest selecting a project --}}
-                @if ($currentProjectId || $selectedProjectId)
-                    <a id="add-suite-button"
-                        href="{{ route('dashboard.projects.test-suites.create', [$currentProjectId ?: $selectedProjectId]) }}"
-                        class="btn-primary">
-                        Add Test Suite
-                    </a>
-                @else
-                    <span
-                        class="inline-flex items-center px-5 py-2.5 bg-zinc-200 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 font-medium rounded-xl cursor-not-allowed"
-                        title="Select a project from the filter below to add a suite">
-                        <i data-lucide="info" class="w-5 h-5 mr-2"></i>
-                        Select Project to Add Suite
-                    </span>
-                @endif
-            </div>
-        </div>
+        <x-index-header title="{{ $pageTitle }}" description="{{ $headerDescription }}" :createDisabled="!($currentProjectId || $selectedProjectId)"
+            createDisabledText="Select Project to Add Suite" :createRoute="$createButtonRoute" createText="Add Test Suite" />
 
         <!-- Project Filter (Only for Generic Index View) -->
         @if ($isGenericIndex && isset($projects))
             {{-- Ensure $projects is passed for generic view --}}
-            <div class="animate-fade-in-down" style="z-index: 10;" x-data="projectFilterDropdown({
+            <div class="animate-fade-in-down relative" style="z-index: 100;" x-data="projectFilterDropdown({
                 currentProjectId: '{{ $currentProjectId }}',
                 projects: {{ json_encode($projects->toArray()) }}
             })">
@@ -184,154 +172,81 @@
                 </div>
             @else
                 {{-- Test Suites List --}}
-                <div class="space-y-4">
+                <x-list-view :items="$testSuites" :columns="[
+                    'name' => 'Name',
+                    'description' => 'Description',
+                    'test_cases' => 'Test Cases',
+                    'updated_at' => 'Updated',
+                    'actions' => 'Actions',
+                ]" sortField="{{ request('sort', 'updated_at') }}"
+                    sortDirection="{{ request('direction', 'desc') }}" entityName="Test Suite"
+                    emptyStateTitle="No Test Suites Found" :emptyStateDescription="$isGenericIndex && $currentProjectId
+                        ? 'It looks like there are no test suites in the selected project yet.'
+                        : ($isGenericIndex
+                            ? 'No test suites found for the current team or filter. Select a project to create one.'
+                            : 'Get started by creating the first test suite for this project.')" emptyStateIcon="layers-3" :createRoute="!$isGenericIndex ? route('dashboard.projects.test-suites.create', $project->id) : null"
+                    createLabel="Create First Test Suite">
                     @foreach ($testSuites as $suite)
-                        {{-- Individual Suite Card --}}
-                        <div x-data="{ showActions: false }" @mouseenter="showActions = true" @mouseleave="showActions = false"
-                            class="bg-white dark:bg-zinc-800 rounded-xl shadow-md hover:shadow-lg border border-zinc-200/80 dark:border-zinc-700/60 p-5 transition-all duration-300 transform hover:border-zinc-300 dark:hover:border-zinc-600">
-                            <div class="flex items-start justify-between gap-4">
-                                {{-- Suite Info --}}
-                                <div class="flex-1 min-w-0">
-                                    {{-- Suite Name (linked) --}}
+                        <tr class="hover:bg-zinc-50 dark:hover:bg-zinc-700/30 transition-colors"
+                            id="suite-row-{{ $suite->id }}">
+                            <td class="px-6 py-4">
+                                <div class="text-sm font-medium text-zinc-900 dark:text-white">
                                     <a href="{{ route('dashboard.projects.test-suites.show', [$suite->project_id, $suite->id]) }}"
-                                        class="text-lg font-semibold text-zinc-800 dark:text-white hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors duration-200 line-clamp-1"
-                                        title="{{ $suite->name }}">
+                                        class="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors duration-200 group">
                                         {{ $suite->name }}
+                                        <i data-lucide="arrow-up-right"
+                                            class="h-3 w-3 ml-1 inline-block opacity-0 group-hover:opacity-100 transition-opacity duration-200"></i>
                                     </a>
-                                    {{-- Project Name (only on generic index) --}}
-                                    @if ($isGenericIndex)
-                                        <p class="text-xs text-indigo-600 dark:text-indigo-400 font-medium mt-1">
-                                            Project: {{ $suite->project->name }}
-                                        </p>
-                                    @endif
-                                    {{-- Description --}}
-                                    <p class="text-sm text-zinc-600 dark:text-zinc-400 mt-1 line-clamp-2"
-                                        title="{{ $suite->description }}">
-                                        {{ $suite->description ?: 'No description provided.' }}
-                                    </p>
-                                    {{-- Metadata --}}
-                                    <div
-                                        class="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-zinc-500 dark:text-zinc-400/80">
-                                        <span class="inline-flex items-center">
-                                            <i data-lucide="file-check-2" class="w-3.5 h-3.5 mr-1 text-green-500"></i>
-                                            {{ $suite->test_cases_count }}
-                                            {{ Str::plural('Case', $suite->test_cases_count) }}
-                                        </span>
-                                        <span class="inline-flex items-center">
-                                            <i data-lucide="clock" class="w-3.5 h-3.5 mr-1 text-blue-500"></i>
-                                            Updated {{ $suite->updated_at->diffForHumans() }}
-                                        </span>
-                                        <span
-                                            class="inline-flex items-center capitalize {{ match (strtolower($suite->settings['default_priority'] ?? 'medium')) {
-                                                'high' => 'text-red-500',
-                                                'low' => 'text-green-500',
-                                                default => 'text-yellow-500',
-                                            } }}">
-                                            <i data-lucide="bar-chart" class="w-3.5 h-3.5 mr-1"></i>
-                                            {{ $suite->settings['default_priority'] ?? 'Medium' }} Priority
-                                        </span>
-                                    </div>
                                 </div>
-                                {{-- Action Buttons --}}
-                                <div class="flex flex-col items-end md:flex-row md:items-center space-y-2 md:space-y-0 md:space-x-2 flex-shrink-0 transition-opacity duration-200"
-                                    :class="{ 'opacity-100': showActions, 'opacity-0 md:opacity-100': !showActions }">
-                                    <a href="{{ route('dashboard.projects.test-suites.show', [$suite->project_id, $suite->id]) }}"
-                                        class="action-btn text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30"
-                                        title="View Details">
-                                        <i data-lucide="eye" class="w-4 h-4"></i> <span
-                                            class="hidden md:inline ml-1">View</span>
-                                    </a>
+                            </td>
+                            <td class="px-6 py-4">
+                                <div class="text-sm text-zinc-500 dark:text-zinc-400 line-clamp-2">
+                                    {{ $suite->description ?: 'No description provided.' }}
+                                </div>
+                                @if ($isGenericIndex)
+                                    <div class="text-xs text-indigo-600 dark:text-indigo-400 font-medium mt-1">
+                                        Project: {{ $suite->project->name }}
+                                    </div>
+                                @endif
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400">
+                                <span
+                                    class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
+                                    <i data-lucide="file-check-2" class="w-3.5 h-3.5 mr-1"></i>
+                                    {{ $suite->test_cases_count }}
+                                    {{ Str::plural('case', $suite->test_cases_count) }}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400">
+                                {{ $suite->updated_at->diffForHumans() }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                <div class="flex justify-end space-x-3">
                                     <a href="{{ route('dashboard.projects.test-suites.edit', [$suite->project_id, $suite->id]) }}"
-                                        class="action-btn text-yellow-600 dark:text-yellow-400 hover:bg-yellow-50 dark:hover:bg-yellow-900/30"
-                                        title="Edit Suite">
-                                        <i data-lucide="pencil" class="w-4 h-4"></i> <span
-                                            class="hidden md:inline ml-1">Edit</span>
+                                        class="text-amber-600 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-300 p-1.5 rounded-full hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors">
+                                        <i data-lucide="pencil" class="w-4 h-4"></i>
                                     </a>
                                     <button
                                         @click="openDeleteModal('{{ $suite->id }}', '{{ addslashes($suite->name) }}', '{{ $suite->project_id }}')"
-                                        class="action-btn text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30"
-                                        title="Delete Suite">
-                                        <i data-lucide="trash-2" class="w-4 h-4"></i> <span
-                                            class="hidden md:inline ml-1">Delete</span>
+                                        class="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300 p-1.5 rounded-full hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                                        <i data-lucide="trash" class="w-4 h-4"></i>
                                     </button>
                                 </div>
-                            </div>
-                        </div>
+                            </td>
+                        </tr>
                     @endforeach
-                </div>
-                {{-- Pagination (if needed) --}}
-                {{-- <div class="mt-6">
-                    {{ $testSuites->links() }}
-                </div> --}}
+                    <x-slot name="pagination">
+                        {{ $testSuites->appends(request()->except('page'))->links() }}
+                    </x-slot>
+                </x-list-view>
             @endif
         </div>
 
         <!-- Delete Confirmation Modal -->
-        <div x-show="showDeleteModal" x-transition:enter="transition ease-out duration-300"
-            x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
-            x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100"
-            x-transition:leave-end="opacity-0" class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title"
-            role="dialog" aria-modal="true" style="display: none;">
-            <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-                {{-- Background overlay --}}
-                <div class="fixed inset-0 bg-zinc-900/60 dark:bg-zinc-900/80 backdrop-blur-sm transition-opacity"
-                    @click="closeDeleteModal" aria-hidden="true"></div>
-                {{-- Modal panel --}}
-                <div x-show="showDeleteModal" x-transition:enter="ease-out duration-300"
-                    x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-                    x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
-                    x-transition:leave="ease-in duration-200"
-                    x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
-                    x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-                    class="inline-block align-bottom bg-white dark:bg-zinc-800 rounded-xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full border border-zinc-200 dark:border-zinc-700">
-                    {{-- Modal Content --}}
-                    <div class="px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                        <div class="sm:flex sm:items-start">
-                            <div
-                                class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 dark:bg-red-900/30 sm:mx-0 sm:h-10 sm:w-10">
-                                <i data-lucide="alert-triangle" class="h-6 w-6 text-red-600 dark:text-red-400"></i>
-                            </div>
-                            <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                                <h3 class="text-lg leading-6 font-medium text-zinc-900 dark:text-white" id="modal-title">
-                                    Confirm Deletion
-                                </h3>
-                                <div class="mt-2">
-                                    <p class="text-sm text-zinc-600 dark:text-zinc-400">
-                                        Are you sure you want to delete the test suite "<strong
-                                            class="font-semibold text-zinc-700 dark:text-zinc-200"
-                                            x-text="deleteSuiteName"></strong>"? This will also delete all associated test
-                                        cases. This action cannot be undone.
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    {{-- Modal Footer --}}
-                    <div class="bg-zinc-50 dark:bg-zinc-700/30 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse gap-3">
-                        <button @click="confirmDelete()" type="button"
-                            class="w-full inline-flex justify-center rounded-lg border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 dark:focus:ring-offset-zinc-800 sm:w-auto sm:text-sm disabled:opacity-50"
-                            :disabled="isDeleting">
-                            <span x-show="!isDeleting">Delete Suite</span>
-                            <span x-show="isDeleting" class="flex items-center">
-                                <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg"
-                                    fill="none" viewBox="0 0 24 24">
-                                    <circle class="opacity-25" cx="12" cy="12" r="10"
-                                        stroke="currentColor" stroke-width="4"></circle>
-                                    <path class="opacity-75" fill="currentColor"
-                                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
-                                    </path>
-                                </svg>
-                                Deleting...
-                            </span>
-                        </button>
-                        <button @click="closeDeleteModal()" type="button"
-                            class="mt-3 w-full inline-flex justify-center rounded-lg border border-zinc-300 dark:border-zinc-600 shadow-sm px-4 py-2 bg-white dark:bg-zinc-800 text-base font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-zinc-800 sm:mt-0 sm:w-auto sm:text-sm">
-                            Cancel
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <x-modals.delete-confirmation title="Confirm Deletion" message="Are you sure you want to delete the test suite"
+            itemName="deleteSuiteName"
+            dangerText="This will also delete all associated test cases. This action cannot be undone."
+            confirmText="Delete Suite" />
 
 
         <!-- Notification Toast -->

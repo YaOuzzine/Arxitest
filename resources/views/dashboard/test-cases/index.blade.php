@@ -29,6 +29,23 @@
     $sortField = $sortField ?? 'updated_at';
     $sortDirection = $sortDirection ?? 'desc';
 
+    $headerDescription = $isGenericIndex
+        ? 'Manage test cases across all projects. Use filters to narrow your view.'
+        : ($isProjectIndex
+            ? 'Manage test cases for the project.'
+            : 'View and manage test cases in the test suite.');
+
+    // Define the create route based on context
+    $createButtonRoute = null;
+    if ($isGenericIndex && $selectedProjectId) {
+        $createButtonRoute = route('dashboard.projects.test-cases.create', $selectedProjectId) . ($storyParam ?? '');
+    } elseif ($isProjectIndex && isset($project)) {
+        $createButtonRoute = route('dashboard.projects.test-cases.create', $project->id) . ($storyParam ?? '');
+    } elseif (isset($project) && isset($testSuite)) {
+        $createButtonRoute =
+            route('dashboard.projects.test-suites.test-cases.create', [$project->id, $testSuite->id]) .
+            ($storyParam ?? '');
+    }
 @endphp
 
 @extends('layouts.dashboard')
@@ -101,46 +118,9 @@
     })" x-init="init()" class="space-y-8">
 
         {{-- Header --}}
-        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div class="space-y-1">
-                <h1 class="text-3xl font-bold text-zinc-900 dark:text-white">{{ $pageTitle }}</h1>
-                <p class="text-sm text-zinc-600 dark:text-zinc-400">
-                    @if ($isGenericIndex)
-                        Manage test cases across all projects. Use filters to narrow your view.
-                    @elseif ($isProjectIndex)
-                        Manage test cases for the "{{ $project->name }}" project.
-                    @else
-                        View and manage test cases in the "{{ $testSuite->name }}" test suite.
-                    @endif
-                </p>
-            </div>
-
-            {{-- Create Button --}}
-            <div class="flex-shrink-0">
-                @if ($isGenericIndex && !$selectedProjectId)
-                    <button
-                        class="inline-flex items-center px-5 py-2.5 bg-zinc-200 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 font-medium rounded-lg cursor-not-allowed"
-                        title="Select a project first">
-                        <i data-lucide="info" class="w-5 h-5 mr-2"></i>
-                        Select Project to Create
-                    </button>
-                @elseif ($selectedProjectId && !$selectedSuiteId)
-                    <a href="{{ route('dashboard.projects.test-cases.create', $selectedProjectId) }}{{ $storyParam }}"
-                        class="btn-primary inline-flex items-center px-5 py-2.5 group">
-                        <i data-lucide="plus-circle"
-                            class="w-5 h-5 mr-2 transition-transform duration-200 group-hover:rotate-90"></i>
-                        New Test Case
-                    </a>
-                @else
-                    <a href="{{ route('dashboard.projects.test-cases.create', [$project->id, $selectedSuiteId]) }}{{ $storyParam }}"
-                        class="btn-primary inline-flex items-center px-5 py-2.5 group">
-                        <i data-lucide="plus-circle"
-                            class="w-5 h-5 mr-2 transition-transform duration-200 group-hover:rotate-90"></i>
-                        New Test Case
-                    </a>
-                @endif
-            </div>
-        </div>
+        <x-index-header title="{{ $pageTitle }}" description="{{ $headerDescription }}" :createDisabled="$isGenericIndex && !$selectedProjectId"
+            createDisabledText="Select Project to Create" :createRoute="$createButtonRoute" createText="New Test Case"
+            createIcon="plus-circle" />
 
         {{-- Filters --}}
         <div class="bg-white dark:bg-zinc-800 rounded-xl shadow-md p-5 border border-zinc-200 dark:border-zinc-700">
@@ -163,20 +143,27 @@
                             <div>
                                 <label
                                     class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Project</label>
-                                <x-dropdown.search width="full" searchTerm="projectSearchTerm"
-                                    placeholder="Search projects..." noResultsMessage="No matching projects found"
-                                    maxHeight="max-h-60" triggerClasses="w-full">
-                                    <x-slot:trigger>
-                                        <button type="button"
-                                            class="w-full flex items-center justify-between px-4 py-2 bg-white dark:bg-zinc-800 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                                            <span x-text="selectedProjectName || 'All Projects'" class="truncate"></span>
-                                            <i data-lucide="chevron-down"
-                                                class="w-5 h-5 text-zinc-400 transition-transform duration-200"
-                                                :class="{ 'rotate-180': open }"></i>
-                                        </button>
-                                    </x-slot:trigger>
-
-                                    <x-slot:content>
+                                <div class="dropdown-container" x-data="{ open: false }">
+                                    <button type="button" @click="open = !open" @keydown.escape="open = false"
+                                        class="w-full flex items-center justify-between px-4 py-2 bg-white dark:bg-zinc-800 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                        <span x-text="selectedProjectName || 'All Projects'" class="truncate"></span>
+                                        <i data-lucide="chevron-down"
+                                            class="w-5 h-5 text-zinc-400 transition-transform duration-200"
+                                            :class="{ 'rotate-180': open }"></i>
+                                    </button>
+                                    <div x-show="open" @click.outside="open = false"
+                                        x-transition:enter="transition ease-out duration-200"
+                                        x-transition:enter-start="opacity-0 scale-95"
+                                        x-transition:enter-end="opacity-100 scale-100"
+                                        x-transition:leave="transition ease-in duration-150"
+                                        x-transition:leave-start="opacity-100 scale-100"
+                                        x-transition:leave-end="opacity-0 scale-95"
+                                        class="dropdown-menu max-h-60 overflow-y-auto">
+                                        <div class="p-2 border-b border-zinc-200 dark:border-zinc-700">
+                                            <input type="search" x-model="projectSearchTerm"
+                                                placeholder="Search projects..."
+                                                class="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-700 border-transparent rounded-md text-sm focus:ring-indigo-500">
+                                        </div>
                                         <ul class="py-1">
                                             <li>
                                                 <button type="button" @click="selectProject('', 'All Projects')"
@@ -197,10 +184,15 @@
                                                     </button>
                                                 </li>
                                             </template>
+                                            <template x-if="filteredProjects.length === 0 && projectSearchTerm">
+                                                <li class="px-4 py-2 text-zinc-500 dark:text-zinc-400 text-sm">
+                                                    No matching projects found
+                                                </li>
+                                            </template>
                                         </ul>
-                                        <input type="hidden" name="project_id" x-model="selectedProjectId">
-                                    </x-slot:content>
-                                </x-dropdown.search>
+                                    </div>
+                                    <input type="hidden" name="project_id" x-model="selectedProjectId">
+                                </div>
                             </div>
                         @endif
 
@@ -209,20 +201,28 @@
                             <div>
                                 <label
                                     class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Story</label>
-                                <x-dropdown.search width="full" searchTerm="storySearchTerm"
-                                    placeholder="Search stories..." noResultsMessage="No matching stories found"
-                                    maxHeight="max-h-60" triggerClasses="w-full">
-                                    <x-slot:trigger>
-                                        <button type="button" :disabled="isGenericIndex && !selectedProjectId"
-                                            class="w-full flex items-center justify-between px-4 py-2 bg-white dark:bg-zinc-800 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed">
-                                            <span x-text="selectedStoryName || 'All Stories'" class="truncate"></span>
-                                            <i data-lucide="chevron-down"
-                                                class="w-5 h-5 text-zinc-400 transition-transform duration-200"
-                                                :class="{ 'rotate-180': open }"></i>
-                                        </button>
-                                    </x-slot:trigger>
-
-                                    <x-slot:content>
+                                <div class="dropdown-container" x-data="{ open: false }">
+                                    <button type="button" @click="open = !open" @keydown.escape="open = false"
+                                        :disabled="isGenericIndex && !selectedProjectId"
+                                        class="w-full flex items-center justify-between px-4 py-2 bg-white dark:bg-zinc-800 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed">
+                                        <span x-text="selectedStoryName || 'All Stories'" class="truncate"></span>
+                                        <i data-lucide="chevron-down"
+                                            class="w-5 h-5 text-zinc-400 transition-transform duration-200"
+                                            :class="{ 'rotate-180': open }"></i>
+                                    </button>
+                                    <div x-show="open" @click.outside="open = false"
+                                        x-transition:enter="transition ease-out duration-200"
+                                        x-transition:enter-start="opacity-0 scale-95"
+                                        x-transition:enter-end="opacity-100 scale-100"
+                                        x-transition:leave="transition ease-in duration-150"
+                                        x-transition:leave-start="opacity-100 scale-100"
+                                        x-transition:leave-end="opacity-0 scale-95"
+                                        class="dropdown-menu max-h-60 overflow-y-auto">
+                                        <div class="p-2 border-b border-zinc-200 dark:border-zinc-700">
+                                            <input type="search" x-model="storySearchTerm"
+                                                placeholder="Search stories..."
+                                                class="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-700 border-transparent rounded-md text-sm focus:ring-indigo-500">
+                                        </div>
                                         <ul class="py-1">
                                             <li>
                                                 <button type="button" @click="selectStory('', 'All Stories')"
@@ -243,10 +243,15 @@
                                                     </button>
                                                 </li>
                                             </template>
+                                            <template x-if="filteredStories.length === 0 && storySearchTerm">
+                                                <li class="px-4 py-2 text-zinc-500 dark:text-zinc-400 text-sm">
+                                                    No matching stories found
+                                                </li>
+                                            </template>
                                         </ul>
-                                        <input type="hidden" name="story_id" x-model="selectedStoryId">
-                                    </x-slot:content>
-                                </x-dropdown.search>
+                                    </div>
+                                    <input type="hidden" name="story_id" x-model="selectedStoryId">
+                                </div>
                             </div>
                         @endif
 
@@ -255,20 +260,28 @@
                             <div>
                                 <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Test
                                     Suite</label>
-                                <x-dropdown.search width="full" searchTerm="suiteSearchTerm"
-                                    placeholder="Search test suites..." noResultsMessage="No matching test suites found"
-                                    maxHeight="max-h-60" triggerClasses="w-full">
-                                    <x-slot:trigger>
-                                        <button type="button" :disabled="isGenericIndex && !selectedProjectId"
-                                            class="w-full flex items-center justify-between px-4 py-2 bg-white dark:bg-zinc-800 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed">
-                                            <span x-text="selectedSuiteName || 'All Suites'" class="truncate"></span>
-                                            <i data-lucide="chevron-down"
-                                                class="w-5 h-5 text-zinc-400 transition-transform duration-200"
-                                                :class="{ 'rotate-180': open }"></i>
-                                        </button>
-                                    </x-slot:trigger>
-
-                                    <x-slot:content>
+                                <div class="dropdown-container" x-data="{ open: false }">
+                                    <button type="button" @click="open = !open" @keydown.escape="open = false"
+                                        :disabled="isGenericIndex && !selectedProjectId"
+                                        class="w-full flex items-center justify-between px-4 py-2 bg-white dark:bg-zinc-800 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed">
+                                        <span x-text="selectedSuiteName || 'All Suites'" class="truncate"></span>
+                                        <i data-lucide="chevron-down"
+                                            class="w-5 h-5 text-zinc-400 transition-transform duration-200"
+                                            :class="{ 'rotate-180': open }"></i>
+                                    </button>
+                                    <div x-show="open" @click.outside="open = false"
+                                        x-transition:enter="transition ease-out duration-200"
+                                        x-transition:enter-start="opacity-0 scale-95"
+                                        x-transition:enter-end="opacity-100 scale-100"
+                                        x-transition:leave="transition ease-in duration-150"
+                                        x-transition:leave-start="opacity-100 scale-100"
+                                        x-transition:leave-end="opacity-0 scale-95"
+                                        class="dropdown-menu max-h-60 overflow-y-auto">
+                                        <div class="p-2 border-b border-zinc-200 dark:border-zinc-700">
+                                            <input type="search" x-model="suiteSearchTerm"
+                                                placeholder="Search test suites..."
+                                                class="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-700 border-transparent rounded-md text-sm focus:ring-indigo-500">
+                                        </div>
                                         <ul class="py-1">
                                             <li>
                                                 <button type="button" @click="selectSuite('', 'All Suites')"
@@ -289,15 +302,20 @@
                                                     </button>
                                                 </li>
                                             </template>
+                                            <template x-if="filteredSuites.length === 0 && suiteSearchTerm">
+                                                <li class="px-4 py-2 text-zinc-500 dark:text-zinc-400 text-sm">
+                                                    No matching test suites found
+                                                </li>
+                                            </template>
                                         </ul>
-                                        <input type="hidden" name="suite_id" x-model="selectedSuiteId">
-                                    </x-slot:content>
-                                </x-dropdown.search>
+                                    </div>
+                                    <input type="hidden" name="suite_id" x-model="selectedSuiteId">
+                                </div>
                             </div>
                         @endif
 
                         {{-- Search Input --}}
-                        <div class="col-span-1 md:col-span-2">
+                        <div class="col-span-1 md:col-span-1">
                             <label for="search"
                                 class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Search</label>
                             <div class="relative">
@@ -307,11 +325,6 @@
                                     value="{{ $searchTerm }}" placeholder="Search by title or content..."
                                     @keydown.enter.prevent="submitFilterForm()"
                                     class="w-full pl-10 pr-4 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-zinc-800">
-                                <button type="button" @click="clearSearch"
-                                    class="absolute right-3 top-1/2 transform -translate-y-1/2 text-zinc-400 hover:text-zinc-500"
-                                    x-show="searchTerm">
-                                    <i data-lucide="x" class="w-4 h-4"></i>zzzzzzzz
-                                </button>
                             </div>
                         </div>
                     </div>
@@ -328,169 +341,93 @@
         </div>
 
         {{-- Test Cases List --}}
-        <div
-            class="bg-white dark:bg-zinc-800 rounded-xl shadow-md border border-zinc-200 dark:border-zinc-700 overflow-hidden">
-            <div class="p-6 border-b border-zinc-200 dark:border-zinc-700 flex items-center justify-between">
-                <h3 class="text-lg font-semibold text-zinc-800 dark:text-white">
-                    {{-- @php
-                        dd($testCases);
-                    @endphp --}}
-                    @if ($testCases->count() > 0)
-                        {{ $testCases->count() }} {{ Str::plural('Test Case', $testCases->count()) }}
-                    @else
-                        Test Cases
-                    @endif
-                </h3>
+        <x-list-view :items="$testCases" :columns="[
+            'title' => 'Title',
+            'location' => 'Location',
+            'steps' => 'Steps',
+            'updated_at' => 'Updated',
+            'actions' => 'Actions',
+        ]" :sortField="$sortField" :sortDirection="$sortDirection" entityName="Test Case"
+            emptyStateTitle="No Test Cases Found" :emptyStateDescription="$searchTerm
+                ? 'No test cases match your search criteria. Try adjusting your filters.'
+                : 'No test cases found. Create your first test case to get started.'" emptyStateIcon="file-check-2" :createRoute="$isGenericIndex && $selectedProjectId
+                ? route('dashboard.projects.test-cases.create', $selectedProjectId)
+                : (!$isGenericIndex
+                    ? route('dashboard.projects.test-cases.create', $project->id)
+                    : null)"
+            createLabel="Create Test Case">
+            @foreach ($testCases as $testCase)
+                <tr id="test-case-{{ $testCase->id }}"
+                    data-project-id="{{ $isGenericIndex ? $testCase->project_id : $project->id }}"
+                    class="hover:bg-zinc-50 dark:hover:bg-zinc-700/30 transition-colors">
+                    <td class="px-6 py-4">
+                        <div class="text-sm font-medium text-zinc-900 dark:text-white">
+                            <a href="{{ route('dashboard.projects.test-cases.show', [
+                                'project' => $isGenericIndex ? $testCase->project_id ?? 'missing-project' : $project->id,
+                                'test_case' => $testCase->id,
+                            ]) }}"
+                                class="hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors duration-200 group">
+                                {{ $testCase->title }}
+                                <i data-lucide="arrow-up-right"
+                                    class="h-3 w-3 ml-1 inline-block opacity-0 group-hover:opacity-100 transition-opacity duration-200"></i>
+                            </a>
+                        </div>
+                        <div class="text-xs text-zinc-500 dark:text-zinc-400 mt-1 line-clamp-1">
+                            {{ Str::limit($testCase->expected_results, 50) }}
+                        </div>
+                    </td>
+                    <td class="px-6 py-4">
+                        <div class="text-sm">
+                            @if ($isGenericIndex)
+                                <div class="text-indigo-600 dark:text-indigo-400 font-medium">
+                                    {{ $testCase->project_name ?? 'Unknown Project' }}
+                                </div>
+                                <div class="text-zinc-500 dark:text-zinc-400 text-xs">
+                                    {{ $testCase->suite_name ?? 'Unknown Suite' }}
+                                </div>
+                            @elseif ($isProjectIndex)
+                                <div class="text-zinc-700 dark:text-zinc-300">
+                                    {{ $testCase->suite_name ?? 'Unknown Suite' }}
+                                </div>
+                            @endif
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span
+                            class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                            {{ is_array($testCase->steps) ? count($testCase->steps) : 0 }}
+                            {{ Str::plural('step', is_array($testCase->steps) ? count($testCase->steps) : 0) }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400">
+                        {{ $testCase->updated_at->diffForHumans() }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div class="flex justify-end space-x-3">
+                            <a href="{{ route('dashboard.projects.test-cases.edit', [
+                                'project' => $isGenericIndex ? $testCase->project_id : $project->id,
+                                'test_case' => $testCase->id,
+                            ]) }}"
+                                class="text-amber-600 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-300 p-1.5 rounded-full hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors">
+                                <i data-lucide="pencil" class="w-4 h-4"></i>
+                            </a>
+                            <button type="button"
+                                @click="openDeleteModal('{{ $testCase->id }}','{{ addslashes($testCase->title) }}','{{ $isGenericIndex ? $testCase->project_id : $project->id }}')"
+                                class="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300">
+                                <i data-lucide="trash-2" class="w-5 h-5"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            @endforeach
 
-                {{-- Sort --}}
-                <div class="flex items-center space-x-2">
-                    <label class="text-sm text-zinc-600 dark:text-zinc-400">Sort by:</label>
-                    <select @change="updateSort($event)"
-                        class="border border-zinc-300 dark:border-zinc-600 rounded-lg text-sm py-1 pl-3 pr-8 bg-white dark:bg-zinc-800 focus:ring-indigo-500">
-                        <option value="title" {{ $sortField === 'title' ? 'selected' : '' }}>Title</option>
-                        <option value="updated_at" {{ $sortField === 'updated_at' ? 'selected' : '' }}>Last Updated
-                        </option>
-                        <option value="created_at" {{ $sortField === 'created_at' ? 'selected' : '' }}>Date Created
-                        </option>
-                    </select>
-                    <button type="button" @click="toggleSortDirection"
-                        class="p-1 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-700"
-                        title="{{ $sortDirection === 'asc' ? 'Sort Descending' : 'Sort Ascending' }}">
-                        <i data-lucide="{{ $sortDirection === 'asc' ? 'arrow-up' : 'arrow-down' }}"
-                            class="w-5 h-5 text-zinc-500 dark:text-zinc-400"></i>
-                    </button>
-                </div>
-            </div>
-
-            @if ($testCases->isEmpty())
-                <div class="text-center py-16 px-6">
-                    <div
-                        class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-zinc-100 dark:bg-zinc-700 mb-4">
-                        <i data-lucide="file-check-2" class="w-8 h-8 text-zinc-400 dark:text-zinc-500"></i>
-                    </div>
-                    <h3 class="text-lg font-medium text-zinc-800 dark:text-white mb-2">No Test Cases Found</h3>
-                    <p class="text-zinc-500 dark:text-zinc-400 max-w-md mx-auto mb-6">
-                        @if ($searchTerm)
-                            No test cases match your search criteria. Try adjusting your filters.
-                        @elseif ($isGenericIndex && $selectedProjectId)
-                            No test cases found for the selected project or story. Create your first test case to get
-                            started.
-                        @elseif ($isProjectIndex && $selectedSuiteId)
-                            No test cases found for the selected test suite. Create your first test case to get started.
-                        @elseif ($isGenericIndex)
-                            No test cases found across your projects. Select a project to create test cases.
-                        @else
-                            No test cases have been created yet. Create your first test case to get started.
-                        @endif
-                    </p>
-
-                    @if (($isGenericIndex && $selectedProjectId) || ($isProjectIndex && !$selectedSuiteId) || $isSuiteIndex)
-                        <a href="{{ $isGenericIndex
-                            ? route('dashboard.projects.test-cases.create', $selectedProjectId)
-                            : ($isProjectIndex
-                                ? route('dashboard.projects.test-cases.create', $project->id)
-                                : route('dashboard.projects.test-suites.test-cases.create', [$project->id, $testSuite->id])) }}"
-                            class="btn-primary inline-flex items-center group">
-                            <i data-lucide="plus" class="w-4 h-4 mr-2 group-hover:scale-110 transition-transform"></i>
-                            Create First Test Case
-                        </a>
-                    @endif
-                </div>
-            @else
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-zinc-200 dark:divide-zinc-700">
-                        <thead class="bg-zinc-50 dark:bg-zinc-800/80">
-                            <tr>
-                                <th
-                                    class="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                                    Title & Description
-                                </th>
-                                <th
-                                    class="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                                    Location
-                                </th>
-                                <th
-                                    class="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                                    Updated
-                                </th>
-                                <th
-                                    class="px-6 py-3 text-right text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                                    Actions
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody class="bg-white dark:bg-zinc-800 divide-y divide-zinc-200 dark:divide-zinc-700">
-                            @foreach ($testCases as $testCase)
-                                <tr id="test-case-{{ $testCase->id }}"
-                                    data-project-id="{{ $isGenericIndex ? $testCase->project_id : $project->id }}"
-                                    class="hover:bg-zinc-50 dark:hover:bg-zinc-700/30 transition-colors">
-                                    <td class="px-6 py-4 whitespace-nowrap">
-                                        <div class="text-sm font-medium text-zinc-900 dark:text-white truncate max-w-xs">
-                                            {{ $testCase->title }}
-                                        </div>
-                                        <div class="text-xs text-zinc-500 dark:text-zinc-400 truncate max-w-xs">
-                                            {{ Str::limit($testCase->expected_results, 50) }}
-                                        </div>
-                                        <div class="mt-1 flex items-center">
-                                            <span
-                                                class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
-                                                {{ is_array($testCase->steps) ? count($testCase->steps) : 0 }}
-                                                {{ Str::plural('step', is_array($testCase->steps) ? count($testCase->steps) : 0) }}
-                                            </span>
-                                        </div>
-                                    </td>
-                                    <td class="px-6 py-4">
-                                        <div class="text-sm">
-                                            @if ($isGenericIndex)
-                                                <div class="text-indigo-600 dark:text-indigo-400 font-medium">
-                                                    {{ $testCase->project_name ?? 'Unknown Project' }}
-                                                </div>
-                                                <div class="text-zinc-500 dark:text-zinc-400 text-xs">
-                                                    {{ $testCase->suite_name ?? 'Unknown Suite' }}
-                                                </div>
-                                            @elseif ($isProjectIndex)
-                                                <div class="text-zinc-700 dark:text-zinc-300">
-                                                    {{ $testCase->suite_name ?? 'Unknown Suite' }}
-                                                </div>
-                                            @endif
-                                        </div>
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400">
-                                        {{ $testCase->updated_at->diffForHumans() }}
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        <div class="flex justify-end space-x-3">
-                                            <a href="{{ route('dashboard.projects.test-cases.show', [
-                                                'project' => $isGenericIndex ? $testCase->project_id ?? 'missing-project' : $project->id,
-                                                'test_case' => $testCase->id,
-                                            ]) }}"
-                                                class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300">
-                                                <i data-lucide="eye" class="w-5 h-5"></i>
-                                            </a>
-                                            <a href="{{ route('dashboard.projects.test-cases.edit', [
-                                                'project' => $isGenericIndex ? $testCase->project_id : $project->id,
-                                                'test_case' => $testCase->id,
-                                            ]) }}"
-                                                class="text-amber-600 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-300">
-                                                <i data-lucide="edit-3" class="w-5 h-5"></i>
-                                            </a>
-                                            <button type="button"
-                                                @click="openDeleteModal('{{ $testCase->id }}','{{ addslashes($testCase->title) }}','{{ $isGenericIndex ? $testCase->project_id : $project->id }}')"
-                                                class="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300">
-                                                <i data-lucide="trash-2" class="w-5 h-5"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-                <div class="px-6 py-4 border-t border-zinc-200 dark:border-zinc-700">
+            {{-- Pagination slot --}}
+            @if ($testCases instanceof \Illuminate\Pagination\LengthAwarePaginator)
+                <x-slot name="pagination">
                     {{ $testCases->links() }}
-                </div>
+                </x-slot>
             @endif
-        </div>
+        </x-list-view>
 
         {{-- Delete Modal --}}
         <div x-show="showDeleteModal" x-transition:enter="transition ease-out duration-300"
@@ -501,56 +438,9 @@
             <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
                 <div class="fixed inset-0 bg-zinc-900/60 dark:bg-zinc-900/80 backdrop-blur-sm transition-opacity"
                     @click="closeDeleteModal" aria-hidden="true"></div>
-                <div x-show="showDeleteModal" x-transition:enter="ease-out duration-300"
-                    x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-                    x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
-                    x-transition:leave="ease-in duration-200"
-                    x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
-                    x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-                    class="inline-block align-bottom bg-white dark:bg-zinc-800 rounded-xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full border border-zinc-200 dark:border-zinc-700">
-                    <div class="px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                        <div class="sm:flex sm:items-start">
-                            <div
-                                class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 dark:bg-red-900/30 sm:mx-0 sm:h-10 sm:w-10">
-                                <i data-lucide="alert-triangle" class="h-6 w-6 text-red-600 dark:text-red-400"></i>
-                            </div>
-                            <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                                <h3 class="text-lg leading-6 font-medium text-zinc-900 dark:text-white" id="modal-title">
-                                    Delete Test Case
-                                </h3>
-                                <div class="mt-2">
-                                    <p class="text-sm text-zinc-600 dark:text-zinc-400">
-                                        Are you sure you want to delete the test case "<strong
-                                            class="font-semibold text-zinc-700 dark:text-zinc-200"
-                                            x-text="deleteItemTitle"></strong>"? This action cannot be undone.
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="bg-zinc-50 dark:bg-zinc-700/30 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse gap-3">
-                        <button @click="confirmDelete()" type="button"
-                            class="w-full inline-flex justify-center rounded-lg border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 dark:focus:ring-offset-zinc-800 sm:w-auto sm:text-sm disabled:opacity-50"
-                            :disabled="isDeleting">
-                            <span x-show="!isDeleting">Delete Test Case</span>
-                            <span x-show="isDeleting" class="flex items-center">
-                                <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg"
-                                    fill="none" viewBox="0 0 24 24">
-                                    <circle class="opacity-25" cx="12" cy="12" r="10"
-                                        stroke="currentColor" stroke-width="4"></circle>
-                                    <path class="opacity-75" fill="currentColor"
-                                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
-                                    </path>
-                                </svg>
-                                Deleting...
-                            </span>
-                        </button>
-                        <button @click="closeDeleteModal()" type="button"
-                            class="mt-3 w-full inline-flex justify-center rounded-lg border border-zinc-300 dark:border-zinc-600 shadow-sm px-4 py-2 bg-white dark:bg-zinc-800 text-base font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-zinc-800 sm:mt-0 sm:w-auto sm:text-sm">
-                            Cancel
-                        </button>
-                    </div>
-                </div>
+                <x-modals.delete-confirmation title="Delete Test Case"
+                    message="Are you sure you want to delete the test case" itemName="deleteItemTitle"
+                    dangerText="This action cannot be undone." confirmText="Delete Test Case" />
             </div>
         </div>
 
