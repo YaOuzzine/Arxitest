@@ -27,7 +27,6 @@
 
     {{-- Inline Styles --}}
     <style>
-
         [x-cloak] {
             display: none !important;
         }
@@ -352,41 +351,35 @@
                         </button>
 
                         {{-- Notifications Dropdown --}}
-                        {{-- Use a separate x-data for this dropdown's state --}}
-                        <div class="relative" x-data="{ notificationsOpen: false }">
-                            <button @click="notificationsOpen = !notificationsOpen" aria-label="View notifications"
-                                class="relative flex items-center justify-center w-9 h-9 rounded-full text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-zinc-800 transition-colors">
-                                <i data-lucide="bell" class="w-5 h-5"></i>
-                                {{-- Access global store for unread status --}}
-                                <span x-show="$store.app.hasUnreadNotifications"
-                                    class="absolute top-1 right-1 block h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white dark:ring-zinc-800 animate-pulse">
-                                    <span class="sr-only">Unread notifications</span>
-                                </span>
-                            </button>
+                        <x-dropdown.index align="right" width="72 sm:w-80"
+                            content-classes="p-0 bg-white dark:bg-zinc-800 rounded-md shadow-lg ring-1 ring-black ring-opacity-5 overflow-hidden">
+                            <x-slot:trigger>
+                                <button aria-label="View notifications"
+                                    class="relative flex items-center justify-center w-9 h-9 rounded-full text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-zinc-800 transition-colors">
+                                    <i data-lucide="bell" class="w-5 h-5"></i>
+                                    <span x-show="$store.app.hasUnreadNotifications"
+                                        class="absolute top-1 right-1 block h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white dark:ring-zinc-800 animate-pulse">
+                                        <span class="sr-only">Unread notifications</span>
+                                    </span>
+                                </button>
+                            </x-slot:trigger>
 
-                            {{-- Dropdown Panel --}}
-                            <div x-show="notificationsOpen" @click.outside="notificationsOpen = false"
-                                @keydown.escape.window="notificationsOpen = false"
-                                x-transition:enter="transition ease-out duration-100"
-                                x-transition:enter-start="transform opacity-0 scale-95"
-                                x-transition:enter-end="transform opacity-100 scale-100"
-                                x-transition:leave="transition ease-in duration-75"
-                                x-transition:leave-start="transform opacity-100 scale-100"
-                                x-transition:leave-end="transform opacity-0 scale-95"
-                                class="dropdown-menu w-72 sm:w-80 py-0 overflow-hidden" {{-- Removed py-1 --}} x-cloak>
-                                {{-- Header --}}
+                            <x-slot:content>
+                                <!-- Header -->
                                 <div
                                     class="px-4 py-3 border-b border-zinc-200 dark:border-zinc-700 flex justify-between items-center bg-zinc-50 dark:bg-zinc-800/50">
                                     <h3 class="text-sm font-semibold text-zinc-700 dark:text-zinc-200">Notifications
                                     </h3>
-                                    <button @click="$store.app.markAllNotificationsRead()" {{-- Call store method --}}
+                                    <button @click="$store.app.markAllNotificationsRead()"
                                         class="text-xs text-indigo-600 dark:text-indigo-400 hover:underline focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                                         :disabled="!$store.app.hasUnreadNotifications">
                                         Mark all read
                                     </button>
                                 </div>
-                                {{-- List --}}
+
+                                <!-- Notification List -->
                                 <div class="max-h-80 overflow-y-auto custom-scrollbar" x-ref="notificationList">
+                                    <!-- Empty State -->
                                     <template
                                         x-if="!$store.app.notifications || $store.app.notifications.length === 0">
                                         <div class="px-4 py-10 text-center">
@@ -396,6 +389,7 @@
                                             </p>
                                         </div>
                                     </template>
+                                    <!-- Notification Items -->
                                     <ul role="list" class="divide-y divide-zinc-100 dark:divide-zinc-700/50">
                                         <template x-for="notification in $store.app.notifications"
                                             :key="notification.id">
@@ -404,11 +398,10 @@
                                                     class="block px-4 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition-colors"
                                                     :class="{ 'bg-indigo-50 dark:bg-indigo-900/20 font-medium': !notification
                                                             .read }">
-                                                    {{-- Add notification icons based on type maybe --}}
                                                     <p class="text-sm font-medium text-zinc-900 dark:text-white"
                                                         x-text="notification.title"></p>
                                                     <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5"
-                                                        x-html="notification.message"></p> {{-- Use x-html if message might contain simple tags --}}
+                                                        x-html="notification.message"></p>
                                                     <p class="text-xs text-zinc-400 dark:text-zinc-500 mt-1"
                                                         x-text="notification.time_ago"></p>
                                                 </a>
@@ -416,63 +409,54 @@
                                         </template>
                                     </ul>
                                 </div>
-                                {{-- Footer link --}}
+
+                                <!-- Footer -->
                                 <div
                                     class="px-4 py-2 border-t border-zinc-200 dark:border-zinc-700 text-center bg-zinc-50 dark:bg-zinc-800/50">
-                                    <a href="#" {{-- Link to all notifications page --}}
+                                    <a href="#"
                                         class="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium">View
                                         All Notifications</a>
                                 </div>
-                            </div>
-                        </div>
+                            </x-slot:content>
+                        </x-dropdown.index>
 
-                        {{-- User Menu Dropdown --}}
-                        {{-- Use a separate x-data --}}
-                        <div class="relative" x-data="{ userMenuOpen: false }">
-                            <button @click="userMenuOpen = !userMenuOpen" type="button"
-                                class="flex items-center text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-zinc-800"
-                                id="user-menu-button" aria-expanded="false" aria-haspopup="true">
-                                <span class="sr-only">Open user menu</span>
-                                <img class="h-8 w-8 rounded-full object-cover border-2 border-transparent hover:border-indigo-400 dark:hover:border-indigo-500 transition-colors"
-                                    src="https://ui-avatars.com/api/?name={{ urlencode(Auth::user()->name ?? 'U') }}&background=random&color=fff&font-size=0.5&bold=true"
-                                    alt="{{ Auth::user()->name ?? 'User' }} avatar">
-                                {{-- Show name and chevron on medium screens and up --}}
-                                <span class="hidden md:flex items-center ml-2">
-                                    <span
-                                        class="text-sm font-medium text-zinc-700 dark:text-zinc-200">{{ Auth::user()->name ?? 'User' }}</span>
-                                    <i data-lucide="chevron-down" class="ml-1 w-4 h-4 text-zinc-400"></i>
-                                </span>
-                            </button>
+                        <x-dropdown.index width="48">
+                            <x-slot:trigger>
+                                <button type="button"
+                                    class="flex items-center text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-zinc-800"
+                                    id="user-menu-button">
+                                    <span class="sr-only">Open user menu</span>
+                                    <img class="h-8 w-8 rounded-full object-cover border-2 border-transparent hover:border-indigo-400 dark:hover:border-indigo-500 transition-colors"
+                                        src="https://ui-avatars.com/api/?name={{ urlencode(Auth::user()->name ?? 'U') }}&background=random&color=fff&font-size=0.5&bold=true"
+                                        alt="{{ Auth::user()->name ?? 'User' }} avatar">
+                                    <span class="hidden md:flex items-center ml-2">
+                                        <span
+                                            class="text-sm font-medium text-zinc-700 dark:text-zinc-200">{{ Auth::user()->name ?? 'User' }}</span>
+                                        <i data-lucide="chevron-down" class="ml-1 w-4 h-4 text-zinc-400"></i>
+                                    </span>
+                                </button>
+                            </x-slot:trigger>
 
-                            <div x-show="userMenuOpen" @click.outside="userMenuOpen = false"
-                                @keydown.escape.window="userMenuOpen = false"
-                                x-transition:enter="transition ease-out duration-100"
-                                x-transition:enter-start="transform opacity-0 scale-95"
-                                x-transition:enter-end="transform opacity-100 scale-100"
-                                x-transition:leave="transition ease-in duration-75"
-                                x-transition:leave-start="transform opacity-100 scale-100"
-                                x-transition:leave-end="transform opacity-0 scale-95" class="dropdown-menu w-48 py-1"
-                                {{-- Adjusted width and padding --}} role="menu" aria-orientation="vertical"
-                                aria-labelledby="user-menu-button" tabindex="-1" x-cloak>
-                                {{-- User menu items --}}
-                                <a href="{{ route('dashboard') }}?page=profile" class="dropdown-item"
-                                    role="menuitem" tabindex="-1">Your Profile</a>
-                                <a href="{{ route('dashboard.teams.index') }}" class="dropdown-item" role="menuitem"
-                                    tabindex="-1">Team Settings</a>
-                                <a href="{{ route('dashboard.select-team') }}" class="dropdown-item" role="menuitem"
-                                    tabindex="-1">Switch Team</a>
-                                <div class="border-t border-zinc-200 dark:border-zinc-700 my-1"></div>
-                                {{-- Logout Form --}}
+                            <x-slot:content>
+                                <x-dropdown.item href="{{ route('dashboard') }}?page=profile">
+                                    Your Profile
+                                </x-dropdown.item>
+                                <x-dropdown.item href="{{ route('dashboard.teams.index') }}">
+                                    Team Settings
+                                </x-dropdown.item>
+                                <x-dropdown.item href="{{ route('dashboard.select-team') }}">
+                                    Switch Team
+                                </x-dropdown.item>
+                                <x-dropdown.divider />
                                 <form method="POST" action="{{ route('logout') }}" role="none">
                                     @csrf
                                     <button type="submit"
-                                        class="dropdown-item w-full text-left text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
-                                        role="menuitem" tabindex="-1">
+                                        class="block w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20">
                                         Sign out
                                     </button>
                                 </form>
-                            </div>
-                        </div>
+                            </x-slot:content>
+                        </x-dropdown.index>
                     </div>
                 </div>
             </header>
@@ -589,7 +573,7 @@
                     this.isDarkMode = darkMode;
                     localStorage.theme = darkMode ? 'dark' : 'light';
                     document.cookie =
-                    `theme=${darkMode ? 'dark' : 'light'}; path=/; max-age=31536000; SameSite=Lax`; // expires in 1 year
+                        `theme=${darkMode ? 'dark' : 'light'}; path=/; max-age=31536000; SameSite=Lax`; // expires in 1 year
                     this.applyThemeClass();
                     this.renderIcons();
                     window.dispatchEvent(new CustomEvent('theme-changed', {
