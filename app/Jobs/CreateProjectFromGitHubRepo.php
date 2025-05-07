@@ -1111,19 +1111,64 @@ EOT;
      */
     protected function processAIResponse(Project $project, array $aiResponse): void
     {
-        Log::info('Processing AI response to create Arxitest entities', [
+        Log::info('AI response received for GitHub project creation', [
+            'project_id' => $project->id,
+            'project_name' => $project->name,
             'suites_count' => count($aiResponse['test_suites'] ?? []),
             'environments_count' => count($aiResponse['environments'] ?? [])
         ]);
+
+        $logFilePath = storage_path('logs/ai_responses/project_' . $project->id . '_' . date('Y-m-d_H-i-s') . '.json');
+        if (!file_exists(dirname($logFilePath))) {
+            mkdir(dirname($logFilePath), 0755, true);
+        }
+
+        // Write response to file
+        file_put_contents($logFilePath, json_encode($aiResponse, JSON_PRETTY_PRINT));
+
+        Log::info('AI response logged to file', ['file_path' => $logFilePath]);
 
         // Create environments
         $environments = [];
         foreach ($aiResponse['environments'] ?? [] as $envData) {
             $environment = new Environment();
-            $environment->name = $envData['name'];
+
+            // Get project name and default environment name
+            $projectName = Str::limit($project->name, 30); // Limit length for readability
+            $originalEnvName = $envData['name'];
+
+            // Format environment name based on type
+            if (stripos($originalEnvName, 'prod') !== false || stripos($originalEnvName, 'production') !== false) {
+                $envType = 'Production';
+            } elseif (stripos($originalEnvName, 'stage') !== false || stripos($originalEnvName, 'staging') !== false) {
+                $envType = 'Staging';
+            } elseif (stripos($originalEnvName, 'dev') !== false || stripos($originalEnvName, 'development') !== false) {
+                $envType = 'Development';
+            } elseif (stripos($originalEnvName, 'test') !== false || stripos($originalEnvName, 'qa') !== false) {
+                $envType = 'Testing';
+            } else {
+                $envType = $originalEnvName;
+            }
+
+            // Create standardized name format
+            $environment->name = "{$projectName} - {$envType}";
+
+            // Ensure uniqueness
+            $counter = 1;
+            $baseName = $environment->name;
+            while (Environment::where('name', $environment->name)->exists()) {
+                $environment->name = "{$baseName} ({$counter})";
+                $counter++;
+            }
+
             $environment->is_global = false;
             $environment->is_active = true;
-            $environment->configuration = $envData['configuration'] ?? [];
+
+            // Store original name in configuration for reference
+            $envConfig = $envData['configuration'] ?? [];
+            $envConfig['original_name'] = $originalEnvName;
+            $environment->configuration = $envConfig;
+
             $environment->save();
 
             // Link environment to project
@@ -1133,7 +1178,9 @@ EOT;
 
             Log::info('Created environment', [
                 'environment_id' => $environment->id,
-                'name' => $environment->name
+                'name' => $environment->name,
+                'original_name' => $originalEnvName,
+                'project' => $projectName
             ]);
         }
 
@@ -1211,9 +1258,11 @@ EOT;
                         $testData->save();
 
                         // Associate data with test case
-                        $testCase->testData()->attach($testData->id, [
-                            'usage_context' => 'Generated with AI'
-                        ]);
+                        $pivotData = new \App\Models\TestCaseData();
+                        $pivotData->test_case_id = $testCase->id;
+                        $pivotData->test_data_id = $testData->id;
+                        $pivotData->usage_context = 'Generated with AI';
+                        $pivotData->save();
 
                         Log::info('Created test data', [
                             'test_data_id' => $testData->id,

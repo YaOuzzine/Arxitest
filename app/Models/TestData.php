@@ -33,7 +33,7 @@ class TestData extends Model
     {
         return $this->belongsToMany(TestCase::class, 'test_case_data')
                     ->withPivot('usage_context')
-                    ->withTimestamps();
+                    ->using(TestCaseData::class);
     }
 
     /**
