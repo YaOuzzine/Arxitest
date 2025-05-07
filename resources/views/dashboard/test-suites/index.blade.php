@@ -77,7 +77,8 @@
             <div class="flex-shrink-0">
                 {{-- Link to create route only if project context exists, otherwise suggest selecting a project --}}
                 @if ($currentProjectId || $selectedProjectId)
-                    <a id="add-suite-button" href="{{ route('dashboard.projects.test-suites.create', [$currentProjectId ?: $selectedProjectId]) }}"
+                    <a id="add-suite-button"
+                        href="{{ route('dashboard.projects.test-suites.create', [$currentProjectId ?: $selectedProjectId]) }}"
                         class="btn-primary">
                         Add Test Suite
                     </a>
@@ -95,79 +96,60 @@
         <!-- Project Filter (Only for Generic Index View) -->
         @if ($isGenericIndex && isset($projects))
             {{-- Ensure $projects is passed for generic view --}}
-            <div class="animate-fade-in-down dropdown-container" style="z-index: 10;" x-data="projectFilterDropdown({ currentProjectId: '{{ $currentProjectId }}', projects: {{ json_encode($projects->toArray()) }} })">
+            <div class="animate-fade-in-down" style="z-index: 10;" x-data="projectFilterDropdown({
+                currentProjectId: '{{ $currentProjectId }}',
+                projects: {{ json_encode($projects->toArray()) }}
+            })">
                 <form method="GET" action="{{ route('dashboard.test-suites.indexAll') }}" id="project-filter-form">
                     <input type="hidden" name="project_id" x-model="selectedProjectId">
                     <label for="project-select-trigger" class="sr-only">Filter by Project</label>
-                    <div class="relative dashboard-container" id="project-select-container">
-                        {{-- Trigger Button --}}
-                        <button type="button" @click="toggleDropdown" @keydown.escape.prevent="closeDropdown()"
-                            id="project-select-trigger" aria-haspopup="listbox" :aria-expanded="isOpen.toString()"
-                            class="w-full flex items-center justify-between px-4 py-3 bg-white dark:bg-zinc-800 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 transition-all duration-200">
-                            <div class="flex items-center space-x-3">
-                                <i data-lucide="filter" class="w-5 h-5 text-zinc-400"></i>
-                                <span x-text="selectedProjectName || 'Filter by Project...'"
-                                    class="text-zinc-700 dark:text-zinc-200"></span>
-                            </div>
-                            <i data-lucide="chevron-down" class="w-5 h-5 text-zinc-400 transition-transform duration-200"
-                                :class="{ 'rotate-180': isOpen }"></i>
-                        </button>
 
-                        {{-- Dropdown Menu --}}
-                        <div x-show="isOpen" @click.outside="closeDropdown"
-                            x-transition:enter="transition ease-out duration-100"
-                            x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
-                            x-transition:leave="transition ease-in duration-75"
-                            x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95"
-                            class="dropdown-menu w-full" style="z-index: 100;" role="listbox"
-                            aria-labelledby="project-select-trigger" x-trap.inert.noscroll="isOpen">
-                            {{-- Search Input --}}
-                            <div class="p-2 border-b border-zinc-100 dark:border-zinc-700">
-                                <div class="relative">
-                                    <i data-lucide="search"
-                                        class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none"></i>
-                                    <input type="search" x-model="searchTerm" @input="filterProjects"
-                                        placeholder="Search projects..."
-                                        class="w-full pl-9 pr-3 py-2 bg-zinc-50 dark:bg-zinc-700 border-transparent focus:border-transparent focus:ring-1 focus:ring-indigo-500 rounded-md text-sm">
+                    <x-dropdown.search width="full" searchTerm="searchTerm" placeholder="Search projects..."
+                        noResultsMessage="No projects found" maxHeight="max-h-60" triggerClasses="w-full">
+                        <x-slot:trigger>
+                            <button type="button" id="project-select-trigger"
+                                class="w-full flex items-center justify-between px-4 py-3 bg-white dark:bg-zinc-800 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 transition-all duration-200">
+                                <div class="flex items-center space-x-3">
+                                    <i data-lucide="filter" class="w-5 h-5 text-zinc-400"></i>
+                                    <span x-text="selectedProjectName || 'Filter by Project...'"
+                                        class="text-zinc-700 dark:text-zinc-200"></span>
                                 </div>
-                            </div>
-                            {{-- Options List --}}
-                            <div class="max-h-60 overflow-y-auto">
-                                <ul>
-                                    {{-- "All Projects" Option --}}
-                                    <li role="option" :aria-selected="selectedProjectId === ''">
-                                        <button type="button" @click="selectProject('', 'All Projects')"
+                                <i data-lucide="chevron-down"
+                                    class="w-5 h-5 text-zinc-400 transition-transform duration-200"
+                                    :class="{ 'rotate-180': open }"></i>
+                            </button>
+                        </x-slot:trigger>
+
+                        <x-slot:content>
+                            <ul>
+                                <!-- "All Projects" Option -->
+                                <li role="option" :aria-selected="selectedProjectId === ''">
+                                    <button type="button" @click="selectProject('', 'All Projects')"
+                                        class="w-full px-4 py-2.5 text-left text-sm flex items-center justify-between hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
+                                        :class="{ 'font-semibold text-indigo-600 dark:text-indigo-400': selectedProjectId === '' }">
+                                        <span>All Projects</span>
+                                        <i data-lucide="check" class="w-4 h-4 text-indigo-600 dark:text-indigo-400"
+                                            x-show="selectedProjectId === ''"></i>
+                                    </button>
+                                </li>
+                                <!-- Filtered Project Options -->
+                                <template x-for="project in filteredProjects" :key="project.id">
+                                    <li role="option" :aria-selected="selectedProjectId === project.id">
+                                        <button type="button" @click="selectProject(project.id, project.name)"
                                             class="w-full px-4 py-2.5 text-left text-sm flex items-center justify-between hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
-                                            :class="{ 'font-semibold text-indigo-600 dark:text-indigo-400': selectedProjectId === '' }">
-                                            <span>All Projects</span>
+                                            :class="{
+                                                'font-semibold text-indigo-600 dark:text-indigo-400': selectedProjectId ===
+                                                    project.id
+                                            }">
+                                            <span x-text="project.name"></span>
                                             <i data-lucide="check" class="w-4 h-4 text-indigo-600 dark:text-indigo-400"
-                                                x-show="selectedProjectId === ''"></i>
+                                                x-show="selectedProjectId === project.id"></i>
                                         </button>
                                     </li>
-                                    {{-- Filtered Project Options --}}
-                                    <template x-for="project in filteredProjects" :key="project.id">
-                                        <li role="option" :aria-selected="selectedProjectId === project.id">
-                                            <button type="button" @click="selectProject(project.id, project.name)"
-                                                class="w-full px-4 py-2.5 text-left text-sm flex items-center justify-between hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
-                                                :class="{
-                                                    'font-semibold text-indigo-600 dark:text-indigo-400': selectedProjectId ===
-                                                        project.id
-                                                }">
-                                                <span x-text="project.name"></span>
-                                                <i data-lucide="check" class="w-4 h-4 text-indigo-600 dark:text-indigo-400"
-                                                    x-show="selectedProjectId === project.id"></i>
-                                            </button>
-                                        </li>
-                                    </template>
-                                    {{-- No Results Message --}}
-                                    <template x-if="filteredProjects.length === 0">
-                                        <li class="px-4 py-3 text-sm text-center text-zinc-500 dark:text-zinc-400">No
-                                            projects found.</li>
-                                    </template>
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
+                                </template>
+                            </ul>
+                        </x-slot:content>
+                    </x-dropdown.search>
                 </form>
             </div>
         @endif
