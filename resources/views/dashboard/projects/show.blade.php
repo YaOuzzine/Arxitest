@@ -122,51 +122,33 @@
                         </div>
                     </div>
                     {{-- Action Buttons --}}
-                    <div class="flex flex-wrap gap-3 mt-4 md:mt-0 flex-shrink-0">
-                        <button @click="setActiveTab('executions')" class="btn-primary"> {{-- Changed to button --}}
-                            <i data-lucide="play" class="w-4 h-4 mr-2"></i>
-                            Run Tests
-                        </button>
-                        <button @click="setActiveTab('settings')" class="btn-outline"> {{-- Changed to button --}}
-                            <i data-lucide="settings" class="w-4 h-4 mr-2"></i>
-                            Project Settings
-                        </button>
-                        {{-- Removed Edit Project link as Settings Tab covers it --}}
-                        <div class="relative" x-data="{ showMenu: false }">
-                            <button @click="showMenu = !showMenu" type="button" class="btn-outline">
+                    <x-dropdown.index align="right" width="56">
+                        <x-slot:trigger>
+                            <button type="button" class="btn-outline"> {{-- Assuming btn-outline has padding etc. --}}
                                 <i data-lucide="more-horizontal" class="w-4 h-4"></i>
-                                {{-- Removed text for smaller button --}}
                             </button>
-                            <div x-show="showMenu" @click.away="showMenu = false"
-                                x-transition:enter="transition ease-out duration-100"
-                                x-transition:enter-start="transform opacity-0 scale-95"
-                                x-transition:enter-end="transform opacity-100 scale-100"
-                                x-transition:leave="transition ease-in duration-75"
-                                x-transition:leave-start="transform opacity-100 scale-100"
-                                x-transition:leave-end="transform opacity-0 scale-95"
-                                class="absolute right-0 z-50 mt-2 w-56 origin-top-right rounded-md bg-white dark:bg-zinc-800 shadow-lg ring-1 ring-black dark:ring-zinc-700 ring-opacity-5 focus:outline-none"
-                                x-cloak>
-                                <div class="py-1">
-                                    <a href="#"
-                                        class="text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 block px-4 py-2 text-sm">
-                                        <div class="flex items-center"><i data-lucide="download"
-                                                class="w-4 h-4 mr-2"></i>Export Project</div>
-                                    </a>
-                                    <a href="#"
-                                        class="text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700 block px-4 py-2 text-sm">
-                                        <div class="flex items-center"><i data-lucide="copy"
-                                                class="w-4 h-4 mr-2"></i>Clone Project</div>
-                                    </a>
-                                    <div class="border-t border-zinc-200 dark:border-zinc-700 my-1"></div>
-                                    <button @click="openDeleteModal('project'); showMenu = false" type="button"
-                                        class="text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/10 w-full text-left px-4 py-2 text-sm">
-                                        <div class="flex items-center"><i data-lucide="trash-2"
-                                                class="w-4 h-4 mr-2"></i>Delete Project</div>
-                                    </button>
-                                </div>
+                        </x-slot:trigger>
+
+                        <x-slot:content>
+                            {{-- Kept original contentClasses for consistency if they were better --}}
+                            <div class="py-1">
+                                <x-dropdown.item href="#"> {{-- Adjust href as needed --}}
+                                    <div class="flex items-center"><i data-lucide="download" class="w-4 h-4 mr-2"></i>Export
+                                        Project</div>
+                                </x-dropdown.item>
+                                <x-dropdown.item href="#"> {{-- Adjust href as needed --}}
+                                    <div class="flex items-center"><i data-lucide="copy" class="w-4 h-4 mr-2"></i>Clone
+                                        Project</div>
+                                </x-dropdown.item>
+                                <x-dropdown.divider />
+                                <button @click="openDeleteModal('project')" type="button"
+                                    class="block w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/10">
+                                    <div class="flex items-center"><i data-lucide="trash-2" class="w-4 h-4 mr-2"></i>Delete
+                                        Project</div>
+                                </button>
                             </div>
-                        </div>
-                    </div>
+                        </x-slot:content>
+                    </x-dropdown.index>
                 </div>
             </div>
 
@@ -391,7 +373,7 @@
                 initAlpine() {
                     // Load initial data or perform actions based on the initialTab
                     this.setActiveTab(this.activeTab,
-                    false); // Set initial tab without pushing state again
+                        false); // Set initial tab without pushing state again
 
                     this.$nextTick(() => {
                         lucide.createIcons();
@@ -409,10 +391,10 @@
                         ];
                         if (validTabs.includes(hash) && this.activeTab !== hash) {
                             this.setActiveTab(hash,
-                            false); // Update tab state without pushing history
+                                false); // Update tab state without pushing history
                         } else if (!hash && this.activeTab !== 'overview') {
                             this.setActiveTab('overview',
-                            false); // Default to overview if hash is empty
+                                false); // Default to overview if hash is empty
                         }
                     });
 
@@ -645,15 +627,15 @@
                         const gridColor = isDarkMode ? 'rgba(63, 63, 70, 0.3)' :
                             'rgba(229, 231, 235, 0.5)'; // zinc-700 / zinc-200
                         const tickColor = isDarkMode ? '#a1a1aa' :
-                        '#71717a'; // zinc-400 / zinc-500
+                            '#71717a'; // zinc-400 / zinc-500
                         const legendColor = isDarkMode ? '#e4e4e7' :
-                        '#1f2937'; // zinc-200 / zinc-800
+                            '#1f2937'; // zinc-200 / zinc-800
                         const tooltipBgColor = isDarkMode ? '#27272a' :
-                        '#ffffff'; // zinc-800 / white
+                            '#ffffff'; // zinc-800 / white
                         const tooltipTitleColor = isDarkMode ? '#f4f4f5' :
-                        '#1f2937'; // zinc-100 / zinc-800
+                            '#1f2937'; // zinc-100 / zinc-800
                         const tooltipBodyColor = isDarkMode ? '#d4d4d8' :
-                        '#3f3f46'; // zinc-300 / zinc-700
+                            '#3f3f46'; // zinc-300 / zinc-700
 
                         this.executionChartInstance = new Chart(ctx, {
                             type: 'bar',
@@ -752,13 +734,17 @@
                     return Math.floor(seconds) + " seconds ago";
                 },
                 formatDuration(seconds) {
-                    /* ... copy from controller or reuse if needed */ },
+                    /* ... copy from controller or reuse if needed */
+                },
                 formatDateTime(dateString) {
-                    /* ... copy from controller or reuse if needed */ },
+                    /* ... copy from controller or reuse if needed */
+                },
                 getStatusColorClass(status) {
-                    /* ... copy from controller or reuse */ },
+                    /* ... copy from controller or reuse */
+                },
                 getIntegrationIcon(type) {
-                    /* ... copy from controller or reuse */ }
+                    /* ... copy from controller or reuse */
+                }
 
             }));
         });

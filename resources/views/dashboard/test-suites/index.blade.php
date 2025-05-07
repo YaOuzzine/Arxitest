@@ -563,7 +563,12 @@
                 selectedProjectName: '',
                 searchTerm: '',
                 allProjects: config.projects || [],
-                filteredProjects: [],
+                get filteredProjects() { // Make this a getter
+                    if (!this.searchTerm.trim()) return this.allProjects;
+                    return this.allProjects.filter(project =>
+                        project.name.toLowerCase().includes(this.searchTerm.toLowerCase())
+                    );
+                },
 
                 init() {
                     this.filteredProjects = this.allProjects;

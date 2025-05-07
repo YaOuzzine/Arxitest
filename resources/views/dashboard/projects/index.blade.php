@@ -74,25 +74,33 @@
                                 <h3 class="ml-3 text-lg font-medium text-zinc-900 dark:text-white truncate">{{ $project->name }}</h3>
                             </div>
 
-                            <div class="dropdown-container">
-                                <button class="project-menu-btn text-zinc-400 dark:text-zinc-500 hover:text-zinc-500 dark:hover:text-zinc-400 p-1 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-700">
-                                    <i data-lucide="more-vertical" class="h-5 w-5"></i>
-                                </button>
-                                <div class="dropdown-menu hidden w-40">
-                                    <a href="{{ route('dashboard.projects.show', $project->id) }}" class="block px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700/50">
+                            <x-dropdown.index align="right" width="48" triggerClasses="relative">
+                                <x-slot:trigger>
+                                    <button class="text-zinc-400 dark:text-zinc-500 hover:text-zinc-500 dark:hover:text-zinc-400 p-1 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-700">
+                                        <i data-lucide="more-vertical" class="h-5 w-5"></i>
+                                    </button>
+                                </x-slot:trigger>
+
+                                <x-slot:content>
+                                    <x-dropdown.item :href="route('dashboard.projects.show', $project->id)">
                                         View Project
-                                    </a>
-                                    <a href="{{ route('dashboard.projects.edit', $project->id) }}" class="block px-4 py-2 text-sm text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-700/50">
+                                    </x-dropdown.item>
+
+                                    <x-dropdown.item :href="route('dashboard.projects.edit', $project->id)">
                                         Edit Project
-                                    </a>
-                                    <button
+                                    </x-dropdown.item>
+
+                                    <x-dropdown.divider />
+
+                                    <x-dropdown.item as="button"
+                                        class="text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
                                         data-project-id="{{ $project->id }}"
                                         data-project-name="{{ $project->name }}"
-                                        class="delete-project-btn block w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20">
+                                        x-on:click.prevent="openDeleteModal('{{ $project->id }}', '{{ addslashes($project->name) }}')">
                                         Delete Project
-                                    </button>
-                                </div>
-                            </div>
+                                    </x-dropdown.item>
+                                </x-slot:content>
+                            </x-dropdown.index>
                         </div>
 
                         <p class="mt-3 text-zinc-600 dark:text-zinc-400 text-sm line-clamp-2">
