@@ -18,17 +18,17 @@
     x-transition:leave="transition ease-in duration-200"
     x-transition:leave-start="opacity-100"
     x-transition:leave-end="opacity-0"
-    class="fixed inset-0 z-50 overflow-y-auto"
+    class="fixed inset-0 z-50 overflow-y-auto backdrop-blur-[2px]"
     aria-labelledby="modal-title"
     role="dialog"
     aria-modal="true"
     style="display: none;"
     id="{{ $id }}"
 >
-    <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+    <div class="flex items-center justify-center min-h-screen p-4 text-center">
         <!-- Background overlay -->
         <div
-            class="fixed inset-0 bg-zinc-900/60 dark:bg-zinc-900/80 backdrop-blur-sm transition-opacity"
+            class="fixed inset-0 bg-zinc-900/60 dark:bg-zinc-900/80 transition-opacity"
             @click="closeDeleteModal"
             aria-hidden="true"
         ></div>
@@ -42,41 +42,63 @@
             x-transition:leave="ease-in duration-200"
             x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
             x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
-            class="inline-block align-bottom bg-white dark:bg-zinc-800 rounded-xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full border border-zinc-200 dark:border-zinc-700"
+            class="relative transform overflow-hidden rounded-2xl bg-white dark:bg-zinc-800 text-left shadow-xl transition-all sm:my-8 w-full max-w-lg border border-zinc-200/80 dark:border-zinc-700/60"
         >
             <!-- Modal content -->
-            <div class="px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <div class="sm:flex sm:items-start">
-                    <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 dark:bg-red-900/30 sm:mx-0 sm:h-10 sm:w-10">
+            <div class="p-6 sm:p-8">
+                <div class="flex items-start gap-4">
+                    <!-- Icon container -->
+                    <div class="flex-shrink-0 p-3 rounded-full bg-red-100/80 dark:bg-red-900/30 animate-pulse">
                         <i data-lucide="alert-triangle" class="h-6 w-6 text-red-600 dark:text-red-400"></i>
                     </div>
-                    <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                        <h3 class="text-lg leading-6 font-medium text-zinc-900 dark:text-white" id="modal-title">
+
+                    <!-- Text content -->
+                    <div class="space-y-4">
+                        <h3 class="text-2xl font-bold text-zinc-900 dark:text-white">
                             {{ $title }}
                         </h3>
-                        <div class="mt-2">
-                            <p class="text-sm text-zinc-600 dark:text-zinc-400">
+
+                        <div class="space-y-3">
+                            <p class="text-zinc-600/90 dark:text-zinc-300/90 leading-relaxed">
                                 {{ $message }}
+
                                 @if($itemName)
-                                <span class="font-medium text-zinc-800 dark:text-zinc-300">"{{ $itemName }}"</span>?
+                                    <span class="block mt-2 text-lg font-bold bg-gradient-to-r from-red-600 to-orange-500 bg-clip-text text-transparent">
+                                        "{{ $itemName }}"
+                                    </span>
                                 @endif
+                            </p>
+
+                            <p class="text-sm text-red-600/90 dark:text-red-400/90 font-medium">
                                 {{ $dangerText }}
                             </p>
                         </div>
 
                         @if($requireConfirmation)
-                        <div class="mt-4">
-                            <div class="flex items-center">
-                                <input
-                                    id="confirm-delete"
-                                    type="checkbox"
-                                    x-model="deleteConfirmed"
-                                    class="h-4 w-4 text-red-600 focus:ring-red-500 border-zinc-300 dark:border-zinc-600 rounded"
+                        <div
+                            class="mt-4 group flex items-start gap-3 cursor-pointer"
+                            @click="deleteConfirmed = !deleteConfirmed"
+                        >
+                            <div
+                                class="relative flex-shrink-0 w-5 h-5 mt-0.5 transition-all duration-200 ease-out"
+                                :class="{
+                                    'bg-red-500/90 border-red-500/90': deleteConfirmed,
+                                    'bg-white/90 dark:bg-zinc-700/90 border-zinc-300 dark:border-zinc-600': !deleteConfirmed
+                                }"
+                            >
+                                <div
+                                    class="absolute inset-0 flex items-center justify-center text-white transition-transform"
+                                    :class="deleteConfirmed ? 'scale-100' : 'scale-0'"
                                 >
-                                <label for="confirm-delete" class="ml-2 block text-sm text-zinc-900 dark:text-zinc-100">
-                                    {{ $confirmationLabel }}
-                                </label>
+                                    <i data-lucide="check" class="w-4 h-4"></i>
+                                </div>
                             </div>
+                            <label
+                                for="confirm-delete"
+                                class="text-sm text-zinc-700/90 dark:text-zinc-200/90 select-none"
+                            >
+                                {{ $confirmationLabel }}
+                            </label>
                         </div>
                         @endif
                     </div>
@@ -84,29 +106,34 @@
             </div>
 
             <!-- Modal footer -->
-            <div class="bg-zinc-50 dark:bg-zinc-700/30 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                <button
-                    @click="confirmDelete()"
-                    type="button"
-                    class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 dark:focus:ring-offset-zinc-800 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                    :disabled="requireConfirmation && !deleteConfirmed || isDeleting"
-                >
-                    <span x-show="!isDeleting">{{ $confirmText }}</span>
-                    <span x-show="isDeleting" class="flex items-center">
-                        <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Deleting...
-                    </span>
-                </button>
-                <button
-                    @click="closeDeleteModal()"
-                    type="button"
-                    class="mt-3 w-full inline-flex justify-center rounded-md border border-zinc-300 dark:border-zinc-600 shadow-sm px-4 py-2 bg-white dark:bg-zinc-800 text-base font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-zinc-800 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-                >
-                    {{ $cancelText }}
-                </button>
+            <div class="p-6 sm:px-8 sm:pb-8 border-t border-zinc-100/50 dark:border-zinc-700/50">
+                <div class="flex gap-3 justify-end">
+                    <button
+                        @click="closeDeleteModal()"
+                        type="button"
+                        class="px-5 py-2.5 rounded-xl font-medium text-zinc-700/90 dark:text-zinc-300/90 hover:bg-zinc-100/60 dark:hover:bg-zinc-700/50 transition-colors duration-150"
+                    >
+                        {{ $cancelText }}
+                    </button>
+                    <button
+                        @click="confirmDelete()"
+                        type="button"
+                        class="px-5 py-2.5 rounded-xl font-semibold text-white bg-gradient-to-br from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 shadow-sm shadow-red-200/50 dark:shadow-red-900/30 transition-all duration-200 disabled:opacity-50 disabled:pointer-events-none"
+                        :disabled="requireConfirmation && !deleteConfirmed || isDeleting"
+                    >
+                        <span x-show="!isDeleting" class="flex items-center gap-2">
+                            <i data-lucide="trash-2" class="w-4 h-4 text-white"></i>
+                            {{ $confirmText }}
+                        </span>
+                        <span x-show="isDeleting" class="flex items-center gap-2">
+                            <svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Deleting...
+                        </span>
+                    </button>
+                </div>
             </div>
         </div>
     </div>

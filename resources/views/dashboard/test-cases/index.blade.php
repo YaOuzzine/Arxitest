@@ -414,7 +414,7 @@
                             <button type="button"
                                 @click="openDeleteModal('{{ $testCase->id }}','{{ addslashes($testCase->title) }}','{{ $isGenericIndex ? $testCase->project_id : $project->id }}')"
                                 class="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300">
-                                <i data-lucide="trash-2" class="w-5 h-5"></i>
+                                <i data-lucide="trash" class="w-5 h-5"></i>
                             </button>
                         </div>
                     </td>

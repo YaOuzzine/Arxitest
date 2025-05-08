@@ -55,50 +55,39 @@
                                     <div class="flex items-center">
                                         <div
                                             class="flex-shrink-0 flex items-center justify-center h-10 w-10 rounded-lg
-                                    @if (substr($project->name, 0, 1) === 'A') bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400
-                                    @elseif(substr($project->name, 0, 1) === 'B')
-                                        bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400
-                                    @elseif(substr($project->name, 0, 1) === 'C')
-                                        bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400
-                                    @elseif(substr($project->name, 0, 1) === 'D')
-                                        bg-pink-100 dark:bg-pink-900/30 text-pink-600 dark:text-pink-400
-                                    @elseif(substr($project->name, 0, 1) === 'E')
-                                        bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400
-                                    @else
-                                        bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400 @endif
-                                ">
+                                            @if (substr($project->name, 0, 1) === 'A') bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400
+                                            @elseif(substr($project->name, 0, 1) === 'B')
+                                                bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400
+                                            @elseif(substr($project->name, 0, 1) === 'C')
+                                                bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400
+                                            @elseif(substr($project->name, 0, 1) === 'D')
+                                                bg-pink-100 dark:bg-pink-900/30 text-pink-600 dark:text-pink-400
+                                            @elseif(substr($project->name, 0, 1) === 'E')
+                                                bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400
+                                            @else
+                                                bg-zinc-100 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-400 @endif
+                                        ">
                                             <i data-lucide="folder" class="h-5 w-5"></i>
                                         </div>
                                         <h3 class="ml-3 text-lg font-medium text-zinc-900 dark:text-white truncate">
                                             {{ $project->name }}</h3>
                                     </div>
+                                    <div class="flex items-center space-x-2">
+                                        <!-- Edit button -->
+                                        <a href="{{ route('dashboard.projects.edit', $project->id) }}"
+                                            class="text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 p-1.5 rounded-md hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors"
+                                            title="Edit Project Settings">
+                                            <i data-lucide="file-edit" class="w-5 h-5"></i>
+                                        </a>
 
-                                    <x-dropdown.index align="right" width="48">
-                                        <x-slot:trigger>
-                                            <button @click.stop="open = !open" type="button"
-                                                class="text-zinc-400 dark:text-zinc-500 hover:text-zinc-500 dark:hover:text-zinc-400 p-1 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-700">
-                                                <i data-lucide="more-vertical" class="h-5 w-5"></i>
-                                            </button>
-                                        </x-slot:trigger>
-
-                                        <x-slot:content>
-                                            <x-dropdown.item :href="route('dashboard.projects.show', $project->id)">
-                                                View Project
-                                            </x-dropdown.item>
-
-                                            <x-dropdown.item :href="route('dashboard.projects.edit', $project->id)">
-                                                Edit Project
-                                            </x-dropdown.item>
-
-                                            <x-dropdown.divider />
-
-                                            <button type="button"
-                                                class="block w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 focus:outline-none focus:bg-red-50 dark:focus:bg-red-900/20 transition-colors"
-                                                @click="openDeleteModal('{{ $project->id }}', '{{ addslashes($project->name) }}')">
-                                                Delete Project
-                                            </button>
-                                        </x-slot:content>
-                                    </x-dropdown.index>
+                                        <!-- Delete button -->
+                                        <button type="button"
+                                            @click.stop.prevent="console.log('Delete button clicked for {{ $project->id }}'); openDeleteModal('{{ $project->id }}', '{{ addslashes($project->name) }}')"
+                                            class="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 p-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                            title="Delete Project">
+                                            <i data-lucide="trash" class="w-5 h-5 pointer-events-none"></i>
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <p class="mt-3 text-zinc-600 dark:text-zinc-400 text-sm line-clamp-2">
@@ -128,9 +117,10 @@
                                         Updated {{ $project->updated_at->diffForHumans() }}
                                     </div>
                                     <a href="{{ route('dashboard.projects.show', $project->id) }}"
-                                        class="inline-flex items-center text-sm font-medium text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white">
-                                        View
-                                        <i data-lucide="chevron-right" class="ml-1 w-4 h-4"></i>
+                                        class="inline-flex items-center text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 group transition-all duration-200">
+                                        View Project
+                                        <i data-lucide="arrow-up-right"
+                                            class="ml-1.5 w-4 h-4 transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform"></i>
                                     </a>
                                 </div>
                             </div>
@@ -218,17 +208,27 @@
                                         {{ $project->updated_at->diffForHumans() }}
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        <div class="flex justify-end space-x-2">
-                                            <a href="{{ route('dashboard.projects.edit', $project->id) }}"
-                                                class="text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
-                                                onclick="event.stopPropagation()">
-                                                <i data-lucide="edit-2" class="h-5 w-5"></i>
+                                        <div class="flex justify-end space-x-3">
+                                            <!-- View button - using "arrow-up-right" for a cleaner "open" icon -->
+                                            <a href="{{ route('dashboard.projects.show', $project->id) }}"
+                                                class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 p-1.5 rounded-full hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                                                onclick="event.stopPropagation()" title="View Project Details">
+                                                <i data-lucide="arrow-up-right" class="h-5 w-5"></i>
                                             </a>
+
+                                            <!-- Edit button - using "settings" for a more comprehensive edit icon -->
+                                            <a href="{{ route('dashboard.projects.edit', $project->id) }}"
+                                                class="text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 p-1.5 rounded-full hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors"
+                                                onclick="event.stopPropagation()" title="Edit Project Settings">
+                                                <i data-lucide="settings" class="h-5 w-5"></i>
+                                            </a>
+
+                                            <!-- Delete button - classic trash icon is still the most recognizable -->
                                             <button
-                                                @click="openDeleteModal('{{ $project->id }}', '{{ addslashes($project->name) }}')"
-                                                class="text-zinc-500 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400"
-                                                onclick="event.stopPropagation()">
-                                                <i data-lucide="trash-2" class="h-5 w-5"></i>
+                                                @click.stop="openDeleteModal('{{ $project->id }}', '{{ addslashes($project->name) }}')"
+                                                class="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 p-1.5 rounded-full hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                                title="Delete Project">
+                                                <i data-lucide="trash" class="h-5 w-5"></i>
                                             </button>
                                         </div>
                                     </td>
@@ -261,7 +261,7 @@
         </div>
 
         <!-- Delete confirmation modal -->
-        <x-modals.delete-confirmation title="Delete Project" message="Are you sure you want to delete the project"
+        <x-modals.delete-confirmation title="Delete Project" message="Are you sure you want to delete"
             itemName="deleteProjectName"
             dangerText="This action cannot be undone and will permanently delete the project and all its test suites and cases."
             confirmText="Delete Project" />
@@ -271,8 +271,125 @@
 
 @push('scripts')
     <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('projectsManager', () => ({
+                showDeleteModal: false,
+                deleteConfirmed: false,
+                isDeleting: false,
+                deleteProjectId: null,
+                deleteProjectName: '',
+                requireConfirmation: true,
+
+                showNotification: false,
+                notificationType: 'success',
+                notificationMessage: '',
+
+                init() {
+                    // Listen for custom delete-project event
+                    document.addEventListener('delete-project', (e) => {
+                        this.openDeleteModal(e.detail.id, e.detail.name);
+                    });
+
+                    // Initialize Lucide icons
+                    if (typeof lucide !== 'undefined') {
+                        lucide.createIcons();
+                    }
+                },
+
+                openDeleteModal(id, name) {
+                    console.log('openDeleteModal called with:', id, name);
+                    this.deleteProjectId = id;
+                    this.deleteProjectName = name;
+                    this.deleteConfirmed = false;
+                    this.showDeleteModal = true;
+                    console.log('Modal should be visible now:', this.showDeleteModal);
+                },
+
+                closeDeleteModal() {
+                    if (!this.isDeleting) {
+                        this.showDeleteModal = false;
+                        setTimeout(() => {
+                            this.deleteProjectId = null;
+                            this.deleteProjectName = '';
+                            this.deleteConfirmed = false;
+                        }, 300);
+                    }
+                },
+
+                async confirmDelete() {
+                    if (!this.deleteProjectId) return;
+                    this.isDeleting = true;
+
+                    try {
+                        const response = await fetch(
+                            `/dashboard/projects/${this.deleteProjectId}`, {
+                                method: 'DELETE',
+                                headers: {
+                                    'X-CSRF-TOKEN': document.querySelector(
+                                        'meta[name="csrf-token"]').content,
+                                    'Accept': 'application/json'
+                                }
+                            });
+
+                        const result = await response.json();
+
+                        if (response.ok) {
+                            this.closeDeleteModal();
+
+                            // Show success notification
+                            this.notificationType = 'success';
+                            this.notificationMessage =
+                                `Project "${this.deleteProjectName}" was deleted successfully`;
+                            this.showNotification = true;
+                            setTimeout(() => {
+                                this.showNotification = false;
+                            }, 5000);
+
+                            // Remove project from DOM
+                            const projectCard = document.getElementById(
+                                `project-card-${this.deleteProjectId}`);
+                            const projectRow = document.getElementById(
+                                `project-row-${this.deleteProjectId}`);
+
+                            if (projectCard) projectCard.remove();
+                            if (projectRow) projectRow.remove();
+
+                            // If no projects left, refresh page to show empty state
+                            const remainingProjects = document.querySelectorAll(
+                                '.project-card, .project-row');
+                            if (remainingProjects.length === 0) {
+                                location.reload();
+                            }
+                        } else {
+                            throw new Error(result.message ||
+                                'Failed to delete project');
+                        }
+                    } catch (error) {
+                        console.error('Error deleting project:', error);
+
+                        // Show error notification
+                        this.notificationType = 'error';
+                        this.notificationMessage =
+                            'Failed to delete project. Please try again.';
+                        this.showNotification = true;
+                        setTimeout(() => {
+                            this.showNotification = false;
+                        }, 5000);
+                    } finally {
+                        this.isDeleting = false;
+                    }
+                },
+
+                hideNotification() {
+                    this.showNotification = false;
+                }
+            }));
+        });
+
         document.addEventListener('DOMContentLoaded', function() {
-            lucide.createIcons();
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
 
             // Toggle between grid and list view
             const toggleViewBtn = document.getElementById('toggle-view-btn');
@@ -426,111 +543,6 @@
             const confirmBtn = document.getElementById('confirm-delete-btn');
             const cancelBtn = document.getElementById('cancel-delete-btn');
 
-            document.addEventListener('alpine:init', () => {
-                Alpine.data('projectsManager', () => ({
-                    showDeleteModal: false,
-                    deleteConfirmed: false,
-                    isDeleting: false,
-                    deleteProjectId: null,
-                    deleteProjectName: '',
-
-                    showNotification: false,
-                    notificationType: 'success',
-                    notificationMessage: '',
-
-                    openDeleteModal(id, name) {
-                        this.deleteProjectId = id;
-                        this.deleteProjectName = name;
-                        this.deleteConfirmed = false;
-                        this.showDeleteModal = true;
-
-                        // Close any open dropdown
-                        document.querySelectorAll('[x-data="{ open: true }"]').forEach(
-                            dropdown => {
-                                dropdown.__x.$data.open = false;
-                            });
-                    },
-
-                    closeDeleteModal() {
-                        if (!this.isDeleting) {
-                            this.showDeleteModal = false;
-                            setTimeout(() => {
-                                this.deleteProjectId = null;
-                                this.deleteProjectName = '';
-                                this.deleteConfirmed = false;
-                            }, 300);
-                        }
-                    },
-
-                    async confirmDelete() {
-                        if (!this.deleteProjectId) return;
-                        this.isDeleting = true;
-
-                        try {
-                            const response = await fetch(
-                                `/dashboard/projects/${this.deleteProjectId}`, {
-                                    method: 'DELETE',
-                                    headers: {
-                                        'X-CSRF-TOKEN': document.querySelector(
-                                            'meta[name="csrf-token"]').content,
-                                        'Accept': 'application/json'
-                                    }
-                                });
-
-                            const result = await response.json();
-
-                            if (response.ok) {
-                                this.closeDeleteModal();
-
-                                // Show success notification
-                                this.notificationType = 'success';
-                                this.notificationMessage =
-                                    `Project "${this.deleteProjectName}" was deleted successfully`;
-                                this.showNotification = true;
-                                setTimeout(() => {
-                                    this.showNotification = false;
-                                }, 5000);
-
-                                // Remove project from DOM
-                                const projectCard = document.getElementById(
-                                    `project-card-${this.deleteProjectId}`);
-                                const projectRow = document.getElementById(
-                                    `project-row-${this.deleteProjectId}`);
-
-                                if (projectCard) projectCard.remove();
-                                if (projectRow) projectRow.remove();
-
-                                // If no projects left, refresh page to show empty state
-                                const remainingProjects = document.querySelectorAll(
-                                    '.project-card, .project-row');
-                                if (remainingProjects.length === 0) {
-                                    location.reload();
-                                }
-                            } else {
-                                throw new Error(result.message ||
-                                    'Failed to delete project');
-                            }
-                        } catch (error) {
-                            console.error('Error deleting project:', error);
-
-                            // Show error notification
-                            this.notificationType = 'error';
-                            this.notificationMessage =
-                                'Failed to delete project. Please try again.';
-                            this.showNotification = true;
-                            setTimeout(() => {
-                                this.showNotification = false;
-                            }, 5000);
-                        } finally {
-                            this.isDeleting = false;
-                        }
-                    },
-
-                    hideNotification() {
-                        this.showNotification = false;
-                    }
-                }));
-            });
 
             // Dropdown menu for project cards
             document.querySelectorAll('.project-menu-btn').forEach(btn => {
