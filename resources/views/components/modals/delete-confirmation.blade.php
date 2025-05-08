@@ -104,7 +104,7 @@
     aria-modal="true" style="display: none;" id="{{ $id }}">
     <div class="flex items-center justify-center min-h-screen p-4 text-center">
         <!-- Background overlay -->
-        <div class="fixed inset-0 bg-zinc-900/60 dark:bg-zinc-900/80 transition-opacity" @click="closeDeleteModal"
+        <div class="fixed bg-zinc-900/60 dark:bg-zinc-900/80 transition-opacity" @click="closeDeleteModal"
             aria-hidden="true"></div>
 
         <!-- Modal panel -->

@@ -549,6 +549,8 @@
                 deleteItemTitle: '',
                 deleteProjectId: null,
                 isDeleting: false,
+                deleteConfirmed: false,
+                requireConfirmation: true,
 
                 showNotification: false,
                 notificationType: 'success',

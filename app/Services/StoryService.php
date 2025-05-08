@@ -260,23 +260,17 @@ class StoryService
         // Get associated test cases first
         $testCases = $story->testCases()->get(['id', 'title']);
 
-        // If test cases exist and not forcing deletion, return error
-        if ($testCases->isNotEmpty() && !$force) {
+        // If test cases exist, never allow deletion (even with force flag)
+        if ($testCases->isNotEmpty()) {
             return [
                 'success' => false,
-                'message' => 'Cannot delete story - it has associated test cases.',
+                'message' => 'Cannot delete story - it has associated test cases. Please reassign or delete the test cases first.',
                 'test_cases' => $testCases,
                 'story_id' => $story->id
             ];
         }
 
-        // If force deletion, handle test cases appropriately
-        if ($force && $testCases->isNotEmpty()) {
-            // Update test cases to set story_id to null
-            $story->testCases()->update(['story_id' => null]);
-        }
-
-        // Delete the story
+        // No test cases, proceed with deletion
         $storyTitle = $story->title;
         $story->delete();
 

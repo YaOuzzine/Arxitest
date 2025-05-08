@@ -53,8 +53,18 @@
                                 selectProject(id, name) {
                                     this.selectedId = id;
                                     this.selectedName = name;
-                                    document.getElementById('project_id_input').value = id;
-                                    document.getElementById('project-filter-form').submit();
+
+                                    // Set the hidden input value
+                                    const inputField = document.getElementById('project_id_input');
+                                    if (inputField) inputField.value = id;
+
+                                    // Close the dropdown
+                                    this.open = false;
+
+                                    // Force page refresh with the selected project
+                                    const currentUrl = new URL(window.location.href);
+                                    currentUrl.searchParams.set('project_id', id);
+                                    window.location.href = currentUrl.toString();
                                 }
                             }">
                                 <form id="project-filter-form"
@@ -365,6 +375,7 @@
                 deleteStoryId: null,
                 deleteStoryName: '',
                 associatedTestCases: [],
+                requireConfirmation: true,
 
                 openDeleteModal(id, name) {
                     this.deleteStoryId = id;
@@ -375,19 +386,14 @@
                 },
 
                 closeDeleteModal() {
-                    if (!this.isDeleting) {
-                        this.showDeleteModal = false;
-                        this.deleteStoryId = null;
-                        this.deleteStoryName = '';
-                        this.deleteConfirmed = false;
-                    }
+                    this.showDeleteModal = false;
+                    this.deleteStoryId = null;
+                    this.deleteStoryName = '';
+                    this.deleteConfirmed = false;
                 },
 
                 closeForceDeleteModal() {
-                    if (!this.isDeleting) {
-                        this.showForceDeleteModal = false;
-                        // Don't reset story ID and name - we might need them for showing notifications
-                    }
+                    this.showForceDeleteModal = false;
                 },
 
                 async confirmDelete(force = false) {
@@ -422,6 +428,7 @@
                             // Show success notification
                             this.showNotification('success', result.message ||
                                 'Story deleted successfully');
+                            this.isDeleting = false;
                             this.closeDeleteModal();
                             this.closeForceDeleteModal();
                         } else if (result.test_cases && result.test_cases.length > 0) {
@@ -434,6 +441,7 @@
                         }
                     } catch (error) {
                         console.error(error);
+                        this.isDeleting = false;
                         this.showNotification('error', error.message || 'An error occurred');
                     } finally {
                         this.isDeleting = false;

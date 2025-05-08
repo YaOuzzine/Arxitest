@@ -358,6 +358,8 @@
                 deleteProjectId: null,
                 deleteSuiteName: '',
                 isDeleting: false,
+                deleteConfirmed: false,
+                requireConfirmation: true,
 
                 // Initialize notifications from session flash messages
                 initNotifications() {

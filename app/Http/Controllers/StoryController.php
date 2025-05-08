@@ -293,31 +293,31 @@ class StoryController extends Controller
     }
 
     public function destroy(Story $story, Request $request)
-    {
-        try {
-            $force = $request->has('force') && $request->force === 'true';
-            $result = $this->storyService->deleteStory($story, $force);
+{
+    try {
+        $force = $request->has('force') && $request->force === 'true';
+        $result = $this->storyService->deleteStory($story, $force);
 
-            if (!$result['success']) {
-                // If not successful and there are test cases, return 409 Conflict with test cases
-                return response()->json($result, 409);
-            }
-
-            if (request()->expectsJson()) {
-                return response()->json($result);
-            }
-
-            return redirect()->route('dashboard.stories.indexAll')
-                ->with('success', $result['message']);
-        } catch (\Exception $e) {
-            if (request()->expectsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => $e->getMessage()
-                ], 422);
-            }
-
-            return redirect()->back()->with('error', $e->getMessage());
+        if (!$result['success']) {
+            // If not successful and there are test cases, return 409 Conflict with test cases
+            return response()->json($result, 409);
         }
+
+        if (request()->expectsJson()) {
+            return response()->json($result);
+        }
+
+        return redirect()->route('dashboard.stories.indexAll')
+            ->with('success', $result['message']);
+    } catch (\Exception $e) {
+        if (request()->expectsJson()) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 422);
+        }
+
+        return redirect()->back()->with('error', $e->getMessage());
     }
+}
 }
