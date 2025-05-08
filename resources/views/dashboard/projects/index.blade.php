@@ -48,8 +48,8 @@
                 <!-- Grid View (default) -->
                 <div id="grid-view" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                     @foreach ($projects as $project)
-                        <div
-                            class="project-card bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-700 overflow-hidden hover:shadow-md hover:-translate-y-1 transition-all duration-300">
+                        <div class="project-card bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-700 overflow-hidden hover:shadow-md hover:-translate-y-1 transition-all duration-300"
+                            data-project-id="{{ $project->id }}">
                             <div class="p-6">
                                 <div class="flex items-start justify-between">
                                     <div class="flex items-center">
@@ -73,9 +73,9 @@
                                             {{ $project->name }}</h3>
                                     </div>
 
-                                    <x-dropdown.index align="right" width="48" triggerClasses="relative">
+                                    <x-dropdown.index align="right" width="48">
                                         <x-slot:trigger>
-                                            <button
+                                            <button @click.stop="open = !open" type="button"
                                                 class="text-zinc-400 dark:text-zinc-500 hover:text-zinc-500 dark:hover:text-zinc-400 p-1 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-700">
                                                 <i data-lucide="more-vertical" class="h-5 w-5"></i>
                                             </button>
@@ -92,13 +92,11 @@
 
                                             <x-dropdown.divider />
 
-                                            <x-dropdown.item as="button"
-                                                class="text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
-                                                data-project-id="{{ $project->id }}"
-                                                data-project-name="{{ $project->name }}"
-                                                x-on:click.prevent="openDeleteModal('{{ $project->id }}', '{{ addslashes($project->name) }}')">
+                                            <button type="button"
+                                                class="block w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 focus:outline-none focus:bg-red-50 dark:focus:bg-red-900/20 transition-colors"
+                                                @click="openDeleteModal('{{ $project->id }}', '{{ addslashes($project->name) }}')">
                                                 Delete Project
-                                            </x-dropdown.item>
+                                            </button>
                                         </x-slot:content>
                                     </x-dropdown.index>
                                 </div>
@@ -263,7 +261,7 @@
         </div>
 
         <!-- Delete confirmation modal -->
-        <x-modals.delete-confirmation id="delete-modal" title="Delete Project" message="Are you sure you want to delete"
+        <x-modals.delete-confirmation title="Delete Project" message="Are you sure you want to delete the project"
             itemName="deleteProjectName"
             dangerText="This action cannot be undone and will permanently delete the project and all its test suites and cases."
             confirmText="Delete Project" />
@@ -436,11 +434,21 @@
                     deleteProjectId: null,
                     deleteProjectName: '',
 
+                    showNotification: false,
+                    notificationType: 'success',
+                    notificationMessage: '',
+
                     openDeleteModal(id, name) {
                         this.deleteProjectId = id;
                         this.deleteProjectName = name;
                         this.deleteConfirmed = false;
                         this.showDeleteModal = true;
+
+                        // Close any open dropdown
+                        document.querySelectorAll('[x-data="{ open: true }"]').forEach(
+                            dropdown => {
+                                dropdown.__x.$data.open = false;
+                            });
                     },
 
                     closeDeleteModal() {
@@ -464,31 +472,33 @@
                                     method: 'DELETE',
                                     headers: {
                                         'X-CSRF-TOKEN': document.querySelector(
-                                            'meta[name="csrf-token"]').getAttribute(
-                                            'content')
+                                            'meta[name="csrf-token"]').content,
+                                        'Accept': 'application/json'
                                     }
                                 });
 
+                            const result = await response.json();
+
                             if (response.ok) {
-                                // Hide modal
                                 this.closeDeleteModal();
 
-                                // Show success message
-                                this.showNotification('success', 'Project deleted',
-                                    `Project "${this.deleteProjectName}" was deleted successfully`
-                                );
+                                // Show success notification
+                                this.notificationType = 'success';
+                                this.notificationMessage =
+                                    `Project "${this.deleteProjectName}" was deleted successfully`;
+                                this.showNotification = true;
+                                setTimeout(() => {
+                                    this.showNotification = false;
+                                }, 5000);
 
                                 // Remove project from DOM
-                                document.querySelectorAll(
-                                        `[data-project-id="${this.deleteProjectId}"]`)
-                                    .forEach(el => {
-                                        // Find the parent card or row
-                                        const card = el.closest('.project-card');
-                                        const row = el.closest('.project-row');
+                                const projectCard = document.getElementById(
+                                    `project-card-${this.deleteProjectId}`);
+                                const projectRow = document.getElementById(
+                                    `project-row-${this.deleteProjectId}`);
 
-                                        if (card) card.remove();
-                                        if (row) row.remove();
-                                    });
+                                if (projectCard) projectCard.remove();
+                                if (projectRow) projectRow.remove();
 
                                 // If no projects left, refresh page to show empty state
                                 const remainingProjects = document.querySelectorAll(
@@ -497,17 +507,28 @@
                                     location.reload();
                                 }
                             } else {
-                                throw new Error('Failed to delete project');
+                                throw new Error(result.message ||
+                                    'Failed to delete project');
                             }
                         } catch (error) {
                             console.error('Error deleting project:', error);
-                            this.showNotification('error', 'Error',
-                                'Failed to delete project. Please try again.');
+
+                            // Show error notification
+                            this.notificationType = 'error';
+                            this.notificationMessage =
+                                'Failed to delete project. Please try again.';
+                            this.showNotification = true;
+                            setTimeout(() => {
+                                this.showNotification = false;
+                            }, 5000);
                         } finally {
                             this.isDeleting = false;
                         }
                     },
 
+                    hideNotification() {
+                        this.showNotification = false;
+                    }
                 }));
             });
 
