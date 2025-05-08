@@ -292,21 +292,29 @@ class StoryController extends Controller
         }
     }
 
-    public function destroy(Story $story)
+    public function destroy(Story $story, Request $request)
     {
         try {
-            $storyTitle = $story->title;
-            $this->storyService->deleteStory($story);
+            $force = $request->has('force') && $request->force === 'true';
+            $result = $this->storyService->deleteStory($story, $force);
+
+            if (!$result['success']) {
+                // If not successful and there are test cases, return 409 Conflict with test cases
+                return response()->json($result, 409);
+            }
 
             if (request()->expectsJson()) {
-                return $this->successResponse([], "Story \"$storyTitle\" deleted successfully.");
+                return response()->json($result);
             }
 
             return redirect()->route('dashboard.stories.indexAll')
-                ->with('success', "Story \"$storyTitle\" deleted successfully.");
+                ->with('success', $result['message']);
         } catch (\Exception $e) {
             if (request()->expectsJson()) {
-                return $this->errorResponse($e->getMessage(), 422);
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage()
+                ], 422);
             }
 
             return redirect()->back()->with('error', $e->getMessage());

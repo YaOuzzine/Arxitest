@@ -81,8 +81,8 @@ class StoryService
     public function getProjectTestSuites(string $projectId)
     {
         return TestSuite::where('project_id', $projectId)
-                        ->orderBy('name')
-                        ->get(['id','name']);
+            ->orderBy('name')
+            ->get(['id', 'name']);
     }
 
     /**
@@ -90,7 +90,7 @@ class StoryService
      */
     public function getProjectTestCases(string $projectId, ?string $suiteId = null)
     {
-        $query = TestCase::whereHas('testSuite', function($q) use ($projectId) {
+        $query = TestCase::whereHas('testSuite', function ($q) use ($projectId) {
             $q->where('project_id', $projectId);
         });
 
@@ -98,7 +98,7 @@ class StoryService
             $query->where('test_suite_id', $suiteId);
         }
 
-        return $query->get(['id','title','test_suite_id']);
+        return $query->get(['id', 'title', 'test_suite_id']);
     }
 
 
@@ -255,13 +255,35 @@ class StoryService
     /**
      * Delete a story if it has no test cases
      */
-    public function deleteStory(Story $story): bool
+    public function deleteStory(Story $story, bool $force = false): array
     {
-        if ($story->testCases()->exists()) {
-            throw new \Exception('Cannot delete story - it has associated test cases.');
+        // Get associated test cases first
+        $testCases = $story->testCases()->get(['id', 'title']);
+
+        // If test cases exist and not forcing deletion, return error
+        if ($testCases->isNotEmpty() && !$force) {
+            return [
+                'success' => false,
+                'message' => 'Cannot delete story - it has associated test cases.',
+                'test_cases' => $testCases,
+                'story_id' => $story->id
+            ];
         }
 
-        return $story->delete();
+        // If force deletion, handle test cases appropriately
+        if ($force && $testCases->isNotEmpty()) {
+            // Update test cases to set story_id to null
+            $story->testCases()->update(['story_id' => null]);
+        }
+
+        // Delete the story
+        $storyTitle = $story->title;
+        $story->delete();
+
+        return [
+            'success' => true,
+            'message' => "Story \"$storyTitle\" deleted successfully."
+        ];
     }
 
     /**

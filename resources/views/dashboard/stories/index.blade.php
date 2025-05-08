@@ -169,7 +169,8 @@
                 : 'Get started by creating your first story.'" emptyStateIcon="file-question" :createRoute="route('dashboard.stories.create')"
             createLabel="Create Story">
             @foreach ($stories as $story)
-                <tr class="hover:bg-zinc-50/30 dark:hover:bg-zinc-700/20 transition-colors duration-200">
+                <tr class="hover:bg-zinc-50 dark:hover:bg-zinc-700/20 transition-colors duration-200"
+                    data-story-id="{{ $story->id }}">
                     <td class="px-6 py-4 whitespace-nowrap">
                         <div class="text-sm font-medium text-zinc-900 dark:text-white">
                             <a href="{{ route('dashboard.stories.show', $story->id) }}"
@@ -250,6 +251,12 @@
 
         <x-modals.delete-confirmation title="Delete Story" message="Are you sure you want to delete the story"
             itemName="deleteStoryName" dangerText="This action cannot be undone." confirmText="Delete Story" />
+
+        <!-- Add this after your existing delete confirmation modal -->
+        <x-modals.force-delete-confirmation title="Story Has Associated Test Cases"
+            message="The story has the following test cases associated with it:" itemName="deleteStoryName"
+            dependencies="associatedTestCases" dependencyType="test cases" dependencyAction="detached from this story"
+            confirmText="Yes, Delete Story" />
     </div>
 @endsection
 
@@ -352,15 +359,18 @@
         document.addEventListener('alpine:init', () => {
             Alpine.data('storiesManager', () => ({
                 showDeleteModal: false,
+                showForceDeleteModal: false,
                 deleteConfirmed: false,
                 isDeleting: false,
                 deleteStoryId: null,
                 deleteStoryName: '',
+                associatedTestCases: [],
 
                 openDeleteModal(id, name) {
                     this.deleteStoryId = id;
                     this.deleteStoryName = name;
                     this.deleteConfirmed = false;
+                    this.associatedTestCases = [];
                     this.showDeleteModal = true;
                 },
 
@@ -373,11 +383,21 @@
                     }
                 },
 
-                async confirmDelete() {
+                closeForceDeleteModal() {
+                    if (!this.isDeleting) {
+                        this.showForceDeleteModal = false;
+                        // Don't reset story ID and name - we might need them for showing notifications
+                    }
+                },
+
+                async confirmDelete(force = false) {
                     if (!this.deleteStoryId) return;
                     this.isDeleting = true;
+
                     try {
-                        const response = await fetch(`/dashboard/stories/${this.deleteStoryId}`, {
+                        const url =
+                            `/dashboard/stories/${this.deleteStoryId}${force ? '?force=true' : ''}`;
+                        const response = await fetch(url, {
                             method: 'DELETE',
                             headers: {
                                 'X-CSRF-TOKEN': document.querySelector(
@@ -388,28 +408,48 @@
 
                         const result = await response.json();
 
-                        if (response.ok) {
+                        if (response.ok && result.success) {
                             // Remove row from DOM or reload page
                             const row = document.querySelector(
                                 `tr[data-story-id="${this.deleteStoryId}"]`);
                             if (row) {
                                 row.remove();
                             } else {
+                                // Just reload as a fallback
                                 location.reload();
                             }
 
                             // Show success notification
-                            showNotification('success', 'Story deleted successfully');
+                            this.showNotification('success', result.message ||
+                                'Story deleted successfully');
+                            this.closeDeleteModal();
+                            this.closeForceDeleteModal();
+                        } else if (result.test_cases && result.test_cases.length > 0) {
+                            // Story has associated test cases - show force delete modal
+                            this.associatedTestCases = result.test_cases;
+                            this.closeDeleteModal();
+                            this.showForceDeleteModal = true;
                         } else {
                             throw new Error(result.message || 'Failed to delete story');
                         }
                     } catch (error) {
                         console.error(error);
-                        showNotification('error', error.message || 'An error occurred');
+                        this.showNotification('error', error.message || 'An error occurred');
                     } finally {
                         this.isDeleting = false;
-                        this.closeDeleteModal();
                     }
+                },
+
+                showNotification(type, message) {
+                    // This should use your existing notification system
+                    // Modify as needed to match your notification implementation
+                    const event = new CustomEvent('notify', {
+                        detail: {
+                            type,
+                            message
+                        }
+                    });
+                    window.dispatchEvent(event);
                 }
             }));
         });

@@ -334,8 +334,6 @@
                         const result = await response.json();
 
                         if (response.ok) {
-                            this.closeDeleteModal();
-
                             // Show success notification
                             this.notificationType = 'success';
                             this.notificationMessage =
@@ -345,14 +343,14 @@
                                 this.showNotification = false;
                             }, 5000);
 
-                            // Remove project from DOM
-                            const projectCard = document.getElementById(
-                                `project-card-${this.deleteProjectId}`);
-                            const projectRow = document.getElementById(
-                                `project-row-${this.deleteProjectId}`);
+                            // Remove project from DOM using the correct attribute selectors
+                            const projectCards = document.querySelectorAll(
+                                `.project-card[data-project-id="${this.deleteProjectId}"]`);
+                            const projectRows = document.querySelectorAll(
+                                `tr.project-row[data-href*="${this.deleteProjectId}"]`);
 
-                            if (projectCard) projectCard.remove();
-                            if (projectRow) projectRow.remove();
+                            projectCards.forEach(card => card.remove());
+                            projectRows.forEach(row => row.remove());
 
                             // If no projects left, refresh page to show empty state
                             const remainingProjects = document.querySelectorAll(
@@ -377,6 +375,8 @@
                         }, 5000);
                     } finally {
                         this.isDeleting = false;
+                        this
+                    .closeDeleteModal(); // Move this here to ensure it runs after isDeleting is false
                     }
                 },
 
