@@ -6,19 +6,24 @@
 @section('breadcrumbs')
     <li class="flex items-center">
         <i data-lucide="chevron-right" class="w-4 h-4 text-zinc-400 mx-1"></i>
-        <a href="{{ route('dashboard.projects.show', $project->id) }}" class="text-indigo-500 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors">{{ $project->name }}</a>
+        <a href="{{ route('dashboard.projects.show', $project->id) }}"
+            class="text-indigo-500 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors">{{ $project->name }}</a>
     </li>
     <li class="flex items-center">
         <i data-lucide="chevron-right" class="w-4 h-4 text-zinc-400 mx-1"></i>
-        <a href="{{ route('dashboard.projects.test-cases.show', [$project->id, $testCase->id]) }}" class="text-indigo-500 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors">{{ $testCase->title }}</a>
+        <a href="{{ route('dashboard.projects.test-cases.show', [$project->id, $testCase->id]) }}"
+            class="text-indigo-500 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors">{{ $testCase->title }}</a>
     </li>
     <li class="flex items-center">
         <i data-lucide="chevron-right" class="w-4 h-4 text-zinc-400 mx-1"></i>
-        <a href="{{ route('dashboard.projects.test-cases.scripts.index', [$project->id, $testCase->id]) }}" class="text-indigo-500 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors">Test Scripts</a>
+        <a href="{{ route('dashboard.projects.test-cases.scripts.index', [$project->id, $testCase->id]) }}"
+            class="text-indigo-500 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors">Test
+            Scripts</a>
     </li>
     <li class="flex items-center">
         <i data-lucide="chevron-right" class="w-4 h-4 text-zinc-400 mx-1"></i>
-        <a href="{{ route('dashboard.projects.test-cases.scripts.show', [$project->id, $testCase->id, $testScript->id]) }}" class="text-indigo-500 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors">{{ $testScript->name }}</a>
+        <a href="{{ route('dashboard.projects.test-cases.scripts.show', [$project->id, $testCase->id, $testScript->id]) }}"
+            class="text-indigo-500 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors">{{ $testScript->name }}</a>
     </li>
     <li class="flex items-center">
         <i data-lucide="chevron-right" class="w-4 h-4 text-zinc-400 mx-1"></i>
@@ -27,260 +32,179 @@
 @endsection
 
 @section('content')
-    <div class="h-full space-y-6" x-data="testScriptEditor" x-init="initEditor()">
+    <div class="h-full space-y-6" x-data="scriptEditor">
         <!-- Header -->
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-                <h1 class="text-2xl font-bold bg-gradient-to-r from-zinc-800 dark:from-zinc-100 to-zinc-600 dark:to-zinc-300 bg-clip-text text-transparent tracking-tight">
-                    Edit: {{ $testScript->name }}
+                <h1
+                    class="text-2xl font-bold bg-gradient-to-r from-zinc-800 dark:from-zinc-100 to-zinc-600 dark:to-zinc-300 bg-clip-text text-transparent tracking-tight">
+                    Edit Test Script
                 </h1>
                 <p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-                    Update test script for {{ $testCase->title }}
+                    Edit script for test case: {{ $testCase->title }}
                 </p>
             </div>
             <div class="flex flex-wrap gap-3">
                 <a href="{{ route('dashboard.projects.test-cases.scripts.show', [$project->id, $testCase->id, $testScript->id]) }}"
-                   class="btn-secondary px-4 py-2 rounded-lg flex items-center">
-                    <i data-lucide="x" class="w-4 h-4 mr-2"></i>
+                    class="px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 shadow-sm transition-all">
+                    <i data-lucide="x" class="w-4 h-4 inline mr-1"></i>
                     Cancel
                 </a>
-                <button @click="saveScript" type="button"
-                   class="btn-primary px-4 py-2 rounded-lg flex items-center">
-                    <i data-lucide="save" class="w-4 h-4 mr-2"></i>
-                    <span x-text="isSaving ? 'Saving...' : 'Save Changes'"></span>
+                <button type="button" @click="saveScript"
+                    class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm hover:shadow-md transition-all">
+                    <i data-lucide="save" class="w-4 h-4 inline mr-1"></i>
+                    Save Script
                 </button>
             </div>
         </div>
 
-        <!-- Editor Container -->
-        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            <!-- Script Metadata -->
-            <div class="lg:col-span-1">
-                <div class="bg-white dark:bg-zinc-800 shadow-sm rounded-xl border border-zinc-200/70 dark:border-zinc-700/50 overflow-hidden">
-                    <div class="px-6 py-4 border-b border-zinc-200/50 dark:border-zinc-700/50 bg-zinc-50/50 dark:bg-zinc-800/50">
-                        <h2 class="text-lg font-medium text-zinc-900 dark:text-white">Script Details</h2>
+        <!-- Main Form -->
+        <form id="script-form" method="POST"
+            action="{{ route('dashboard.projects.test-cases.scripts.update', [$project->id, $testCase->id, $testScript->id]) }}"
+            @submit.prevent="handleSubmit">
+            @csrf
+            @method('PUT')
+
+            <div class="grid grid-cols-12 gap-6">
+                <!-- Left Column: Script Details -->
+                <div class="col-span-12 md:col-span-3 space-y-6">
+                    <div
+                        class="bg-white dark:bg-zinc-800 shadow-sm rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+                        <div class="px-6 py-4 border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800">
+                            <h2 class="text-lg font-medium text-zinc-900 dark:text-white">Script Details</h2>
+                        </div>
+                        <div class="p-6 space-y-4">
+                            <!-- Script Name -->
+                            <div>
+                                <label for="name"
+                                    class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                                    Script Name <span class="text-red-500">*</span>
+                                </label>
+                                <input type="text" name="name" id="name" x-model="formData.name"
+                                    class="w-full px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:ring-indigo-500 focus:border-indigo-500"
+                                    required>
+                            </div>
+
+                            <!-- Framework Type -->
+                            <div>
+                                <label for="framework_type"
+                                    class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                                    Framework Type <span class="text-red-500">*</span>
+                                </label>
+                                <select name="framework_type" id="framework_type" x-model="formData.framework_type"
+                                    @change="updateSyntaxHighlighting"
+                                    class="w-full px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:ring-indigo-500 focus:border-indigo-500"
+                                    required>
+                                    <option value="selenium-python">Selenium Python</option>
+                                    <option value="cypress">Cypress</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </div>
+                        </div>
                     </div>
-                    <div class="p-6 space-y-4">
-                        <!-- Script Name -->
-                        <div>
-                            <label for="script-name" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                                Script Name <span class="text-red-500">*</span>
-                            </label>
-                            <input
-                                x-model="formData.name"
-                                type="text"
-                                id="script-name"
-                                class="w-full px-4 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
-                                required
-                            >
+
+                    <!-- Editor Tools -->
+                    <div
+                        class="bg-white dark:bg-zinc-800 shadow-sm rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+                        <div class="px-6 py-4 border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800">
+                            <h2 class="text-lg font-medium text-zinc-900 dark:text-white">Editor Tools</h2>
                         </div>
-
-                        <!-- Framework Type -->
-                        <div>
-                            <label for="framework-type" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                                Framework Type <span class="text-red-500">*</span>
-                            </label>
-                            <select
-                                x-model="formData.framework_type"
-                                id="framework-type"
-                                class="w-full px-4 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
-                                @change="updateEditorMode"
-                                required
-                            >
-                                <option value="selenium-python">Selenium Python</option>
-                                <option value="cypress">Cypress</option>
-                                <option value="other">Other</option>
-                            </select>
-                        </div>
-
-                        <div class="pt-4 border-t border-zinc-200 dark:border-zinc-700">
-                            <h3 class="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3">Editor Settings</h3>
-
-                            <!-- Theme Selection -->
-                            <div class="mb-3">
-                                <label for="editor-theme" class="block text-xs text-zinc-500 dark:text-zinc-400 mb-1">
-                                    Editor Theme
-                                </label>
-                                <select
-                                    x-model="editorSettings.theme"
-                                    id="editor-theme"
-                                    class="w-full px-3 py-1.5 text-xs border border-zinc-300 dark:border-zinc-600 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
-                                    @change="updateEditorTheme"
-                                >
-                                    <option value="default">Light</option>
-                                    <option value="dracula">Dark</option>
-                                    <option value="material">Material</option>
-                                    <option value="monokai">Monokai</option>
-                                </select>
-                            </div>
-
-                            <!-- Font Size -->
-                            <div class="mb-3">
-                                <label for="font-size" class="block text-xs text-zinc-500 dark:text-zinc-400 mb-1">
-                                    Font Size
-                                </label>
-                                <div class="flex items-center">
-                                    <button
-                                        @click="changeFontSize(-1)"
-                                        class="px-2 py-1 border border-zinc-300 dark:border-zinc-600 rounded-l-lg bg-zinc-50 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300"
-                                    >
-                                        <i data-lucide="minus" class="w-3 h-3"></i>
-                                    </button>
-                                    <div class="px-3 py-1 border-t border-b border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-center text-xs min-w-[40px]">
-                                        <span x-text="editorSettings.fontSize"></span>px
-                                    </div>
-                                    <button
-                                        @click="changeFontSize(1)"
-                                        class="px-2 py-1 border border-zinc-300 dark:border-zinc-600 rounded-r-lg bg-zinc-50 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300"
-                                    >
-                                        <i data-lucide="plus" class="w-3 h-3"></i>
-                                    </button>
-                                </div>
-                            </div>
-
-                            <!-- Indentation -->
-                            <div class="mb-3">
-                                <label for="tab-size" class="block text-xs text-zinc-500 dark:text-zinc-400 mb-1">
-                                    Tab Size
-                                </label>
-                                <select
-                                    x-model.number="editorSettings.tabSize"
-                                    id="tab-size"
-                                    class="w-full px-3 py-1.5 text-xs border border-zinc-300 dark:border-zinc-600 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
-                                    @change="updateEditorTabSize"
-                                >
-                                    <option value="2">2 spaces</option>
-                                    <option value="4">4 spaces</option>
-                                    <option value="8">8 spaces</option>
-                                </select>
-                            </div>
-
-                            <!-- Options -->
-                            <div class="space-y-2">
-                                <label class="flex items-center text-xs text-zinc-700 dark:text-zinc-300">
-                                    <input
-                                        type="checkbox"
-                                        x-model="editorSettings.lineWrapping"
-                                        @change="updateEditorWrapping"
-                                        class="rounded border-zinc-300 dark:border-zinc-600 text-indigo-600 mr-2"
-                                    >
-                                    Wrap long lines
-                                </label>
-                                <label class="flex items-center text-xs text-zinc-700 dark:text-zinc-300">
-                                    <input
-                                        type="checkbox"
-                                        x-model="editorSettings.lineNumbers"
-                                        @change="updateEditorLineNumbers"
-                                        class="rounded border-zinc-300 dark:border-zinc-600 text-indigo-600 mr-2"
-                                    >
-                                    Show line numbers
-                                </label>
-                                <label class="flex items-center text-xs text-zinc-700 dark:text-zinc-300">
-                                    <input
-                                        type="checkbox"
-                                        x-model="editorSettings.autoCloseBrackets"
-                                        @change="updateEditorBrackets"
-                                        class="rounded border-zinc-300 dark:border-zinc-600 text-indigo-600 mr-2"
-                                    >
-                                    Auto-close brackets
-                                </label>
-                            </div>
+                        <div class="p-6 space-y-4">
+                            <button type="button" @click="indent"
+                                class="w-full px-3 py-2 text-sm bg-zinc-100 dark:bg-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-600 text-zinc-800 dark:text-zinc-200 rounded-lg transition-colors">
+                                <i data-lucide="indent" class="w-4 h-4 inline mr-1"></i>
+                                Indent Selection
+                            </button>
+                            <button type="button" @click="outdent"
+                                class="w-full px-3 py-2 text-sm bg-zinc-100 dark:bg-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-600 text-zinc-800 dark:text-zinc-200 rounded-lg transition-colors">
+                                <i data-lucide="outdent" class="w-4 h-4 inline mr-1"></i>
+                                Outdent Selection
+                            </button>
+                            <button type="button" @click="commentToggle"
+                                class="w-full px-3 py-2 text-sm bg-zinc-100 dark:bg-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-600 text-zinc-800 dark:text-zinc-200 rounded-lg transition-colors">
+                                <i data-lucide="message-square" class="w-4 h-4 inline mr-1"></i>
+                                Toggle Comment
+                            </button>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Editor -->
-            <div class="lg:col-span-3">
-                <div class="bg-white dark:bg-zinc-800 shadow-sm rounded-xl border border-zinc-200/70 dark:border-zinc-700/50 overflow-hidden h-full flex flex-col">
-                    <div class="px-6 py-4 border-b border-zinc-200/50 dark:border-zinc-700/50 bg-zinc-50/50 dark:bg-zinc-800/50 flex justify-between items-center">
-                        <h2 class="text-lg font-medium text-zinc-900 dark:text-white">Script Code</h2>
-                        <div class="flex space-x-2">
-                            <button
-                                @click="formatCode"
-                                class="px-2 py-1 text-xs rounded-md bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600 transition-colors"
-                                title="Format code"
-                            >
-                                <i data-lucide="text-quote" class="w-3 h-3 inline-block mr-1"></i>
-                                Format
-                            </button>
-                            <button
-                                @click="toggleFullscreen"
-                                class="px-2 py-1 text-xs rounded-md bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600 transition-colors"
-                                title="Toggle fullscreen"
-                            >
-                                <i data-lucide="maximize-2" class="w-3 h-3 inline-block"></i>
-                            </button>
-                        </div>
-                    </div>
-                    <div class="relative flex-grow">
-                        <!-- Loading indicator -->
+                <!-- Right Column: Code Editor -->
+                <div class="col-span-12 md:col-span-9">
+                    <div
+                        class="bg-white dark:bg-zinc-800 shadow-sm rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden h-full">
                         <div
-                            x-show="isLoading"
-                            class="absolute inset-0 flex items-center justify-center bg-white/80 dark:bg-zinc-800/80 z-10"
-                        >
-                            <div class="flex flex-col items-center">
-                                <svg class="animate-spin h-8 w-8 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                                <span class="mt-2 text-sm text-zinc-600 dark:text-zinc-400">Loading editor...</span>
+                            class="px-6 py-4 border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 flex justify-between items-center">
+                            <h2 class="text-lg font-medium text-zinc-900 dark:text-white">Script Content</h2>
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm text-zinc-500 dark:text-zinc-400"
+                                    x-text="'Line: ' + cursorPosition.line + ' Col: ' + cursorPosition.column"></span>
                             </div>
                         </div>
 
-                        <!-- Editor container -->
-                        <div id="code-editor" class="h-full min-h-[500px]"></div>
+                        <!-- Custom Code Editor -->
+                        <div class="editor-container h-[600px] flex" @click="focusEditor">
+                            <!-- Line Numbers -->
+                            <div class="line-numbers w-16 h-full overflow-hidden py-4 text-right bg-zinc-100 dark:bg-zinc-900 text-zinc-500 dark:text-zinc-500 select-none"
+                                x-ref="lineNumbers">
+                                <!-- Line numbers will be generated by JavaScript -->
+                            </div>
+
+                            <!-- Editor Area -->
+                            <div class="editor-wrapper relative flex-grow h-full overflow-auto">
+                                <!-- Hidden textarea for capturing input -->
+                                <textarea x-ref="hiddenTextarea" x-model="formData.script_content" name="script_content" @input="handleInput"
+                                    @keydown="handleKeyDown" @click="updateCursorPosition" @select="updateCursorPosition"
+                                    class="absolute top-0 left-0 opacity-0 h-full w-full">{{ $testScript->script_content }}</textarea>
+
+                                <!-- Visible, highlighted code display -->
+                                <div x-ref="cursor" class="editor-cursor" :style="cursorStyle"></div>
+                                <pre x-ref="codeDisplay"
+                                    class="code-display min-h-full p-4 m-0 overflow-visible whitespace-pre font-mono text-zinc-800 dark:text-zinc-200"
+                                    x-html="highlightedCode"></pre>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
+        </form>
 
         <!-- Notification -->
-        <div
-            x-show="notification.show"
-            x-transition:enter="transition ease-out duration-300"
+        <div x-show="showNotification" x-transition:enter="transition ease-out duration-300"
             x-transition:enter-start="opacity-0 transform translate-y-2"
             x-transition:enter-end="opacity-100 transform translate-y-0"
-            x-transition:leave="transition ease-in duration-200"
-            x-transition:leave-start="opacity-100 transform translate-y-0"
-            x-transition:leave-end="opacity-0 transform translate-y-2"
-            class="fixed bottom-6 right-6 z-50 max-w-sm w-full p-4 rounded-xl shadow-lg border"
+            x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100"
+            x-transition:leave-end="opacity-0"
+            class="fixed bottom-6 right-6 z-50 max-w-sm w-full shadow-lg border rounded-xl p-4"
             :class="{
-                'bg-green-50/80 border-green-200/50 dark:bg-green-900/30 dark:border-green-800/30': notification.type === 'success',
-                'bg-red-50/80 border-red-200/50 dark:bg-red-900/30 dark:border-red-800/30': notification.type === 'error',
-                'bg-yellow-50/80 border-yellow-200/50 dark:bg-yellow-900/30 dark:border-yellow-800/30': notification.type === 'warning'
-            }"
-            style="display: none;"
-        >
+                'bg-green-50/80 border-green-200/50 dark:bg-green-900/30 dark:border-green-800/30': notificationType === 'success',
+                'bg-red-50/80 border-red-200/50 dark:bg-red-900/30 dark:border-red-800/30': notificationType === 'error'
+            }">
             <div class="flex items-start">
-                <div class="flex-shrink-0 w-5 h-5 mr-3">
-                    <template x-if="notification.type === 'success'">
-                        <i data-lucide="check-circle" class="w-5 h-5 text-green-600 dark:text-green-400"></i>
-                    </template>
-                    <template x-if="notification.type === 'error'">
-                        <i data-lucide="alert-circle" class="w-5 h-5 text-red-600 dark:text-red-400"></i>
-                    </template>
-                    <template x-if="notification.type === 'warning'">
-                        <i data-lucide="alert-triangle" class="w-5 h-5 text-yellow-600 dark:text-yellow-400"></i>
-                    </template>
+                <div x-show="notificationType === 'success'"
+                    class="flex-shrink-0 w-5 h-5 mr-3 text-green-600 dark:text-green-400">
+                    <i data-lucide="check-circle" class="w-5 h-5"></i>
                 </div>
-                <div>
+                <div x-show="notificationType === 'error'"
+                    class="flex-shrink-0 w-5 h-5 mr-3 text-red-600 dark:text-red-400">
+                    <i data-lucide="alert-circle" class="w-5 h-5"></i>
+                </div>
+                <div class="flex-1">
                     <h4 class="font-medium mb-1"
                         :class="{
-                            'text-green-800 dark:text-green-200': notification.type === 'success',
-                            'text-red-800 dark:text-red-200': notification.type === 'error',
-                            'text-yellow-800 dark:text-yellow-200': notification.type === 'warning'
+                            'text-green-800 dark:text-green-200': notificationType === 'success',
+                            'text-red-800 dark:text-red-200': notificationType === 'error'
                         }"
-                        x-text="notification.title"></h4>
+                        x-text="notificationTitle"></h4>
                     <p class="text-sm"
                         :class="{
-                            'text-green-700/90 dark:text-green-300/90': notification.type === 'success',
-                            'text-red-700/90 dark:text-red-300/90': notification.type === 'error',
-                            'text-yellow-700/90 dark:text-yellow-300/90': notification.type === 'warning'
+                            'text-green-700/90 dark:text-green-300/90': notificationType === 'success',
+                            'text-red-700/90 dark:text-red-300/90': notificationType === 'error'
                         }"
-                        x-text="notification.message"></p>
+                        x-text="notificationMessage"></p>
                 </div>
-                <button @click="hideNotification" class="ml-auto -mt-1 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200">
+                <button @click="hideNotification"
+                    class="ml-4 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200">
                     <i data-lucide="x" class="w-4 h-4"></i>
                 </button>
             </div>
@@ -289,387 +213,887 @@
 @endsection
 
 @push('styles')
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/dracula.min.css">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/material.min.css">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/monokai.min.css">
-<style>
-    .CodeMirror {
-        height: 100%;
-        font-family: "Fira Code", "Menlo", "Monaco", "Consolas", monospace;
-    }
+    <style>
+        .editor-cursor {
+            position: absolute;
+            width: 2px;
+            background-color: #007bff;
+            animation: blink 1s step-end infinite;
+            height: 1.5em;
+            pointer-events: none;
+            /* So it doesn't interfere with clicks */
+        }
 
-    .btn-secondary {
-        @apply bg-white/50 dark:bg-zinc-700/50 border border-zinc-300/70 dark:border-zinc-600/50 hover:bg-zinc-50/70 dark:hover:bg-zinc-600/50 shadow-sm text-zinc-700 dark:text-zinc-300 transition-all;
-    }
+        @keyframes blink {
 
-    .btn-primary {
-        @apply bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm hover:shadow-md transition-all;
-    }
+            0%,
+            100% {
+                opacity: 1;
+            }
 
-    .editor-fullscreen {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        height: 100vh;
-        width: 100vw;
-        z-index: 9999;
-        background: white;
-    }
+            50% {
+                opacity: 0;
+            }
+        }
 
-    .dark .editor-fullscreen {
-        background: #1f2937;
-    }
+        .code-display {
+            tab-size: 4;
+            position: relative;
+            cursor: text;
+            /* Show text cursor */
+        }
 
-    .editor-fullscreen .CodeMirror {
-        height: calc(100vh - 60px);
-    }
+        .editor-container {
+            font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+        }
 
-    .editor-fullscreen-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 10px 20px;
-        background: #f3f4f6;
-        border-bottom: 1px solid #e5e7eb;
-    }
+        /* Syntax Highlighting Styles */
+        .token-keyword {
+            color: #569CD6;
+        }
 
-    .dark .editor-fullscreen-header {
-        background: #374151;
-        border-color: #4b5563;
-    }
-</style>
+        .token-string {
+            color: #CE9178;
+        }
+
+        .token-comment {
+            color: #6A9955;
+            font-style: italic;
+        }
+
+        .token-function {
+            color: #DCDCAA;
+        }
+
+        .token-number {
+            color: #B5CEA8;
+        }
+
+        .token-operator {
+            color: #D4D4D4;
+        }
+
+        .token-class {
+            color: #4EC9B0;
+        }
+
+        .token-parameter {
+            color: #9CDCFE;
+        }
+
+        .token-punctuation {
+            color: #D4D4D4;
+        }
+
+        .token-variable {
+            color: #9CDCFE;
+        }
+
+        .token-selector {
+            color: #D7BA7D;
+        }
+
+        /* Dark mode colors */
+        .dark .token-keyword {
+            color: #C586C0;
+        }
+
+        .dark .token-string {
+            color: #CE9178;
+        }
+
+        .dark .token-comment {
+            color: #6A9955;
+        }
+
+        .dark .token-function {
+            color: #DCDCAA;
+        }
+
+        .dark .token-number {
+            color: #B5CEA8;
+        }
+
+        .dark .token-operator {
+            color: #D4D4D4;
+        }
+
+        .dark .token-class {
+            color: #4EC9B0;
+        }
+
+        .dark .token-parameter {
+            color: #9CDCFE;
+        }
+
+        .dark .token-punctuation {
+            color: #D4D4D4;
+        }
+
+        .dark .token-variable {
+            color: #9CDCFE;
+        }
+
+        .dark .token-selector {
+            color: #D7BA7D;
+        }
+    </style>
 @endpush
 
 @push('scripts')
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/python/python.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/javascript/javascript.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/edit/closebrackets.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/edit/matchbrackets.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/selection/active-line.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/js-beautify/1.14.9/beautify.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/js-beautify/1.14.9/beautify-html.min.js"></script>
-<script>
-    document.addEventListener('alpine:init', () => {
-        Alpine.data('testScriptEditor', () => ({
-            editor: null,
-            isLoading: true,
-            isSaving: false,
-            isFullscreen: false,
-            notification: {
-                show: false,
-                type: 'success',
-                title: '',
-                message: '',
-                timeout: null
-            },
-            formData: {
-                name: @json($testScript->name),
-                framework_type: @json($testScript->framework_type),
-                script_content: @json($testScript->script_content)
-            },
-            editorSettings: {
-                theme: 'default',
-                fontSize: 14,
-                tabSize: 4,
-                lineWrapping: true,
-                lineNumbers: true,
-                autoCloseBrackets: true
-            },
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('scriptEditor', () => ({
+                formData: {
+                    name: '{{ addslashes($testScript->name) }}',
+                    framework_type: '{{ $testScript->framework_type }}',
+                    script_content: `{{ addslashes($testScript->script_content) }}`
+                },
+                highlightedCode: '',
+                currentCaretPosition: 0,
+                cursorPosition: {
+                    line: 1,
+                    column: 1
+                },
+                showNotification: false,
+                notificationType: 'success',
+                notificationTitle: '',
+                notificationMessage: '',
+                isSubmitting: false,
+                cursorStyle: {
+                    left: '0.5rem',
+                    top: '0.5rem',
+                    display: 'block'
+                },
+                lineHeight: 24, // Approx line height in pixels
+                charWidth: 8.4, // Approx character width in pixels
+                isFocused: false,
 
-            initEditor() {
-                // Set default theme based on dark mode
-                this.editorSettings.theme = document.documentElement.classList.contains('dark') ? 'dracula' : 'default';
+                init() {
+                    // Add these lines to your existing init function
+                    this.updateHighlightedCode();
+                    this.updateLineNumbers();
+                    this.calculateFontMetrics();
 
-                // Wait for DOM to be ready
-                setTimeout(() => {
-                    const editorContainer = document.getElementById('code-editor');
-                    if (!editorContainer) return;
-
-                    // Initialize CodeMirror
-                    this.editor = CodeMirror(editorContainer, {
-                        value: this.formData.script_content,
-                        mode: this.getEditorMode(),
-                        theme: this.editorSettings.theme,
-                        lineNumbers: this.editorSettings.lineNumbers,
-                        lineWrapping: this.editorSettings.lineWrapping,
-                        tabSize: this.editorSettings.tabSize,
-                        indentUnit: this.editorSettings.tabSize,
-                        matchBrackets: true,
-                        autoCloseBrackets: this.editorSettings.autoCloseBrackets,
-                        styleActiveLine: true,
-                        extraKeys: {
-                            "Ctrl-S": (cm) => this.saveScript(),
-                            "Cmd-S": (cm) => this.saveScript(),
-                            "F11": (cm) => this.toggleFullscreen(),
-                            "Esc": (cm) => {
-                                if (this.isFullscreen) this.toggleFullscreen();
-                            }
-                        }
+                    // Focus/blur tracking
+                    this.$refs.hiddenTextarea.addEventListener('focus', () => {
+                        this.isFocused = true;
+                        this.updateCursorStyle();
                     });
 
-                    // Set editor font size
-                    const cmElement = editorContainer.querySelector('.CodeMirror');
-                    if (cmElement) {
-                        cmElement.style.fontSize = `${this.editorSettings.fontSize}px`;
+                    this.$refs.hiddenTextarea.addEventListener('blur', () => {
+                        this.isFocused = false;
+                        this.updateCursorStyle();
+                    });
+
+                    // Handle click on code display to position cursor
+                    this.$refs.codeDisplay.addEventListener('mousedown', this.handleCodeDisplayClick
+                        .bind(this));
+                },
+
+                focusEditor() {
+                    this.$refs.hiddenTextarea.focus();
+                    this.isFocused = true;
+                    this.updateCursorStyle();
+                },
+
+                calculateFontMetrics() {
+                    // Create a temporary span to measure character width
+                    const span = document.createElement('span');
+                    span.style.visibility = 'hidden';
+                    span.style.position = 'absolute';
+                    span.style.whiteSpace = 'pre';
+                    span.style.font = window.getComputedStyle(this.$refs.codeDisplay).font;
+                    span.textContent = 'X'.repeat(100); // Measure 100 characters for better average
+
+                    document.body.appendChild(span);
+                    this.charWidth = span.getBoundingClientRect().width / 100;
+                    this.lineHeight = parseInt(window.getComputedStyle(this.$refs.codeDisplay)
+                        .lineHeight, 10);
+                    if (isNaN(this.lineHeight)) {
+                        // If line-height is 'normal', estimate based on font size
+                        const fontSize = parseInt(window.getComputedStyle(this.$refs.codeDisplay)
+                            .fontSize, 10);
+                        this.lineHeight = Math.floor(fontSize * 1.5);
+                    }
+                    document.body.removeChild(span);
+                },
+
+                handleCodeDisplayClick(e) {
+                    // Get click position relative to code display
+                    const rect = this.$refs.codeDisplay.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
+
+                    // Calculate approximate line number
+                    const clickedLine = Math.floor(y / this.lineHeight) + 1;
+
+                    // Calculate approximate column
+                    const clickedColumn = Math.floor(x / this.charWidth) + 1;
+
+                    // Now find the actual position in the text
+                    const lines = this.formData.script_content.split('\n');
+
+                    // Ensure line is within bounds
+                    const targetLine = Math.min(clickedLine, lines.length);
+                    const targetLineContent = lines[targetLine - 1] || '';
+
+                    // Ensure column is within bounds
+                    const targetColumn = Math.min(clickedColumn, targetLineContent.length + 1);
+
+                    // Calculate the absolute position in the text
+                    let position = 0;
+                    for (let i = 0; i < targetLine - 1; i++) {
+                        position += lines[i].length + 1; // +1 for the newline
+                    }
+                    position += targetColumn - 1;
+
+                    // Set cursor position in the hidden textarea
+                    this.$refs.hiddenTextarea.focus();
+                    this.$refs.hiddenTextarea.setSelectionRange(position, position);
+
+                    // Update UI
+                    this.updateCursorPosition();
+                    this.updateCursorStyle();
+
+                    // Prevent default to ensure focus is maintained
+                    e.preventDefault();
+                },
+
+                updateCursorPosition() {
+                    // Existing method, add this at the end:
+                    this.updateCursorStyle();
+                },
+
+                updateCursorStyle() {
+                    // Only show cursor when textarea is focused
+                    if (!this.isFocused) {
+                        this.cursorStyle = {
+                            display: 'none'
+                        };
+                        return;
                     }
 
-                    // Update content on change
-                    this.editor.on('change', (cm) => {
-                        this.formData.script_content = cm.getValue();
-                    });
+                    // Calculate cursor position based on line and column
+                    const top = (this.cursorPosition.line - 1) * this.lineHeight + 0.5;
+                    const left = (this.cursorPosition.column - 1) * this.charWidth + 0.5;
 
-                    // Hide loading indicator
-                    this.isLoading = false;
+                    // Add padding offset of the code display
+                    const paddingLeft = parseInt(window.getComputedStyle(this.$refs.codeDisplay)
+                        .paddingLeft, 10) || 0;
+                    const paddingTop = parseInt(window.getComputedStyle(this.$refs.codeDisplay)
+                        .paddingTop, 10) || 0;
 
-                    // Watch for dark mode changes
-                    const observer = new MutationObserver((mutations) => {
-                        mutations.forEach((mutation) => {
-                            if (mutation.attributeName === 'class') {
-                                const isDark = document.documentElement.classList.contains('dark');
-                                this.editorSettings.theme = isDark ? 'dracula' : 'default';
-                                this.updateEditorTheme();
+                    this.cursorStyle = {
+                        display: 'block',
+                        left: `${left + paddingLeft}px`,
+                        top: `${top + paddingTop}px`
+                    };
+                },
+
+
+                updateCursorPosition() {
+                    const textarea = this.$refs.hiddenTextarea;
+                    const content = textarea.value;
+
+                    // Calculate line and column
+                    const textBeforeCursor = content.substring(0, textarea.selectionStart);
+                    const lines = textBeforeCursor.split('\n');
+                    const line = lines.length;
+                    const column = lines[lines.length - 1].length + 1;
+
+                    this.cursorPosition = {
+                        line,
+                        column
+                    };
+                    this.currentCaretPosition = textarea.selectionStart;
+                },
+
+                handleKeyDown(e) {
+                    // Save the cursor position
+                    this.updateCursorPosition();
+
+                    // Handle special key combinations here if needed
+                    // For example, Ctrl+S for save
+                    if (e.ctrlKey && e.key === 's') {
+                        e.preventDefault();
+                        this.saveScript();
+                    }
+                },
+                handleInput() {
+                    this.updateHighlightedCode();
+                    this.updateLineNumbers();
+                    this.updateCursorPosition();
+                    this.updateCursorStyle();
+                },
+                handleTabKey(e) {
+                    // Handle tab key for indentation
+                    if (e.key === 'Tab') {
+                        e.preventDefault();
+
+                        const textarea = this.$refs.hiddenTextarea;
+                        const start = textarea.selectionStart;
+                        const end = textarea.selectionEnd;
+
+                        if (start === end) {
+                            // No selection, just insert a tab
+                            const newText = textarea.value.substring(0, start) + '    ' + textarea.value
+                                .substring(end);
+                            textarea.value = newText;
+                            textarea.selectionStart = textarea.selectionEnd = start + 4;
+                        } else {
+                            // With selection, indent every line in the selection
+                            const selectedText = textarea.value.substring(start, end);
+                            const lines = selectedText.split('\n');
+                            const indentedText = lines.map(line => '    ' + line).join('\n');
+
+                            const newText = textarea.value.substring(0, start) + indentedText + textarea
+                                .value.substring(end);
+                            textarea.value = newText;
+                            textarea.selectionStart = start;
+                            textarea.selectionEnd = start + indentedText.length;
+                        }
+
+                        // Update the model and highlighted code
+                        this.formData.script_content = textarea.value;
+                        this.updateHighlightedCode();
+                        this.updateLineNumbers();
+                    }
+                },
+
+                indent() {
+                    const textarea = this.$refs.hiddenTextarea;
+                    const start = textarea.selectionStart;
+                    const end = textarea.selectionEnd;
+
+                    if (start === end) {
+                        // No selection, just insert spaces
+                        const newText = textarea.value.substring(0, start) + '    ' + textarea.value
+                            .substring(end);
+                        textarea.value = newText;
+                        textarea.selectionStart = textarea.selectionEnd = start + 4;
+                    } else {
+                        // With selection, indent every line
+                        const selectedText = textarea.value.substring(start, end);
+                        const lines = selectedText.split('\n');
+                        const indentedText = lines.map(line => '    ' + line).join('\n');
+
+                        const newText = textarea.value.substring(0, start) + indentedText + textarea
+                            .value.substring(end);
+                        textarea.value = newText;
+                        textarea.selectionStart = start;
+                        textarea.selectionEnd = start + indentedText.length;
+                    }
+
+                    // Update the model and highlighted code
+                    this.formData.script_content = textarea.value;
+                    this.updateHighlightedCode();
+                    this.updateLineNumbers();
+                    this.focusEditor();
+                },
+
+                outdent() {
+                    const textarea = this.$refs.hiddenTextarea;
+                    const start = textarea.selectionStart;
+                    const end = textarea.selectionEnd;
+
+                    if (start !== end) {
+                        // With selection, outdent every line if possible
+                        const selectedText = textarea.value.substring(start, end);
+                        const lines = selectedText.split('\n');
+                        const outdentedText = lines.map(line => {
+                            if (line.startsWith('    ')) {
+                                return line.substring(4);
+                            } else if (line.startsWith('\t')) {
+                                return line.substring(1);
                             }
-                        });
+                            return line;
+                        }).join('\n');
+
+                        const newText = textarea.value.substring(0, start) + outdentedText + textarea
+                            .value.substring(end);
+                        textarea.value = newText;
+                        textarea.selectionStart = start;
+                        textarea.selectionEnd = start + outdentedText.length;
+
+                        // Update the model and highlighted code
+                        this.formData.script_content = textarea.value;
+                        this.updateHighlightedCode();
+                        this.updateLineNumbers();
+                    }
+
+                    this.focusEditor();
+                },
+
+                commentToggle() {
+                    const textarea = this.$refs.hiddenTextarea;
+                    const start = textarea.selectionStart;
+                    const end = textarea.selectionEnd;
+
+                    // Get selected text
+                    const selectedText = textarea.value.substring(start, end);
+                    const lines = selectedText.split('\n');
+
+                    // Determine if we should comment or uncomment
+                    const allCommented = lines.every(line => {
+                        return this.formData.framework_type === 'cypress' ?
+                            line.trimStart().startsWith('//') :
+                            line.trimStart().startsWith('#');
                     });
 
-                    observer.observe(document.documentElement, { attributes: true });
-                }, 100);
-            },
+                    // Toggle comments
+                    const commentChar = this.formData.framework_type === 'cypress' ? '//' : '#';
+                    const toggledText = lines.map(line => {
+                        if (allCommented) {
+                            // Uncomment
+                            if (this.formData.framework_type === 'cypress' && line.trimStart()
+                                .startsWith('//')) {
+                                const lineStart = line.search('//');
+                                return line.substring(0, lineStart) + line.substring(lineStart +
+                                    2);
+                            } else if (line.trimStart().startsWith('#')) {
+                                const lineStart = line.search('#');
+                                return line.substring(0, lineStart) + line.substring(lineStart +
+                                    1);
+                            }
+                            return line;
+                        } else {
+                            // Comment
+                            return commentChar + ' ' + line;
+                        }
+                    }).join('\n');
 
-            getEditorMode() {
-                switch (this.formData.framework_type) {
-                    case 'cypress':
-                        return 'javascript';
-                    case 'selenium-python':
-                    default:
-                        return 'python';
-                }
-            },
+                    // Update the textarea
+                    const newText = textarea.value.substring(0, start) + toggledText + textarea.value
+                        .substring(end);
+                    textarea.value = newText;
+                    textarea.selectionStart = start;
+                    textarea.selectionEnd = start + toggledText.length;
 
-            updateEditorMode() {
-                if (!this.editor) return;
-                this.editor.setOption('mode', this.getEditorMode());
-            },
+                    // Update the model and highlighted code
+                    this.formData.script_content = textarea.value;
+                    this.updateHighlightedCode();
+                    this.updateLineNumbers();
+                    this.focusEditor();
+                },
 
-            updateEditorTheme() {
-                if (!this.editor) return;
-                this.editor.setOption('theme', this.editorSettings.theme);
-            },
+                updateHighlightedCode() {
+                    this.highlightedCode = this.highlightCode(this.formData.script_content);
+                },
 
-            updateEditorWrapping() {
-                if (!this.editor) return;
-                this.editor.setOption('lineWrapping', this.editorSettings.lineWrapping);
-            },
+                updateLineNumbers() {
+                    const lines = this.formData.script_content.split('\n');
+                    const lineCount = lines.length;
 
-            updateEditorLineNumbers() {
-                if (!this.editor) return;
-                this.editor.setOption('lineNumbers', this.editorSettings.lineNumbers);
-            },
+                    // Generate line numbers HTML
+                    let lineNumbersHtml = '';
+                    for (let i = 1; i <= lineCount; i++) {
+                        lineNumbersHtml += `<div class="line-number px-4">${i}</div>`;
+                    }
 
-            updateEditorTabSize() {
-                if (!this.editor) return;
-                this.editor.setOption('tabSize', this.editorSettings.tabSize);
-                this.editor.setOption('indentUnit', this.editorSettings.tabSize);
-            },
+                    this.$refs.lineNumbers.innerHTML = lineNumbersHtml;
+                },
 
-            updateEditorBrackets() {
-                if (!this.editor) return;
-                this.editor.setOption('autoCloseBrackets', this.editorSettings.autoCloseBrackets);
-            },
+                updateSyntaxHighlighting() {
+                    this.updateHighlightedCode();
+                },
 
-            changeFontSize(delta) {
-                this.editorSettings.fontSize = Math.max(10, Math.min(24, this.editorSettings.fontSize + delta));
-                const cmElement = document.querySelector('.CodeMirror');
-                if (cmElement) {
-                    cmElement.style.fontSize = `${this.editorSettings.fontSize}px`;
-                    // Force re-render
-                    this.editor?.refresh();
-                }
-            },
+                highlightCode(code) {
+                    if (!code) return '';
 
-            formatCode() {
-                if (!this.editor) return;
-
-                try {
-                    let formatted;
-                    const code = this.editor.getValue();
-
+                    // Choose tokenizer based on framework type
                     if (this.formData.framework_type === 'cypress') {
-                        // JavaScript beautifier
-                        formatted = js_beautify(code, {
-                            indent_size: this.editorSettings.tabSize,
-                            indent_with_tabs: false,
-                            space_in_empty_paren: true
-                        });
+                        return this.highlightJavaScript(code);
                     } else {
-                        // For Python and others, do a simple indentation pass
-                        // This is a simple approach - for production you might want a proper Python formatter
-                        formatted = code;
+                        return this.highlightPython(code);
                     }
+                },
 
-                    // Replace the editor content
-                    this.editor.setValue(formatted);
+                highlightPython(code) {
+                    // Python keywords
+                    const keywords = [
+                        'and', 'as', 'assert', 'async', 'await', 'break', 'class', 'continue',
+                        'def', 'del', 'elif', 'else', 'except', 'False', 'finally', 'for',
+                        'from', 'global', 'if', 'import', 'in', 'is', 'lambda', 'None',
+                        'nonlocal', 'not', 'or', 'pass', 'raise', 'return', 'True', 'try',
+                        'while', 'with', 'yield', 'self'
+                    ];
 
-                    this.showNotification('success', 'Code formatted', 'Code formatting applied successfully.');
-                } catch (error) {
-                    this.showNotification('error', 'Format Error', 'Failed to format code: ' + error.message);
-                    console.error('Formatting error:', error);
-                }
-            },
+                    // Common Python builtins and Selenium functions
+                    const functions = [
+                        'print', 'len', 'str', 'int', 'float', 'list', 'dict', 'set', 'tuple',
+                        'find_element', 'find_elements', 'click', 'send_keys', 'get',
+                        'implicitly_wait',
+                        'execute_script', 'maximize_window', 'switch_to', 'select_by_visible_text'
+                    ];
 
-            toggleFullscreen() {
-                if (!this.editor) return;
+                    // Simple Python tokenizer
+                    let result = '';
+                    let inString = false;
+                    let stringChar = '';
+                    let inComment = false;
+                    let current = '';
 
-                const editorContainer = document.getElementById('code-editor');
-                const parentElement = editorContainer.closest('.lg\\:col-span-3');
+                    for (let i = 0; i < code.length; i++) {
+                        const char = code[i];
 
-                if (this.isFullscreen) {
-                    // Exit fullscreen
-                    document.body.style.overflow = '';
-                    editorContainer.classList.remove('editor-fullscreen');
-
-                    // Remove the fullscreen header if it exists
-                    const header = document.querySelector('.editor-fullscreen-header');
-                    if (header) header.remove();
-
-                    // Move the editor back to its original position
-                    if (parentElement) {
-                        parentElement.appendChild(editorContainer);
-                    }
-                } else {
-                    // Enter fullscreen
-                    document.body.style.overflow = 'hidden';
-
-                    // Create fullscreen header
-                    const header = document.createElement('div');
-                    header.className = 'editor-fullscreen-header';
-                    header.innerHTML = `
-                        <div class="text-lg font-medium text-zinc-900 dark:text-white">Editing: ${this.formData.name}</div>
-                        <div class="flex space-x-3">
-                            <button id="fs-format-btn" class="px-3 py-1.5 text-sm rounded-md bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600 transition-colors">
-                                <i data-lucide="text-quote" class="w-4 h-4 inline-block mr-1"></i>
-                                Format
-                            </button>
-                            <button id="fs-save-btn" class="px-3 py-1.5 text-sm rounded-md bg-indigo-600 hover:bg-indigo-700 text-white transition-colors">
-                                <i data-lucide="save" class="w-4 h-4 inline-block mr-1"></i>
-                                Save
-                            </button>
-                            <button id="fs-exit-btn" class="px-3 py-1.5 text-sm rounded-md bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600 transition-colors">
-                                <i data-lucide="minimize-2" class="w-4 h-4 inline-block mr-1"></i>
-                                Exit Fullscreen
-                            </button>
-                        </div>
-                    `;
-
-                    // Place the editor at the body level
-                    editorContainer.classList.add('editor-fullscreen');
-                    editorContainer.prepend(header);
-                    document.body.appendChild(editorContainer);
-
-                    // Add event listeners to the fullscreen header buttons
-                    document.getElementById('fs-format-btn').addEventListener('click', () => this.formatCode());
-                    document.getElementById('fs-save-btn').addEventListener('click', () => this.saveScript());
-                    document.getElementById('fs-exit-btn').addEventListener('click', () => this.toggleFullscreen());
-
-                    // Initialize Lucide icons in the fullscreen header
-                    if (typeof lucide !== 'undefined') {
-                        lucide.createIcons({
-                            attrs: {
-                                'stroke-width': 2,
-                                'class': 'w-4 h-4'
+                        // Handle comments
+                        if (char === '#' && !inString) {
+                            inComment = true;
+                            if (current) {
+                                result += this.tokenize(current, keywords, functions);
+                                current = '';
                             }
-                        });
-                    }
-                }
-
-                this.isFullscreen = !this.isFullscreen;
-
-                // Force CodeMirror to refresh its size
-                setTimeout(() => {
-                    this.editor.refresh();
-                }, 100);
-            },
-
-            async saveScript() {
-                if (this.isSaving) return;
-
-                // Check if we need to get the latest content from CodeMirror
-                if (this.editor) {
-                    this.formData.script_content = this.editor.getValue();
-                }
-
-                // Validation
-                if (!this.formData.name || !this.formData.name.trim()) {
-                    this.showNotification('error', 'Validation Error', 'Script name is required.');
-                    return;
-                }
-
-                if (!this.formData.script_content || !this.formData.script_content.trim()) {
-                    this.showNotification('error', 'Validation Error', 'Script content cannot be empty.');
-                    return;
-                }
-
-                this.isSaving = true;
-
-                try {
-                    const response = await fetch('{{ route("dashboard.projects.test-cases.scripts.update", [$project->id, $testCase->id, $testScript->id]) }}', {
-                        method: 'PUT',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                            'Accept': 'application/json'
-                        },
-                        body: JSON.stringify(this.formData)
-                    });
-
-                    const result = await response.json();
-
-                    if (response.ok) {
-                        this.showNotification('success', 'Success', 'Test script saved successfully.');
-
-                        // If we're in fullscreen mode, stay there; otherwise redirect
-                        if (!this.isFullscreen) {
-                            setTimeout(() => {
-                                window.location.href = '{{ route("dashboard.projects.test-cases.scripts.show", [$project->id, $testCase->id, $testScript->id]) }}';
-                            }, 1000);
+                            result += '<span class="token-comment">#';
+                            continue;
                         }
-                    } else {
-                        throw new Error(result.message || 'Failed to save test script.');
+
+                        if (inComment) {
+                            if (char === '\n') {
+                                inComment = false;
+                                result += '</span>\n';
+                            } else {
+                                result += this.escapeHtml(char);
+                            }
+                            continue;
+                        }
+
+                        // Handle strings
+                        if ((char === '"' || char === "'") && (i === 0 || code[i - 1] !== '\\')) {
+                            if (inString) {
+                                if (char === stringChar) {
+                                    inString = false;
+                                    result += this.escapeHtml(char) + '</span>';
+                                } else {
+                                    result += this.escapeHtml(char);
+                                }
+                            } else {
+                                if (current) {
+                                    result += this.tokenize(current, keywords, functions);
+                                    current = '';
+                                }
+                                inString = true;
+                                stringChar = char;
+                                result += '<span class="token-string">' + this.escapeHtml(char);
+                            }
+                            continue;
+                        }
+
+                        if (inString) {
+                            result += this.escapeHtml(char);
+                            continue;
+                        }
+
+                        // Handle operators and punctuation
+                        if (/[+\-*/%=<>!&|^~:;,.?()[\]{}]/.test(char)) {
+                            if (current) {
+                                result += this.tokenize(current, keywords, functions);
+                                current = '';
+                            }
+                            result += '<span class="token-operator">' + this.escapeHtml(char) +
+                                '</span>';
+                            continue;
+                        }
+
+                        // Handle whitespace and word boundaries
+                        if (/\s/.test(char) || i === code.length - 1) {
+                            if (i === code.length - 1 && !/\s/.test(char)) {
+                                current += char;
+                            }
+
+                            if (current) {
+                                result += this.tokenize(current, keywords, functions);
+                                current = '';
+                            }
+
+                            if (char === '\n') {
+                                result += '\n';
+                            } else if (/\s/.test(char)) {
+                                result += char;
+                            }
+                            continue;
+                        }
+
+                        current += char;
                     }
-                } catch (error) {
-                    console.error('Save error:', error);
-                    this.showNotification('error', 'Error', error.message || 'An error occurred while saving.');
-                } finally {
-                    this.isSaving = false;
+
+                    // Handle any remaining text
+                    if (current) {
+                        result += this.tokenize(current, keywords, functions);
+                    }
+
+                    return result;
+                },
+
+                highlightJavaScript(code) {
+                    // JavaScript keywords
+                    const keywords = [
+                        'await', 'break', 'case', 'catch', 'class', 'const', 'continue',
+                        'debugger', 'default', 'delete', 'do', 'else', 'export', 'extends',
+                        'false', 'finally', 'for', 'function', 'if', 'import', 'in', 'instanceof',
+                        'new', 'null', 'return', 'super', 'switch', 'this', 'throw', 'true',
+                        'try', 'typeof', 'var', 'void', 'while', 'with', 'yield', 'let', 'static',
+                        'async', 'of'
+                    ];
+
+                    // Common JavaScript functions and Cypress methods
+                    const functions = [
+                        'console', 'log', 'document', 'window', 'setTimeout', 'clearTimeout',
+                        'cy', 'visit', 'get', 'contains', 'click', 'type', 'should', 'and',
+                        'expect', 'find', 'eq', 'first', 'last', 'wait', 'its', 'invoke'
+                    ];
+
+                    // Simple JavaScript tokenizer
+                    let result = '';
+                    let inString = false;
+                    let stringChar = '';
+                    let inComment = false;
+                    let inMultilineComment = false;
+                    let current = '';
+
+                    for (let i = 0; i < code.length; i++) {
+                        const char = code[i];
+                        const nextChar = i < code.length - 1 ? code[i + 1] : '';
+
+                        // Handle comments
+                        if (!inString && !inComment && !inMultilineComment && char === '/' &&
+                            nextChar === '/') {
+                            inComment = true;
+                            if (current) {
+                                result += this.tokenize(current, keywords, functions);
+                                current = '';
+                            }
+                            result += '<span class="token-comment">//';
+                            i++; // Skip the next character
+                            continue;
+                        }
+
+                        if (!inString && !inComment && !inMultilineComment && char === '/' &&
+                            nextChar === '*') {
+                            inMultilineComment = true;
+                            if (current) {
+                                result += this.tokenize(current, keywords, functions);
+                                current = '';
+                            }
+                            result += '<span class="token-comment">/*';
+                            i++; // Skip the next character
+                            continue;
+                        }
+
+                        if (inComment) {
+                            if (char === '\n') {
+                                inComment = false;
+                                result += '</span>\n';
+                            } else {
+                                result += this.escapeHtml(char);
+                            }
+                            continue;
+                        }
+
+                        if (inMultilineComment) {
+                            if (char === '*' && nextChar === '/') {
+                                inMultilineComment = false;
+                                result += '*/</span>';
+                                i++; // Skip the next character
+                            } else {
+                                result += this.escapeHtml(char);
+                            }
+                            continue;
+                        }
+
+                        // Handle strings
+                        if ((char === '"' || char === "'" || char === '`') && (i === 0 || code[i -
+                            1] !== '\\')) {
+                        if (inString) {
+                            if (char === stringChar) {
+                                inString = false;
+                                result += this.escapeHtml(char) + '</span>';
+                            } else {
+                                result += this.escapeHtml(char);
+                            }
+                        } else {
+                            if (current) {
+                                result += this.tokenize(current, keywords, functions);
+                                current = '';
+                            }
+                            inString = true;
+                            stringChar = char;
+                            result += '<span class="token-string">' + this.escapeHtml(char);
+                        }
+                        continue;
+                    }
+
+                    if (inString) {
+                        result += this.escapeHtml(char);
+                        continue;
+                    }
+
+                    // Handle operators and punctuation
+                    if (/[+\-*/%=<>!&|^~:;,.?()[\]{}]/.test(char)) {
+                        if (current) {
+                            result += this.tokenize(current, keywords, functions);
+                            current = '';
+                        }
+                        result += '<span class="token-operator">' + this.escapeHtml(char) +
+                            '</span>';
+                        continue;
+                    }
+
+                    // Handle whitespace and word boundaries
+                    if (/\s/.test(char) || i === code.length - 1) {
+                        if (i === code.length - 1 && !/\s/.test(char)) {
+                            current += char;
+                        }
+
+                        if (current) {
+                            result += this.tokenize(current, keywords, functions);
+                            current = '';
+                        }
+
+                        if (char === '\n') {
+                            result += '\n';
+                        } else if (/\s/.test(char)) {
+                            result += char;
+                        }
+                        continue;
+                    }
+
+                    current += char;
                 }
+
+                // Handle any remaining text
+                if (current) {
+                    result += this.tokenize(current, keywords, functions);
+                }
+
+                return result;
             },
 
-            showNotification(type, title, message) {
-                // Clear any existing timeout
-                if (this.notification.timeout) {
-                    clearTimeout(this.notification.timeout);
+            tokenize(word, keywords, functions) {
+                // Check if the word is a keyword, function or number
+                if (keywords.includes(word)) {
+                    return `<span class="token-keyword">${this.escapeHtml(word)}</span>`;
+                } else if (functions.includes(word)) {
+                    return `<span class="token-function">${this.escapeHtml(word)}</span>`;
+                } else if (/^\d+(\.\d+)?$/.test(word)) {
+                    return `<span class="token-number">${this.escapeHtml(word)}</span>`;
+                } else if (word.includes('.')) {
+                    // Handle possible method calls or properties
+                    const parts = word.split('.');
+                    let result = '';
+
+                    for (let i = 0; i < parts.length; i++) {
+                        if (i > 0) {
+                            result += '<span class="token-punctuation">.</span>';
+                        }
+
+                        if (functions.includes(parts[i])) {
+                            result +=
+                                `<span class="token-function">${this.escapeHtml(parts[i])}</span>`;
+                        } else if (keywords.includes(parts[i])) {
+                            result +=
+                                `<span class="token-keyword">${this.escapeHtml(parts[i])}</span>`;
+                        } else {
+                            result +=
+                                `<span class="token-variable">${this.escapeHtml(parts[i])}</span>`;
+                            }
+                        }
+
+                        return result;
+                    }
+
+                    return this.escapeHtml(word);
+                },
+
+                escapeHtml(text) {
+                    const map = {
+                        '&': '&amp;',
+                        '<': '&lt;',
+                        '>': '&gt;',
+                        '"': '&quot;',
+                        "'": '&#039;'
+                    };
+                    return text.replace(/[&<>"']/g, function(m) {
+                        return map[m];
+                    });
+                },
+
+                showNotificationMessage(type, title, message) {
+                    this.notificationType = type;
+                    this.notificationTitle = title;
+                    this.notificationMessage = message;
+                    this.showNotification = true;
+
+                    // Hide after 5 seconds
+                    setTimeout(() => {
+                        this.hideNotification();
+                    }, 5000);
+                },
+
+                hideNotification() {
+                    this.showNotification = false;
+                },
+
+                async saveScript() {
+                    try {
+                        this.isSubmitting = true;
+
+                        // Validate form
+                        if (!this.formData.name.trim()) {
+                            this.showNotificationMessage('error', 'Validation Error',
+                                'Script name is required');
+                            return;
+                        }
+
+                        if (!this.formData.script_content.trim()) {
+                            this.showNotificationMessage('error', 'Validation Error',
+                                'Script content is required');
+                            return;
+                        }
+
+                        // Submit form data via AJAX
+                        const response = await fetch(
+                            '{{ route('dashboard.projects.test-cases.scripts.update', [$project->id, $testCase->id, $testScript->id]) }}', {
+                                method: 'PUT',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRF-TOKEN': document.querySelector(
+                                        'meta[name="csrf-token"]').content,
+                                    'Accept': 'application/json'
+                                },
+                                body: JSON.stringify(this.formData)
+                            }
+                        );
+
+                        const result = await response.json();
+
+                        if (response.ok) {
+                            this.showNotificationMessage('success', 'Success',
+                                'Script updated successfully');
+
+                            // Redirect after delay
+                            setTimeout(() => {
+                                window.location.href =
+                                    '{{ route('dashboard.projects.test-cases.scripts.show', [$project->id, $testCase->id, $testScript->id]) }}';
+                            }, 1000);
+                        } else {
+                            throw new Error(result.message || 'Failed to update script');
+                        }
+                    } catch (error) {
+                        console.error('Error saving script:', error);
+                        this.showNotificationMessage('error', 'Error', error.message ||
+                            'An error occurred while saving');
+                    } finally {
+                        this.isSubmitting = false;
+                    }
+                },
+
+                handleSubmit() {
+                    this.saveScript();
                 }
-
-                // Update notification data
-                this.notification.type = type;
-                this.notification.title = title;
-                this.notification.message = message;
-                this.notification.show = true;
-
-                // Auto-hide after delay
-                this.notification.timeout = setTimeout(() => {
-                    this.hideNotification();
-                }, 5000);
-            },
-
-            hideNotification() {
-                this.notification.show = false;
-            }
-        }));
-    });
-</script>
+            }));
+        });
+    </script>
 @endpush
