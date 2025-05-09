@@ -28,7 +28,6 @@
         initialEpicId: '{{ old('epic_id', '') }}',
         apiEndpoint: '{{ route('api.ai.generate', 'story') }}',
         projectsEndpoint: '{{ route('dashboard.projects') }}',
-        epicsEndpoint: '/api/projects/',
         aiEnabled: true,
         csrfToken: '{{ csrf_token() }}'
     })">
@@ -670,6 +669,7 @@
                 epicsEndpoint: config.epicsEndpoint,
                 csrfToken: config.csrfToken,
                 aiEnabled: config.aiEnabled,
+                epicId: config.initialEpicId || '',
 
                 // UI state
                 creationMode: 'manual', // 'manual' or 'ai'
@@ -706,6 +706,13 @@
                         this.loadEpics();
                     }
 
+                    this.generatedStory = {
+                        title: '',
+                        description: '',
+                        acceptance_criteria: [],
+                        priority: '',
+                        tags: []
+                    };
                     // Try to load history from localStorage
                     const savedHistory = localStorage.getItem('story_generation_history');
                     if (savedHistory) {
@@ -726,21 +733,36 @@
                     });
                 },
 
+                getEpicsUrl(projectId) {
+                    return `/projects/${projectId}/epics`;
+                },
+
                 // Methods
                 async loadEpics() {
                     if (!this.projectId) return;
 
                     try {
-                        const response = await fetch(
-                            `${this.epicsEndpoint}${this.projectId}/epics`);
+                        // Correctly construct the URL: /projects/{projectId}/epics
+                        const url = this.getEpicsUrl(this.projectId);
+                        console.log("Fetching epics from:", url);
+
+                        const response = await fetch(url);
+                        if (!response.ok) {
+                            throw new Error(`HTTP error ${response.status}`);
+                        }
+
                         const data = await response.json();
+                        console.log("Epics data:", data);
 
                         if (data.success) {
-                            this.epics = data.data.epics || [];
+                            this.epics = data.epics || data.data?.epics || [];
+                        } else {
+                            throw new Error(data.message || "Failed to load epics");
                         }
                     } catch (error) {
                         console.error('Failed to load epics:', error);
-                        this.showNotification('error', 'Error', 'Failed to load epics.');
+                        this.showNotification('error', 'Failed to load epics.');
+                        this.epics = [];
                     }
                 },
 
@@ -869,7 +891,7 @@
 
                             this.showNotification('success', 'Success!',
                                 'Story generated successfully. Use "Use This Story" to add it to the form and edit before saving.'
-                                );
+                            );
                         } else {
                             throw new Error(result.message || 'Failed to generate story');
                         }

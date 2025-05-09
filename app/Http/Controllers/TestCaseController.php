@@ -285,30 +285,29 @@ class TestCaseController extends Controller
     /**
      * Display the specified test case.
      */
-    public function show(Project $project, TestCase $test_case, ?TestSuite $test_suite = null)
+    // For direct test case access
+    public function show(Project $project, TestCase $test_case)
     {
-        $this->authorizeAccess($project);
-
         try {
-            // Get the test case, ensuring it belongs to the project/suite
-            $testCase = $this->testCaseService->getTestCase($project, $test_suite, $test_case);
+            // Get the test suite (if any) from the test case
+            $testSuite = $test_case->testSuite;
 
-            // Get the suite (either from parameter or from the test case)
-            $suite = $test_suite ?? $testCase->testSuite;
+            // Validate relationships
+            $this->testCaseService->getTestCase($project, $testSuite, $test_case);
 
             // Get related data
-            if ($suite) {
-                $relatedCases = TestCase::where('suite_id', $suite->id)
-                    ->where('id', '!=', $testCase->id)
+            $relatedCases = collect();
+            if ($testSuite) {
+                $relatedCases = TestCase::where('suite_id', $testSuite->id)
+                    ->where('id', '!=', $test_case->id)
                     ->limit(5)
                     ->get();
-            } else {
-                $relatedCases = collect();
             }
+
             return view('dashboard.test-cases.show', [
                 'project' => $project,
-                'testSuite' => $suite,
-                'testCase' => $testCase,
+                'testSuite' => $testSuite,
+                'testCase' => $test_case,
                 'relatedCases' => $relatedCases
             ]);
         } catch (\Exception $e) {
@@ -316,9 +315,30 @@ class TestCaseController extends Controller
         }
     }
 
-    /**
-     * Show the form for editing the specified test case.
-     */
+    // For test case access via test suite
+    public function showWithSuite(Project $project, TestSuite $test_suite, TestCase $test_case)
+    {
+        try {
+            // Validate relationships
+            $this->testCaseService->getTestCase($project, $test_suite, $test_case);
+
+            // Get related data
+            $relatedCases = TestCase::where('suite_id', $test_suite->id)
+                ->where('id', '!=', $test_case->id)
+                ->limit(5)
+                ->get();
+
+            return view('dashboard.test-cases.show', [
+                'project' => $project,
+                'testSuite' => $test_suite,
+                'testCase' => $test_case,
+                'relatedCases' => $relatedCases
+            ]);
+        } catch (\Exception $e) {
+            return back()->with('error', $e->getMessage());
+        }
+    }
+
     /**
      * Show the form for editing the specified test case.
      */

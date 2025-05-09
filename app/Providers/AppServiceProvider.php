@@ -7,6 +7,7 @@ use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\View;
 use Laravel\Passport\Passport;
+use Illuminate\Support\Facades\Blade;
 use SocialiteProviders\Manager\SocialiteWasCalled;
 use SocialiteProviders\Microsoft\Provider;
 use SocialiteProviders\Atlassian\AtlassianExtendSocialite;

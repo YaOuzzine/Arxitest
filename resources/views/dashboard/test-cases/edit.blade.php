@@ -195,8 +195,10 @@
                                         @foreach ($testSuites as $suite)
                                             <div @click="updateSuite('{{ $suite->id }}', '{{ addslashes($suite->name) }}')"
                                                 class="dropdown-item px-4 py-3 text-sm cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-700"
-                                                :class="{ 'bg-zinc-100 dark:bg-zinc-700 font-medium': currentSuiteId ==
-                                                        '{{ $suite->id }}' }">
+                                                :class="{
+                                                    'bg-zinc-100 dark:bg-zinc-700 font-medium': currentSuiteId ==
+                                                        '{{ $suite->id }}'
+                                                }">
                                                 {{ $suite->name }}
                                             </div>
                                         @endforeach
@@ -238,8 +240,10 @@
                                         @foreach ($stories as $story)
                                             <div @click="updateStory('{{ $story->id }}', '{{ addslashes($story->title) }}')"
                                                 class="dropdown-item px-4 py-3 text-sm cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-700"
-                                                :class="{ 'bg-zinc-100 dark:bg-zinc-700 font-medium': currentStoryId ==
-                                                        '{{ $story->id }}' }">
+                                                :class="{
+                                                    'bg-zinc-100 dark:bg-zinc-700 font-medium': currentStoryId ==
+                                                        '{{ $story->id }}'
+                                                }">
                                                 {{ $story->title }}
                                             </div>
                                         @endforeach
@@ -324,8 +328,10 @@
                                     {{-- Low Priority --}}
                                     <div @click="setPriority('low')"
                                         class="priority-option relative p-4 rounded-xl cursor-pointer transition-all duration-300 group ring-1 ring-zinc-200/70 dark:ring-zinc-600/50 hover:ring-zinc-300 dark:hover:ring-zinc-500"
-                                        :class="{ 'ring-2 ring-zinc-500 dark:ring-zinc-400 bg-zinc-100/50 dark:bg-zinc-700/30': isPriority(
-                                                'low') }">
+                                        :class="{
+                                            'ring-2 ring-zinc-500 dark:ring-zinc-400 bg-zinc-100/50 dark:bg-zinc-700/30': isPriority(
+                                                'low')
+                                        }">
                                         <div class="flex items-start space-x-3">
                                             <div class="flex-1">
                                                 <div class="flex items-center">
@@ -351,8 +357,10 @@
                                     {{-- Medium Priority --}}
                                     <div @click="setPriority('medium')"
                                         class="priority-option relative p-4 rounded-xl cursor-pointer transition-all duration-300 group ring-1 ring-zinc-200/70 dark:ring-zinc-600/50 hover:ring-zinc-300 dark:hover:ring-zinc-500"
-                                        :class="{ 'ring-2 ring-zinc-500 dark:ring-zinc-400 bg-zinc-100/50 dark:bg-zinc-700/30': isPriority(
-                                                'medium') }">
+                                        :class="{
+                                            'ring-2 ring-zinc-500 dark:ring-zinc-400 bg-zinc-100/50 dark:bg-zinc-700/30': isPriority(
+                                                'medium')
+                                        }">
                                         <div class="flex items-start space-x-3">
                                             <div class="flex-1">
                                                 <div class="flex items-center">
@@ -378,8 +386,10 @@
                                     {{-- High Priority --}}
                                     <div @click="setPriority('high')"
                                         class="priority-option relative p-4 rounded-xl cursor-pointer transition-all duration-300 group ring-1 ring-zinc-200/70 dark:ring-zinc-600/50 hover:ring-zinc-300 dark:hover:ring-zinc-500"
-                                        :class="{ 'ring-2 ring-zinc-500 dark:ring-zinc-400 bg-zinc-100/50 dark:bg-zinc-700/30': isPriority(
-                                                'high') }">
+                                        :class="{
+                                            'ring-2 ring-zinc-500 dark:ring-zinc-400 bg-zinc-100/50 dark:bg-zinc-700/30': isPriority(
+                                                'high')
+                                        }">
                                         <div class="flex items-start space-x-3">
                                             <div class="flex-1">
                                                 <div class="flex items-center">
@@ -658,6 +668,7 @@
         document.addEventListener('alpine:init', () => {
             // Reuse the create form data definition if it's compatible
             // If not, create a specific one for edit
+
             Alpine.data('testCaseEditForm', (config) => ({
                 currentSuiteId: config.suiteId,
                 currentSuiteName: config.suiteName,
@@ -692,6 +703,19 @@
                 setPriority(value) {
                     this.priority = value;
                 }
+
+                ensurePriorityIsSet(event) {
+                    // If priority is undefined, set a default
+                    if (!this.priority) {
+                        this.priority = '{{ $testCase->priority }}';
+                    }
+
+                    // Make sure the hidden input has the current value
+                    document.getElementById('priority-input').value = this.priority;
+
+                    // Allow form submission to continue
+                    return true;
+                }
             }));
         });
 
@@ -701,6 +725,7 @@
                 lucide.createIcons();
             }
 
+
             // Priority Selection (Using Alpine now, but this is a fallback/alternative if not using Alpine for it)
             const priorityOptions = document.querySelectorAll('.priority-option');
             const priorityInput = document.getElementById('priority-input'); // Ensure this input exists
@@ -708,7 +733,7 @@
             priorityOptions.forEach(option => {
                 option.addEventListener('click', function() {
                     if (priorityInput) priorityInput.value = this.dataset
-                    .value; // Update hidden input
+                        .value; // Update hidden input
 
                     // Update UI styles
                     priorityOptions.forEach(opt => {
@@ -763,7 +788,7 @@
                     const newStepIndex = stepsList.querySelectorAll('.step-item').length;
                     const newStep = document.createElement('div');
                     newStep.className =
-                    'step-item flex items-start space-x-3 animate-fade-in'; // Added animation
+                        'step-item flex items-start space-x-3 animate-fade-in'; // Added animation
                     newStep.innerHTML = `
                     <div class="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 font-semibold text-sm">
                         <span class="step-number">${newStepIndex + 1}</span>
@@ -805,7 +830,7 @@
             const tagInput = document.getElementById('tag-input');
             const addTagBtn = document.getElementById('add-tag-btn');
             const tagInputContainer = document.getElementById(
-            'tag-input-container'); // Reference to input's container
+                'tag-input-container'); // Reference to input's container
 
             function addTagFromInput() {
                 if (!tagInput || !tagsContainer || !tagInputContainer) return;
@@ -867,9 +892,9 @@
                     // Basic frontend validation (can be enhanced)
                     const title = document.getElementById('title').value.trim();
                     const suiteId = document.getElementById('suite-id-input')
-                    .value; // Can be empty, that's ok
+                        .value; // Can be empty, that's ok
                     const storyId = document.getElementById('story-id-input')
-                    .value; // This should not be empty
+                        .value; // This should not be empty
                     const steps = Array.from(document.querySelectorAll('.step-input')).map(input => input
                         .value.trim()).filter(s => s); // Filter empty steps
                     const expectedResults = document.getElementById('expected_results').value.trim();

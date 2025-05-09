@@ -121,4 +121,26 @@ class RelationshipValidationService
 
         return true;
     }
+
+    /**
+     * Validate relationships between project, test suite, and test case.
+     */
+    public function validateTestCaseRelationships(Project $project, TestSuite $testSuite, TestCase $testCase): bool
+    {
+        // First validate project-suite relationship
+        $this->validateProjectSuiteRelationship($project, $testSuite);
+
+        // Then validate that test case belongs to this suite
+        if ($testCase->suite_id !== $testSuite->id) {
+            Log::warning('Invalid test suite-test case relationship', [
+                'suite_id' => $testSuite->id,
+                'test_case_id' => $testCase->id,
+                'test_case_suite_id' => $testCase->suite_id,
+            ]);
+            throw new \Exception('Test case not found in this test suite.');
+        }
+
+        // Project relationship is implicitly validated through the suite
+        return true;
+    }
 }

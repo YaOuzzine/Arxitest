@@ -31,7 +31,6 @@
 @section('content')
     <div class="w-full" x-data="createTestSuiteForm({
         projectId: '{{ $project->id }}',
-        generateUrl: '{{ route('dashboard.projects.test-suites.generateAI', $project->id) }}',
         csrfToken: '{{ csrf_token() }}',
         oldInput: {{ json_encode(old()) }}
     })" x-init="init()">
