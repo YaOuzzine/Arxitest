@@ -32,7 +32,8 @@
         height: 20px;
         width: 20px;
         background-color: transparent;
-        border: 2px solid #d1d5db; /* Tailwind zinc-300 */
+        border: 2px solid #d1d5db;
+        /* Tailwind zinc-300 */
         border-radius: 6px;
         display: flex;
         align-items: center;
@@ -43,19 +44,24 @@
 
     /* Dark mode styles for display border */
     .dark #{{ $id }} .custom-checkbox-display {
-        border-color: #52525b; /* Tailwind zinc-600 */
+        border-color: #52525b;
+        /* Tailwind zinc-600 */
     }
 
-    #{{ $id }} .custom-checkbox-input:checked ~ .custom-checkbox-display {
-        background-color: #ef4444; /* Tailwind red-500 */
-        border-color: #ef4444; /* Tailwind red-500 */
+    #{{ $id }} .custom-checkbox-input:checked~.custom-checkbox-display {
+        background-color: #ef4444;
+        /* Tailwind red-500 */
+        border-color: #ef4444;
+        /* Tailwind red-500 */
         transform: scale(1.05) rotate(-5deg);
     }
 
     /* Dark mode styles for checked display */
-    .dark #{{ $id }} .custom-checkbox-input:checked ~ .custom-checkbox-display {
-        background-color: #f87171; /* Tailwind red-400 */
-        border-color: #f87171; /* Tailwind red-400 */
+    .dark #{{ $id }} .custom-checkbox-input:checked~.custom-checkbox-display {
+        background-color: #f87171;
+        /* Tailwind red-400 */
+        border-color: #f87171;
+        /* Tailwind red-400 */
     }
 
     #{{ $id }} .custom-checkbox-display svg {
@@ -71,37 +77,46 @@
         transition: opacity 0.2s ease-in-out 0.1s, transform 0.3s cubic-bezier(0.68, -0.55, 0.27, 1.55) 0.1s;
     }
 
-    #{{ $id }} .custom-checkbox-input:checked ~ .custom-checkbox-display svg {
+    #{{ $id }} .custom-checkbox-input:checked~.custom-checkbox-display svg {
         opacity: 1;
         transform: scale(1) rotate(0deg);
     }
 
     /* Focus styles */
-    #{{ $id }} .custom-checkbox-input:focus-visible ~ .custom-checkbox-display {
+    #{{ $id }} .custom-checkbox-input:focus-visible~.custom-checkbox-display {
         outline: 2px solid transparent;
         outline-offset: 2px;
-        box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #ef4444; /* ring-white ring-red-500 */
+        box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #ef4444;
+        /* ring-white ring-red-500 */
     }
-    .dark #{{ $id }} .custom-checkbox-input:focus-visible ~ .custom-checkbox-display {
-        box-shadow: 0 0 0 2px #1f2937, 0 0 0 4px #f87171; /* ring-gray-800 ring-red-400 */
+
+    .dark #{{ $id }} .custom-checkbox-input:focus-visible~.custom-checkbox-display {
+        box-shadow: 0 0 0 2px #1f2937, 0 0 0 4px #f87171;
+        /* ring-gray-800 ring-red-400 */
     }
 
     #{{ $id }} .custom-checkbox-label {
-        margin-left: 0.75rem; /* Corresponds to space-x-3 */
-        font-size: 0.875rem; /* Corresponds to text-sm */
-        line-height: 1.25rem; /* Leading-5 */
-        color: #3f3f46; /* Tailwind zinc-700 */
+        margin-left: 0.75rem;
+        /* Corresponds to space-x-3 */
+        font-size: 0.875rem;
+        /* Corresponds to text-sm */
+        line-height: 1.25rem;
+        /* Leading-5 */
+        color: #3f3f46;
+        /* Tailwind zinc-700 */
     }
+
     .dark #{{ $id }} .custom-checkbox-label {
-        color: #e4e4e7; /* Tailwind zinc-200 */
+        color: #e4e4e7;
+        /* Tailwind zinc-200 */
     }
 </style>
 
 <div x-show="showDeleteModal" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0"
     x-transition:enter-end="opacity-100" x-transition:leave="transition ease-in duration-200"
     x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
-    class="fixed inset-0 z-50 overflow-y-auto backdrop-blur-[2px]" aria-labelledby="{{ $id }}-title-heading" role="dialog"
-    aria-modal="true" style="display: none;" id="{{ $id }}">
+    class="fixed inset-0 z-50 overflow-y-auto backdrop-blur-[2px]" aria-labelledby="{{ $id }}-title-heading"
+    role="dialog" aria-modal="true" style="display: none;" id="{{ $id }}">
     <div class="flex items-center justify-center min-h-screen p-4 text-center">
         <!-- Background overlay -->
         <div class="fixed bg-zinc-900/60 dark:bg-zinc-900/80 transition-opacity" @click="closeDeleteModal"
@@ -124,7 +139,8 @@
 
                     <!-- Text content -->
                     <div class="space-y-4">
-                        <h3 class="text-2xl font-bold text-zinc-900 dark:text-white" id="{{ $id }}-title-heading">
+                        <h3 class="text-2xl font-bold text-zinc-900 dark:text-white"
+                            id="{{ $id }}-title-heading">
                             {{ $title }}
                         </h3>
 
@@ -139,7 +155,14 @@
                                              If it's a Blade prop directly, then just {{ $itemName }} is fine.
                                              Given previous context, it's likely controlled by Alpine parent for dynamic updates.
                                         --}}
-                                        "<span x-text="{{ $itemName === 'deleteProjectName' || str_starts_with($itemName, 'delete') ? $itemName : "'$itemName'" }}"></span>"
+                                        @if ($itemName)
+                                            {{-- $itemName is the PHP prop, e.g., the string "itemName" or "deleteItemTitle" --}}
+                                            <span
+                                                class="block mt-2 text-lg font-bold bg-gradient-to-r from-red-600 to-orange-500 bg-clip-text text-transparent">
+                                                {{-- The value of the PHP $itemName prop IS the NAME of the Alpine variable --}}
+                                                "<span x-text="{{ $itemName }}"></span>"
+                                            </span>
+                                        @endif
                                     </span>
                                 @endif
                             </p>
@@ -151,14 +174,12 @@
 
                         @if ($requireConfirmation)
                             <div class="mt-6">
-                                <label for="{{ $id }}-confirm-delete-input" class="custom-checkbox-container group">
-                                    <input
-                                        id="{{ $id }}-confirm-delete-input"
-                                        type="checkbox"
-                                        x-model="deleteConfirmed" {{-- This needs to match your Alpine data property --}}
-                                        class="custom-checkbox-input"
-                                    >
-                                    <span class="custom-checkbox-display group-hover:border-red-400 dark:group-hover:border-red-500">
+                                <label for="{{ $id }}-confirm-delete-input"
+                                    class="custom-checkbox-container group">
+                                    <input id="{{ $id }}-confirm-delete-input" type="checkbox"
+                                        x-model="deleteConfirmed" {{-- This needs to match your Alpine data property --}} class="custom-checkbox-input">
+                                    <span
+                                        class="custom-checkbox-display group-hover:border-red-400 dark:group-hover:border-red-500">
                                         <svg viewBox="0 0 24 24">
                                             <polyline points="20 6 9 17 4 12"></polyline>
                                         </svg>

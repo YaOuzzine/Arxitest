@@ -91,6 +91,18 @@ class TestDataService
         return $testCase->testData()->detach($testData->id) > 0;
     }
 
+    public function validateTestDataRelationships(Project $project, TestCase $testCase, ?TestData $testData = null): bool
+    {
+        // Validate project-test case relationship
+        $this->relationshipValidator->validateProjectTestCaseRelationship($project, $testCase); // <--- Call 1
+
+        // If test data is provided, validate test case-test data relationship
+        if ($testData) {
+            $this->relationshipValidator->validateTestCaseTestDataRelationship($testCase, $testData); // <--- Call 2
+        }
+        return true;
+    }
+
     /**
      * Generate test data using AI.
      */
@@ -113,7 +125,7 @@ class TestDataService
             // Create context for the AI
             $steps = is_array($testCase->steps) ? $testCase->steps : json_decode($testCase->steps, true);
             $stepsText = is_array($steps)
-                ? implode("\n", array_map(fn($i, $step) => ($i+1) . ". $step", array_keys($steps), $steps))
+                ? implode("\n", array_map(fn($i, $step) => ($i + 1) . ". $step", array_keys($steps), $steps))
                 : $testCase->steps;
 
             $systemPrompt = $this->buildAISystemPrompt($testCase, $format, $stepsText);
@@ -180,7 +192,6 @@ class TestDataService
                     'format' => $testData->format
                 ]
             ];
-
         } catch (\Exception $e) {
             Log::error('Error generating test data with AI: ' . $e->getMessage());
             throw $e;

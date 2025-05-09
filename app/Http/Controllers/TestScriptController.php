@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\GenerateScriptRequest;
 use App\Http\Requests\TestScriptRequest;
 use App\Models\Project;
 use App\Models\TestCase;
@@ -46,6 +45,43 @@ class TestScriptController extends Controller
     }
 
     /**
+     * Show the form for editing a test script.
+     */
+    public function edit(Project $project, TestCase $test_case, TestScript $test_script)
+    {
+        try {
+            $this->testScriptService->validateRelationships($project, $test_case, $test_script);
+
+            return view('dashboard.test-scripts.edit', [
+                'project' => $project,
+                'testCase' => $test_case,
+                'testSuite' => $test_case->testSuite,
+                'testScript' => $test_script
+            ]);
+        } catch (\Exception $e) {
+            return back()->with('error', $e->getMessage());
+        }
+    }
+
+    /**
+     * Show form to create a new test script
+     */
+    public function create(Project $project, TestCase $test_case)
+    {
+        try {
+            $this->testScriptService->validateRelationships($project, $test_case);
+
+            return view('dashboard.test-scripts.create', [
+                'project' => $project,
+                'testCase' => $test_case,
+                'testSuite' => $test_case->testSuite
+            ]);
+        } catch (\Exception $e) {
+            return back()->with('error', $e->getMessage());
+        }
+    }
+
+    /**
      * Store a newly created test script.
      */
     public function store(TestScriptRequest $request, Project $project, TestCase $test_case)
@@ -69,9 +105,10 @@ class TestScriptController extends Controller
                 ]);
             }
 
-            return redirect()->route('dashboard.projects.test-cases.show', [
+            return redirect()->route('dashboard.projects.test-cases.scripts.show', [
                 'project' => $project->id,
-                'test_case' => $test_case->id
+                'test_case' => $test_case->id,
+                'test_script' => $testScript->id
             ])->with('success', 'Test script created successfully.');
         } catch (\Exception $e) {
             if ($request->expectsJson()) {
@@ -121,7 +158,6 @@ class TestScriptController extends Controller
                 $request->input('prompt', ''),
                 $context
             );
-            Log::debug("Script Data Generated: {$scriptData}");
 
             // Return just the data for the frontend to handle
             return response()->json([
@@ -135,6 +171,25 @@ class TestScriptController extends Controller
                 'success' => false,
                 'message' => 'An error occurred while generating the test script: ' . $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * Display the specified test script.
+     */
+    public function show(Project $project, TestCase $test_case, TestScript $test_script)
+    {
+        try {
+            $this->testScriptService->validateRelationships($project, $test_case, $test_script);
+
+            return view('dashboard.test-scripts.show', [
+                'project' => $project,
+                'testCase' => $test_case,
+                'testSuite' => $test_case->testSuite,
+                'testScript' => $test_script
+            ]);
+        } catch (\Exception $e) {
+            return back()->with('error', $e->getMessage());
         }
     }
 
@@ -192,25 +247,6 @@ class TestScriptController extends Controller
     }
 
     /**
-     * Display the specified test script.
-     */
-    public function show(Project $project, TestCase $test_case, TestScript $test_script)
-    {
-        try {
-            $this->testScriptService->validateRelationships($project, $test_case, $test_script);
-
-            return view('dashboard.test-scripts.show', [
-                'project' => $project,
-                'testCase' => $test_case,
-                'testSuite' => $test_case->testSuite,
-                'testScript' => $test_script
-            ]);
-        } catch (\Exception $e) {
-            return back()->with('error', $e->getMessage());
-        }
-    }
-
-    /**
      * Remove the specified test script.
      */
     public function destroy(Project $project, TestCase $test_case, TestScript $test_script)
@@ -225,7 +261,7 @@ class TestScriptController extends Controller
                 return $this->successResponse([], "Test script \"$scriptName\" deleted successfully.");
             }
 
-            return redirect()->route('dashboard.projects.test-cases.show', [
+            return redirect()->route('dashboard.projects.test-cases.scripts.index', [
                 'project' => $project->id,
                 'test_case' => $test_case->id
             ])->with('success', "Test script \"$scriptName\" deleted successfully.");

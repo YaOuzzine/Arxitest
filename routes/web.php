@@ -185,12 +185,13 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
     // Test Scripts Routes
     Route::prefix('/dashboard/projects/{project}/test-cases/{test_case}/scripts')->name('dashboard.projects.test-cases.scripts.')->group(function () {
         Route::get('/', [TestScriptController::class, 'index'])->name('index');
+        Route::get('/create', [TestScriptController::class, 'create'])->name('create');
         Route::post('/', [TestScriptController::class, 'store'])->name('store');
         Route::get('/{test_script}', [TestScriptController::class, 'show'])->name('show');
-        Route::delete('/{test_script}', [TestScriptController::class, 'destroy'])->name('destroy');
+        Route::get('/{test_script}/edit', [TestScriptController::class, 'edit'])->name('edit'); // Add explicit edit route
         Route::put('/{test_script}', [TestScriptController::class, 'update'])->name('update');
+        Route::delete('/{test_script}', [TestScriptController::class, 'destroy'])->name('destroy');
     });
-
     // Test Data Routes
     Route::prefix('/dashboard/projects/{project}/test-cases/{test_case}/data')->name('dashboard.projects.test-cases.data.')->group(function () {
         Route::get('/', [TestDataController::class, 'index'])->name('index');

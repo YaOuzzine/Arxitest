@@ -1,272 +1,380 @@
-@php
-    /**
-     * @var \App\Models\Project $project
-     * @var \App\Models\TestCase $testCase
-     * @var \App\Models\TestSuite $testSuite
-     * @var \App\Models\TestScript $testScript
-     */
-    $pageTitle = 'Test Script: ' . Str::limit($testScript->name, 50);
-
-    // Determine the language for PrismJS based on framework type
-    $frameworkLanguages = [
-        'selenium-python' => 'python',
-        'cypress' => 'javascript',
-        'other' => 'markup', // Default or placeholder
-    ];
-    $scriptLanguage = $frameworkLanguages[$testScript->framework_type] ?? 'markup';
-
-    // Check if AI generated
-    $isAiGenerated = isset($testScript->metadata['created_through']) && $testScript->metadata['created_through'] === 'ai';
-
-    // Get associated test case steps (handle potential JSON string)
-    $steps = $testCase->steps ?? [];
-    if (is_string($steps)) {
-        $decodedSteps = json_decode($steps, true);
-        $steps = is_array($decodedSteps) ? $decodedSteps : [];
-    } elseif (!is_array($steps)) {
-        $steps = [];
-    }
-@endphp
-
+{{-- resources/views/dashboard/test-scripts/show.blade.php --}}
 @extends('layouts.dashboard')
 
-@section('title', $pageTitle)
+@section('title', "{$testScript->name}")
 
 @section('breadcrumbs')
     <li class="flex items-center">
         <i data-lucide="chevron-right" class="w-4 h-4 text-zinc-400 mx-1"></i>
-        <a href="{{ route('dashboard.projects') }}" class="text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300">Projects</a>
+        <a href="{{ route('dashboard.projects.show', $project->id) }}" class="text-indigo-500 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors">{{ $project->name }}</a>
     </li>
     <li class="flex items-center">
         <i data-lucide="chevron-right" class="w-4 h-4 text-zinc-400 mx-1"></i>
-        <a href="{{ route('dashboard.projects.show', $project->id) }}" class="text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300">{{ $project->name }}</a>
-    </li>
-    @if($testSuite) {{-- Include suite if available --}}
-        <li class="flex items-center">
-            <i data-lucide="chevron-right" class="w-4 h-4 text-zinc-400 mx-1"></i>
-            <a href="{{ route('dashboard.projects.test-suites.show', [$project->id, $testSuite->id]) }}" class="text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300">{{ Str::limit($testSuite->name, 25) }}</a>
-        </li>
-    @endif
-    <li class="flex items-center">
-        <i data-lucide="chevron-right" class="w-4 h-4 text-zinc-400 mx-1"></i>
-        <a href="{{ route('dashboard.projects.test-cases.show', [$project->id, $testCase->id]) }}" class="text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300">{{ Str::limit($testCase->title, 30) }}</a>
+        <a href="{{ route('dashboard.projects.test-cases.show', [$project->id, $testCase->id]) }}" class="text-indigo-500 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors">{{ $testCase->title }}</a>
     </li>
     <li class="flex items-center">
         <i data-lucide="chevron-right" class="w-4 h-4 text-zinc-400 mx-1"></i>
-        <span class="text-zinc-700 dark:text-zinc-300">{{ Str::limit($testScript->name, 30) }}</span>
+        <a href="{{ route('dashboard.projects.test-cases.scripts.index', [$project->id, $testCase->id]) }}" class="text-indigo-500 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors">Test Scripts</a>
+    </li>
+    <li class="flex items-center">
+        <i data-lucide="chevron-right" class="w-4 h-4 text-zinc-400 mx-1"></i>
+        <span class="text-zinc-700 dark:text-zinc-300">{{ $testScript->name }}</span>
     </li>
 @endsection
 
 @section('content')
-<div class="space-y-8" x-data>
-    <!-- Header -->
-    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-            <h1 class="text-3xl font-bold text-zinc-900 dark:text-white mb-2">{{ $testScript->name }}</h1>
-            <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-                <span class="inline-flex items-center px-3 py-1 text-xs font-medium rounded-full bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/40">
-                    <i data-lucide="code" class="w-3.5 h-3.5 mr-1.5"></i>
-                    {{ ucfirst(str_replace('-', ' ', $testScript->framework_type)) }}
-                </span>
-                <span class="text-sm text-zinc-500 dark:text-zinc-400 inline-flex items-center">
-                    <i data-lucide="clock" class="inline-block w-3.5 h-3.5 mr-1.5"></i>
-                    Created {{ $testScript->created_at->diffForHumans() }}
-                </span>
-                @if($isAiGenerated)
-                    <span class="inline-flex items-center px-3 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300 border border-purple-200 dark:border-purple-800/40">
-                        <i data-lucide="sparkles" class="w-3.5 h-3.5 mr-1.5"></i> AI Generated
-                    </span>
-                @endif
-                 @if($testScript->creator)
-                    <span class="text-sm text-zinc-500 dark:text-zinc-400 inline-flex items-center">
-                        <i data-lucide="user" class="inline-block w-3.5 h-3.5 mr-1.5"></i>
-                         By {{ $testScript->creator->name }}
-                    </span>
-                @endif
-            </div>
-        </div>
-        <div class="flex flex-shrink-0 gap-2">
-            {{-- Direct link back to the scripts tab on the test case page --}}
-            <a href="{{ route('dashboard.projects.test-cases.show', [$project->id, $testCase->id]) }}#scripts" class="btn-secondary">
-                <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i> Back to Test Case
-            </a>
-            {{-- Maybe add an edit button later if script editing becomes a feature --}}
-            {{-- <button class="btn-secondary">
-                <i data-lucide="edit-3" class="w-4 h-4 mr-1"></i> Edit Script
-            </button> --}}
-            <form method="POST" action="{{ route('dashboard.projects.test-cases.scripts.destroy', [$project->id, $testCase->id, $testScript->id]) }}"
-                  onsubmit="return confirm('Are you sure you want to delete this script? This action cannot be undone.');">
-                @csrf
-                @method('DELETE')
-                <button type="submit" class="btn-danger">
-                    <i data-lucide="trash-2" class="w-4 h-4 mr-1"></i> Delete Script
-                </button>
-            </form>
-        </div>
-    </div>
-
-    <!-- Main Content Area: Script Code -->
-    <div class="bg-white dark:bg-zinc-800 rounded-xl shadow-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden">
-        <div class="px-6 py-4 bg-zinc-50 dark:bg-zinc-700/30 border-b border-zinc-200 dark:border-zinc-700 flex justify-between items-center">
-            <h3 class="font-medium text-zinc-800 dark:text-zinc-200">Script Content</h3>
-            <button @click="copyToClipboard($refs.scriptContent.innerText)"
-                    class="btn-copy"
-                    x-data="{ copied: false }"
-                    @click="copied = true; setTimeout(() => copied = false, 2000)">
-                <i data-lucide="copy" class="w-4 h-4" x-show="!copied"></i>
-                <i data-lucide="check" class="w-4 h-4 text-green-500" x-show="copied" x-cloak></i>
-                <span class="ml-1.5" x-text="copied ? 'Copied!' : 'Copy'"></span>
-            </button>
-        </div>
-        {{-- The p-0 on the pre ensures the padding comes from the code block for correct background --}}
-        <pre class="language-{{ $scriptLanguage }} !m-0 !p-0 max-h-[70vh] overflow-y-auto"><code x-ref="scriptContent" class="block !p-6">{{ $testScript->script_content }}</code></pre>
-    </div>
-
-    <!-- Associated Test Case Information (Context) -->
-    <div class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-700 overflow-hidden">
-        <div class="px-6 py-4 bg-zinc-50 dark:bg-zinc-700/30 border-b border-zinc-200 dark:border-zinc-700 flex justify-between items-center">
-            <h3 class="font-medium text-zinc-800 dark:text-zinc-200">Associated Test Case</h3>
-            <a href="{{ route('dashboard.projects.test-cases.show', [$project->id, $testCase->id]) }}" class="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium">
-                View Full Details <i data-lucide="arrow-right" class="inline-block w-3.5 h-3.5 ml-1"></i>
-            </a>
-        </div>
-        <div class="p-6 space-y-4">
-            <h4 class="text-lg font-medium text-zinc-900 dark:text-white">{{ $testCase->title }}</h4>
-            @if($testCase->description)
-                <p class="text-zinc-600 dark:text-zinc-400 text-sm">{{ Str::limit($testCase->description, 200) }}</p>
-            @endif
-
+    <div class="h-full space-y-6" x-data="testScriptViewer">
+        <!-- Header -->
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
             <div>
-                <h5 class="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-2">Test Steps</h5>
-                @if(count($steps) > 0)
-                    <ol class="list-decimal list-inside space-y-1 text-sm text-zinc-700 dark:text-zinc-300 bg-zinc-50 dark:bg-zinc-700/30 p-4 rounded-md border border-zinc-200 dark:border-zinc-700">
-                        @foreach($steps as $index => $step)
-                            <li>{{ $step }}</li>
-                        @endforeach
-                    </ol>
-                @else
-                    <p class="text-zinc-500 dark:text-zinc-400 italic text-sm">No steps defined for this test case.</p>
-                @endif
+                <h1 class="text-2xl font-bold bg-gradient-to-r from-zinc-800 dark:from-zinc-100 to-zinc-600 dark:to-zinc-300 bg-clip-text text-transparent tracking-tight">
+                    {{ $testScript->name }}
+                </h1>
+                <p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+                    Test script for {{ $testCase->title }}
+                </p>
+            </div>
+            <div class="flex flex-wrap gap-3">
+                <a href="{{ route('dashboard.projects.test-cases.scripts.index', [$project->id, $testCase->id]) }}"
+                   class="btn-secondary px-4 py-2 rounded-lg flex items-center">
+                    <i data-lucide="chevron-left" class="w-4 h-4 mr-2"></i>
+                    Back to Scripts
+                </a>
+                <button @click="openDeleteModal" type="button"
+                   class="btn-danger px-4 py-2 rounded-lg flex items-center">
+                    <i data-lucide="trash-2" class="w-4 h-4 mr-2"></i>
+                    Delete
+                </button>
+                <a href="{{ route('dashboard.projects.test-cases.scripts.edit', [$project->id, $testCase->id, $testScript->id]) }}"
+                   class="btn-primary px-4 py-2 rounded-lg flex items-center">
+                    <i data-lucide="pencil" class="w-4 h-4 mr-2"></i>
+                    Edit
+                </a>
             </div>
         </div>
-    </div>
 
-    <!-- Notification Area -->
-    <div x-data="notification" x-show="show" x-cloak
-         x-transition:enter="transform ease-out duration-300 transition"
-         x-transition:enter-start="translate-y-2 opacity-0 sm:translate-y-0 sm:translate-x-2"
-         x-transition:enter-end="translate-y-0 opacity-100 sm:translate-x-0"
-         x-transition:leave="transition ease-in duration-100"
-         x-transition:leave-start="opacity-100"
-         x-transition:leave-end="opacity-0"
-         class="fixed bottom-4 right-4 w-full max-w-sm p-4 rounded-lg shadow-lg pointer-events-auto z-50"
-         :class="{
-             'bg-green-50 dark:bg-green-800/90 border border-green-200 dark:border-green-700': type === 'success',
-             'bg-red-50 dark:bg-red-800/90 border border-red-200 dark:border-red-700': type === 'error'
-         }">
-        <div class="flex items-start">
-            <div class="flex-shrink-0">
-                 <i data-lucide="check-circle" class="w-6 h-6 text-green-500" x-show="type === 'success'"></i>
-                 <i data-lucide="alert-circle" class="w-6 h-6 text-red-500" x-show="type === 'error'"></i>
+        <!-- Main Content -->
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <!-- Details Card -->
+            <div class="lg:col-span-1">
+                <div class="bg-white dark:bg-zinc-800 shadow-sm rounded-xl border border-zinc-200/70 dark:border-zinc-700/50 overflow-hidden">
+                    <div class="px-6 py-4 border-b border-zinc-200/50 dark:border-zinc-700/50 bg-zinc-50/50 dark:bg-zinc-800/50">
+                        <h2 class="text-lg font-medium text-zinc-900 dark:text-white">Details</h2>
+                    </div>
+                    <div class="p-6 space-y-4">
+                        <div>
+                            <h3 class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Framework Type</h3>
+                            <p class="mt-1 text-sm text-zinc-900 dark:text-zinc-100">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                    {{ match($testScript->framework_type) {
+                                        'selenium-python' => 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
+                                        'cypress' => 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+                                        default => 'bg-zinc-100 text-zinc-800 dark:bg-zinc-700/30 dark:text-zinc-300',
+                                    } }}">
+                                    {{ match($testScript->framework_type) {
+                                        'selenium-python' => 'Selenium Python',
+                                        'cypress' => 'Cypress',
+                                        'other' => 'Other',
+                                        default => $testScript->framework_type,
+                                    } }}
+                                </span>
+                            </p>
+                        </div>
+                        <div>
+                            <h3 class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Created By</h3>
+                            <p class="mt-1 text-sm text-zinc-900 dark:text-zinc-100">
+                                {{ $testScript->creator->name ?? 'Unknown' }}
+                            </p>
+                        </div>
+                        <div>
+                            <h3 class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Created At</h3>
+                            <p class="mt-1 text-sm text-zinc-900 dark:text-zinc-100">
+                                {{ $testScript->created_at->format('M d, Y H:i') }}
+                            </p>
+                        </div>
+                        <div>
+                            <h3 class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Last Updated</h3>
+                            <p class="mt-1 text-sm text-zinc-900 dark:text-zinc-100">
+                                {{ $testScript->updated_at->format('M d, Y H:i') }}
+                            </p>
+                        </div>
+
+                        <!-- Test Case Reference -->
+                        <div class="pt-2 mt-4 border-t border-zinc-100 dark:border-zinc-700">
+                            <h3 class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Test Case</h3>
+                            <a href="{{ route('dashboard.projects.test-cases.show', [$project->id, $testCase->id]) }}"
+                               class="mt-1 text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 flex items-center">
+                                <i data-lucide="file-check-2" class="w-4 h-4 mr-1.5"></i>
+                                <span>{{ $testCase->title }}</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Actions Card -->
+                <div class="mt-6 bg-white dark:bg-zinc-800 shadow-sm rounded-xl border border-zinc-200/70 dark:border-zinc-700/50 overflow-hidden">
+                    <div class="px-6 py-4 border-b border-zinc-200/50 dark:border-zinc-700/50 bg-zinc-50/50 dark:bg-zinc-800/50">
+                        <h2 class="text-lg font-medium text-zinc-900 dark:text-white">Actions</h2>
+                    </div>
+                    <div class="p-6 space-y-3">
+                        <button @click="copyToClipboard" class="w-full flex items-center px-4 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition-colors">
+                            <i data-lucide="copy" class="w-4 h-4 mr-2 text-zinc-600 dark:text-zinc-400"></i>
+                            <span class="text-sm text-zinc-700 dark:text-zinc-300">Copy Code</span>
+                        </button>
+
+                        <button @click="downloadScript" class="w-full flex items-center px-4 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition-colors">
+                            <i data-lucide="download" class="w-4 h-4 mr-2 text-zinc-600 dark:text-zinc-400"></i>
+                            <span class="text-sm text-zinc-700 dark:text-zinc-300">Download Script</span>
+                        </button>
+
+                        <a href="{{ route('dashboard.projects.test-cases.scripts.edit', [$project->id, $testCase->id, $testScript->id]) }}"
+                           class="w-full flex items-center px-4 py-2 rounded-lg border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition-colors">
+                            <i data-lucide="pencil" class="w-4 h-4 mr-2 text-zinc-600 dark:text-zinc-400"></i>
+                            <span class="text-sm text-zinc-700 dark:text-zinc-300">Edit Script</span>
+                        </a>
+                    </div>
+                </div>
             </div>
-            <div class="ml-3 w-0 flex-1 pt-0.5">
-                 <p class="text-sm font-medium" :class="{ 'text-green-800 dark:text-green-100': type === 'success', 'text-red-800 dark:text-red-100': type === 'error' }" x-text="message"></p>
-            </div>
-            <div class="ml-4 flex-shrink-0 flex">
-                 <button @click="show = false" class="inline-flex rounded-md p-1 focus:outline-none focus:ring-2 focus:ring-offset-2"
-                         :class="{
-                             'text-green-500 hover:bg-green-100 dark:hover:bg-green-700 focus:ring-green-600 dark:focus:ring-offset-green-800': type === 'success',
-                             'text-red-500 hover:bg-red-100 dark:hover:bg-red-700 focus:ring-red-600 dark:focus:ring-offset-red-800': type === 'error'
-                         }">
-                     <span class="sr-only">Close</span>
-                     <i data-lucide="x" class="w-5 h-5"></i>
-                 </button>
+
+            <!-- Script Content -->
+            <div class="lg:col-span-3">
+                <div class="bg-white dark:bg-zinc-800 shadow-sm rounded-xl border border-zinc-200/70 dark:border-zinc-700/50 overflow-hidden">
+                    <div class="px-6 py-4 border-b border-zinc-200/50 dark:border-zinc-700/50 bg-zinc-50/50 dark:bg-zinc-800/50 flex justify-between items-center">
+                        <h2 class="text-lg font-medium text-zinc-900 dark:text-white">Script Content</h2>
+                        <div class="flex items-center space-x-2">
+                            <span class="text-xs text-zinc-500 dark:text-zinc-400">Language:</span>
+                            <span class="text-xs font-medium text-zinc-800 dark:text-zinc-200">
+                                {{ $testScript->framework_type === 'cypress' ? 'JavaScript' : 'Python' }}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="p-0 relative">
+                        <div class="absolute right-4 top-4 z-10 flex space-x-2">
+                            <button @click="toggleLineNumbers" class="p-1.5 rounded-md bg-white/80 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 shadow-sm backdrop-blur-sm text-xs flex items-center">
+                                <i data-lucide="list-ordered" class="w-3.5 h-3.5 mr-1"></i>
+                                <span x-text="showLineNumbers ? 'Hide Line Numbers' : 'Show Line Numbers'"></span>
+                            </button>
+                            <button @click="toggleWordWrap" class="p-1.5 rounded-md bg-white/80 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 shadow-sm backdrop-blur-sm text-xs flex items-center">
+                                <i data-lucide="wrap-text" class="w-3.5 h-3.5 mr-1"></i>
+                                <span x-text="wordWrap ? 'Disable Word Wrap' : 'Enable Word Wrap'"></span>
+                            </button>
+                        </div>
+                        <pre :class="{ 'line-numbers': showLineNumbers, 'whitespace-pre-wrap': wordWrap, 'whitespace-pre': !wordWrap }"
+                             class="language-{{ $testScript->framework_type === 'cypress' ? 'javascript' : 'python' }} overflow-auto max-h-screen p-6 text-sm" id="code-display">{{ $testScript->script_content }}</pre>
+                    </div>
+                </div>
+
+                <!-- Test Case Context -->
+                <div class="mt-6 bg-white dark:bg-zinc-800 shadow-sm rounded-xl border border-zinc-200/70 dark:border-zinc-700/50 overflow-hidden">
+                    <div class="px-6 py-4 border-b border-zinc-200/50 dark:border-zinc-700/50 bg-zinc-50/50 dark:bg-zinc-800/50">
+                        <h2 class="text-lg font-medium text-zinc-900 dark:text-white">Test Case Context</h2>
+                    </div>
+                    <div class="p-6 space-y-4">
+                        <div>
+                            <h3 class="text-sm font-medium text-zinc-700 dark:text-zinc-300">Test Steps:</h3>
+                            <ul class="mt-2 list-decimal pl-5 space-y-1">
+                                @foreach($testCase->steps as $step)
+                                    <li class="text-sm text-zinc-600 dark:text-zinc-400">{{ $step }}</li>
+                                @endforeach
+                            </ul>
+                        </div>
+                        <div>
+                            <h3 class="text-sm font-medium text-zinc-700 dark:text-zinc-300">Expected Results:</h3>
+                            <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-400">{{ $testCase->expected_results }}</p>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
-    </div>
 
-</div>
+        <!-- Delete Confirmation Modal -->
+        <x-modals.delete-confirmation
+            title="Delete Test Script"
+            message="Are you sure you want to delete this test script?"
+            itemName="'{{ addslashes($testScript->name) }}'"
+            dangerText="This action cannot be undone."
+            confirmText="Delete Script" />
+    </div>
 @endsection
 
 @push('styles')
-{{-- Include PrismJS theme --}}
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" integrity="sha512-vswe+cgvic/XBoF1OcM/TeJ2FW0OofqAVdCZiEYkd6dwGXuxGoVZSgoqvPKrG4+DingPYFKcCZmHAIU5xyzY解答==" crossorigin="anonymous" referrerpolicy="no-referrer" />
-{{-- Alternative theme: Okaidia --}}
-{{-- <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-okaidia.min.css" integrity="sha512-mIs9kKbaw6JZFfSuo+MovjU+Ntggfoj8RwAmJbVXQ5mkAX5LlgETQEweFPI18humSPHymTb5iikEOKWF7I8ncQ==" crossorigin="anonymous" referrerpolicy="no-referrer" /> --}}
 <style>
-    /* Button Styles */
-    .btn-primary { @apply inline-flex items-center justify-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed; }
-    .btn-secondary { @apply inline-flex items-center justify-center px-4 py-2 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 font-medium rounded-lg shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed; }
-    .btn-danger { @apply inline-flex items-center justify-center px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed; }
-    .btn-copy { @apply inline-flex items-center justify-center px-3 py-1.5 text-sm bg-zinc-100 dark:bg-zinc-700 border border-zinc-200 dark:border-zinc-600 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600 font-medium rounded-md shadow-sm transition-colors; }
+    .btn-secondary {
+        @apply bg-white/50 dark:bg-zinc-700/50 border border-zinc-300/70 dark:border-zinc-600/50 hover:bg-zinc-50/70 dark:hover:bg-zinc-600/50 shadow-sm text-zinc-700 dark:text-zinc-300 transition-all;
+    }
 
-    /* Code Highlighting */
-    pre[class*="language-"] { @apply text-sm leading-relaxed; }
-    :not(pre) > code[class*="language-"], pre[class*="language-"] { background: #f8fafc; /* Light background for light mode */ }
-    .dark :not(pre) > code[class*="language-"], .dark pre[class*="language-"] { background: #18181b; /* Dark background for dark mode */ }
-    pre[class*="language-"] code { display: block; } /* Ensure code block takes full width */
-    .token.comment, .token.prolog, .token.doctype, .token.cdata { @apply text-zinc-500 dark:text-zinc-400; }
-    .token.punctuation { @apply text-zinc-600 dark:text-zinc-400; }
-    .token.property, .token.tag, .token.boolean, .token.number, .token.constant, .token.symbol, .token.deleted { @apply text-purple-600 dark:text-purple-400; }
-    .token.selector, .token.attr-name, .token.string, .token.char, .token.builtin, .token.inserted { @apply text-emerald-600 dark:text-emerald-400; }
-    .token.operator, .token.entity, .token.url, .language-css .token.string, .style .token.string { @apply text-amber-700 dark:text-amber-500; }
-    .token.atrule, .token.attr-value, .token.keyword { @apply text-sky-600 dark:text-sky-400; }
-    .token.function, .token.class-name { @apply text-pink-600 dark:text-pink-400; }
-    .token.regex, .token.important, .token.variable { @apply text-yellow-600 dark:text-yellow-400; }
+    .btn-primary {
+        @apply bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm hover:shadow-md transition-all;
+    }
 
-    [x-cloak] { display: none !important; }
+    .btn-danger {
+        @apply bg-red-500 hover:bg-red-600 text-white shadow-sm hover:shadow-md transition-all;
+    }
+
+    /* Syntax highlighting - Override for dark mode */
+    .dark pre.language-python,
+    .dark pre.language-javascript {
+        background-color: #1a202c;
+        color: #e2e8f0;
+    }
+
+    /* Line numbers styling */
+    pre.line-numbers {
+        position: relative;
+        padding-left: 3.8em;
+        counter-reset: linenumber;
+    }
+
+    pre.line-numbers > code {
+        position: relative;
+        white-space: inherit;
+    }
+
+    .line-numbers .line-numbers-rows {
+        position: absolute;
+        pointer-events: none;
+        top: 0;
+        font-size: 100%;
+        left: -3.8em;
+        width: 3em;
+        letter-spacing: -1px;
+        border-right: 1px solid #999;
+        user-select: none;
+    }
+
+    .line-numbers-rows > span {
+        display: block;
+        counter-increment: linenumber;
+    }
+
+    .line-numbers-rows > span:before {
+        content: counter(linenumber);
+        color: #999;
+        display: block;
+        padding-right: 0.8em;
+        text-align: right;
+    }
+
+    /* Word wrap styling */
+    .whitespace-pre-wrap {
+        white-space: pre-wrap;
+    }
+
+    .whitespace-pre {
+        white-space: pre;
+    }
 </style>
 @endpush
 
 @push('scripts')
-{{-- Include PrismJS Core & Components --}}
-<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js" integrity="sha512-7Z9J3l1+EYfeaPKcGXu3MS/7BLOQmLpoTsAbMTyog+Kmy8Џ1MLXMH4Q7mvN+6hQMER+7IUcudCLD7b/q+/mDQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js" integrity="sha512-SkmBfuA2hqjzEVpmnMt/LINrjDhDHjXCqwsllmJNCDHEVLcwjDqfbYf9hPec6pvQO/+JiS9J7Gf6+mFk07kqBQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-{{-- Explicitly include common languages --}}
-<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js" integrity="sha512-AKaNmg/7cgoALCU5Ym9JbUSGTz0KXvuRcV5I9Ua/qOPGIMI/6nMCFCWJ78SMOE4YQEJjOsZyrV3/7urTGC9QkQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js" integrity="sha512-jwrwRWZAbkLEMLrbzLytL9BIJM8/1MvSknYZLHI501BHP+2KqS6Kk3tL9CHJDsF5Lj49Xh87jTmT9AXW/1h0DQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prismjs/1.29.0/prism.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prismjs/1.29.0/components/prism-python.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prismjs/1.29.0/components/prism-javascript.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prismjs/1.29.0/plugins/line-numbers/prism-line-numbers.min.js"></script>
 <script>
-document.addEventListener('alpine:init', () => {
-    // Initialize Alpine component for notifications
-    Alpine.data('notification', () => ({
-        show: false,
-        message: '',
-        type: 'success',
-        timeout: null,
-        init() {
-            window.addEventListener('notify', event => {
-                this.message = event.detail.message;
-                this.type = event.detail.type || 'success';
-                this.show = true;
-                if (this.timeout) clearTimeout(this.timeout);
-                this.timeout = setTimeout(() => this.show = false, 5000);
-                // Re-init icons when notification appears
-                 this.$nextTick(() => {
-                     if (typeof lucide !== 'undefined') lucide.createIcons();
-                 });
-            });
-        }
-    }));
+    document.addEventListener('alpine:init', () => {
+        Alpine.data('testScriptViewer', () => ({
+            showDeleteModal: false,
+            deleteConfirmed: false,
+            isDeleting: false,
+            requireConfirmation: true,
+            showLineNumbers: true,
+            wordWrap: false,
 
-    // Global copy function
-    window.copyToClipboard = function(text) {
-        navigator.clipboard.writeText(text).then(
-            () => window.dispatchEvent(new CustomEvent('notify', { detail: { message: 'Script copied to clipboard!', type: 'success' }})),
-            (err) => window.dispatchEvent(new CustomEvent('notify', { detail: { message: `Failed to copy: ${err}`, type: 'error' }}))
-        );
-    }
-});
+            init() {
+                // Initialize Prism syntax highlighting
+                Prism.highlightAll();
 
-// Initialize Prism and Lucide after DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
-    if (typeof Prism !== 'undefined') {
-        Prism.highlightAll();
-    }
-    if (typeof lucide !== 'undefined') {
-        lucide.createIcons();
-    }
-});
+                // Initialize line numbers
+                if (this.showLineNumbers) {
+                    Prism.plugins.lineNumbers.init();
+                }
+            },
 
+            copyToClipboard() {
+                const scriptContent = `{{ addslashes($testScript->script_content) }}`;
+                navigator.clipboard.writeText(scriptContent).then(() => {
+                    this.showNotification('info', 'Script copied to clipboard');
+                }).catch(err => {
+                    console.error('Failed to copy: ', err);
+                    this.showNotification('error', 'Failed to copy to clipboard');
+                });
+            },
+
+            downloadScript() {
+                const content = `{{ addslashes($testScript->script_content) }}`;
+                const filename = `{{ str_replace(' ', '_', $testScript->name) }}.` +
+                                 `{{ $testScript->framework_type === 'cypress' ? 'js' : 'py' }}`;
+
+                const element = document.createElement('a');
+                element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(content));
+                element.setAttribute('download', filename);
+
+                element.style.display = 'none';
+                document.body.appendChild(element);
+                element.click();
+                document.body.removeChild(element);
+
+                this.showNotification('success', `Downloaded ${filename}`);
+            },
+
+            openDeleteModal() {
+                this.showDeleteModal = true;
+                this.deleteConfirmed = false;
+            },
+
+            async confirmDelete() {
+                this.isDeleting = true;
+
+                try {
+                    const url = "{{ route('dashboard.projects.test-cases.scripts.destroy', [$project->id, $testCase->id, $testScript->id]) }}";
+                    const response = await fetch(url, {
+                        method: 'DELETE',
+                        headers: {
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                            'Accept': 'application/json'
+                        }
+                    });
+
+                    const result = await response.json();
+
+                    if (response.ok && result.success) {
+                        window.location.href = "{{ route('dashboard.projects.test-cases.scripts.index', [$project->id, $testCase->id]) }}";
+                    } else {
+                        throw new Error(result.message || 'Failed to delete test script');
+                    }
+                } catch (error) {
+                    console.error(error);
+                    this.showNotification('error', error.message || 'An error occurred');
+                } finally {
+                    this.isDeleting = false;
+                    this.showDeleteModal = false;
+                }
+            },
+
+            toggleLineNumbers() {
+                this.showLineNumbers = !this.showLineNumbers;
+
+                // Re-highlight and re-initialize line numbers after toggling
+                this.$nextTick(() => {
+                    Prism.highlightAll();
+                    if (this.showLineNumbers) {
+                        Prism.plugins.lineNumbers.init();
+                    }
+                });
+            },
+
+            toggleWordWrap() {
+                this.wordWrap = !this.wordWrap;
+            },
+
+            showNotification(type, message) {
+                // Dispatch event to notification system
+                window.dispatchEvent(new CustomEvent('notify', {
+                    detail: { type, message }
+                }));
+            }
+        }));
+    });
 </script>
 @endpush
