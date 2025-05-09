@@ -182,7 +182,7 @@
                                 <i data-lucide="code" class="w-5 h-5 mr-2 text-indigo-500"></i>
                                 Test Scripts
                             </h2>
-                            <a href="{{ route('dashboard.projects.test-cases.scripts.index', [$project->id, $testCase->id]) }}"
+                            <a href="{{ route('dashboard.projects.test-cases.scripts.store', [$project->id, $testCase->id]) }}"
                                 class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 hover:bg-indigo-100 dark:hover:bg-indigo-800/30 rounded-lg transition-colors">
                                 <i data-lucide="plus" class="w-4 h-4 mr-1.5"></i>
                                 Add Script
@@ -229,7 +229,7 @@
                                                 </div>
                                             </div>
                                             <div class="flex items-center space-x-1">
-                                                <a href="{{ route('dashboard.projects.test-cases.scripts.update', [$project->id, $testCase->id, $script->id]) }}"
+                                                <a href="{{ route('dashboard.projects.test-cases.scripts.show', [$project->id, $testCase->id, $script->id]) }}"
                                                     class="p-1.5 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded-lg transition-colors">
                                                     <i data-lucide="edit" class="w-4.5 h-4.5"></i>
                                                 </a>
@@ -286,7 +286,7 @@
                                 <i data-lucide="database" class="w-5 h-5 mr-2 text-blue-500"></i>
                                 Test Data
                             </h2>
-                            <a href="#"
+                            <a href="{{ route('dashboard.projects.test-cases.data.index', [$project->id, $testCase->id]) }}"
                                 class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-800/30 rounded-lg transition-colors">
                                 <i data-lucide="plus" class="w-4 h-4 mr-1.5"></i>
                                 Add Test Data
@@ -304,13 +304,13 @@
                                             <div class="flex items-start space-x-3">
                                                 <div
                                                     class="p-2 rounded-lg
-                                    @if ($data->format == 'json') bg-blue-100/80 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400
-                                    @elseif($data->format == 'csv')
-                                        bg-green-100/80 dark:bg-green-900/30 text-green-600 dark:text-green-400
-                                    @elseif($data->format == 'xml')
-                                        bg-purple-100/80 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400
-                                    @else
-                                        bg-cyan-100/80 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400 @endif">
+                                                    @if ($data->format == 'json') bg-blue-100/80 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400
+                                                    @elseif($data->format == 'csv')
+                                                        bg-green-100/80 dark:bg-green-900/30 text-green-600 dark:text-green-400
+                                                    @elseif($data->format == 'xml')
+                                                        bg-purple-100/80 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400
+                                                    @else
+                                                        bg-cyan-100/80 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400 @endif">
                                                     @php
                                                         $formatIcons = [
                                                             'json' => 'braces',
@@ -345,7 +345,7 @@
                                                 </div>
                                             </div>
                                             <div class="flex items-center space-x-1">
-                                                <a href="#"
+                                                <a href="{{ route('dashboard.projects.test-cases.data.show', [$project->id, $testCase->id, $data->id]) }}"
                                                     class="p-1.5 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded-lg transition-colors">
                                                     <i data-lucide="edit" class="w-4.5 h-4.5"></i>
                                                 </a>
@@ -386,7 +386,7 @@
                                 <p class="text-zinc-500 dark:text-zinc-400 max-w-md mx-auto mb-6">
                                     Add test data to provide inputs for your test scripts and define expected outcomes.
                                 </p>
-                                <a href="#"
+                                <a href="{{ route('dashboard.projects.test-cases.data.index', [$project->id, $testCase->id]) }}"
                                     class="inline-flex items-center px-4 py-2.5 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200">
                                     <i data-lucide="plus" class="w-5 h-5 mr-2"></i>
                                     Create Test Data
@@ -488,7 +488,7 @@
                 </div>
 
                 <!-- Related Test Cases Card -->
-                @if ($relatedCases && $relatedCases->count() > 0)
+                @if (isset($relatedCases) && $relatedCases->count() > 0)
                     <div
                         class="bg-white dark:bg-zinc-800 shadow-sm rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
                         <div
@@ -557,26 +557,38 @@
         </div>
 
         <!-- Delete Confirmation Modal -->
-        <x-modals.delete-confirmation id="delete-test-case-modal" title="Delete Test Case"
-            message="Are you sure you want to delete this test case?" itemName="'{{ $testCase->title }}'"
+        <x-modals.delete-confirmation
+            id="delete-test-case-modal"
+            title="Delete Test Case"
+            message="Are you sure you want to delete this test case?"
+            itemName="'{{ $testCase->title }}'"
             dangerText="This action cannot be undone. All associated scripts and data relationships will be lost."
-            confirmText="Delete Test Case" cancelText="Cancel" x-show="showDeleteModal" />
+            confirmText="Delete Test Case"
+            cancelText="Cancel" />
 
         <!-- Test Script Delete Modal -->
-        <x-modals.delete-confirmation id="delete-test-script-modal" title="Delete Test Script"
-            message="Are you sure you want to delete this test script?" itemName="scriptToDelete.name"
+        <x-modals.delete-confirmation
+            id="delete-test-script-modal"
+            title="Delete Test Script"
+            message="Are you sure you want to delete this test script?"
+            itemName="scriptToDelete.name"
             dangerText="This action cannot be undone and the script will be permanently deleted."
-            confirmText="Delete Script" cancelText="Cancel" x-show="showDeleteScriptModal" />
+            confirmText="Delete Script"
+            cancelText="Cancel" />
 
         <!-- Test Data Remove Modal -->
-        <x-modals.delete-confirmation id="remove-test-data-modal" title="Remove Test Data"
-            message="Are you sure you want to remove this test data from the test case?" itemName="testDataToRemove.name"
+        <x-modals.delete-confirmation
+            id="remove-test-data-modal"
+            title="Remove Test Data"
+            message="Are you sure you want to remove this test data from the test case?"
+            itemName="testDataToRemove.name"
             dangerText="This will only detach the test data from this test case. The test data will still be available for other test cases."
-            confirmText="Remove Test Data" cancelText="Cancel" x-show="showRemoveTestDataModal" />
+            confirmText="Remove Test Data"
+            cancelText="Cancel" />
 
         <!-- Test Data Preview Modal -->
-        <x-modals.preview-modal id="test-data-preview-modal" showCondition="showPreviewModal"
-            closeAction="showPreviewModal = false" :title="null">
+        <x-modals.preview-modal
+            id="test-data-preview-modal">
             <x-slot:icon>
                 <i data-lucide="database" class="w-6 h-6 text-blue-500 mr-2"></i>
                 <span x-text="currentTestData.name"></span>
@@ -591,80 +603,13 @@
         </x-modals.preview-modal>
 
         <!-- Clone Test Case Modal -->
-        <div x-show="showCloneModal" x-transition:enter="transition ease-out duration-300"
-            x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
-            x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100"
-            x-transition:leave-end="opacity-0" class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
-            <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center">
-                <div class="fixed inset-0 bg-zinc-900/60 dark:bg-zinc-900/80 backdrop-blur-sm transition-opacity"
-                    @click="showCloneModal = false"></div>
-                <div
-                    class="relative inline-block w-full max-w-md p-6 overflow-hidden text-left align-middle transition-all transform bg-white dark:bg-zinc-800 shadow-xl rounded-2xl">
-                    <div class="absolute top-0 right-0 pt-5 pr-5">
-                        <button type="button" @click="showCloneModal = false"
-                            class="text-zinc-400 hover:text-zinc-500 dark:hover:text-zinc-300">
-                            <i data-lucide="x" class="w-5 h-5"></i>
-                        </button>
-                    </div>
-                    <div>
-                        <h3 class="text-xl font-medium text-zinc-900 dark:text-zinc-100 flex items-center">
-                            <i data-lucide="clipboard-copy" class="w-6 h-6 text-indigo-500 mr-2"></i>
-                            Clone Test Case
-                        </h3>
-
-                        <div class="mt-4 space-y-4">
-                            <div>
-                                <label for="clone-title"
-                                    class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                                    New Title <span class="text-red-500">*</span>
-                                </label>
-                                <input type="text" id="clone-title" x-model="cloneForm.title"
-                                    class="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-zinc-800 dark:text-white"
-                                    placeholder="Enter a title for the cloned test case">
-                            </div>
-
-                            <div class="space-y-2">
-                                <div class="flex items-center">
-                                    <input type="checkbox" id="copy-scripts" x-model="cloneForm.copy_scripts"
-                                        class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-zinc-300 rounded dark:bg-zinc-700 dark:border-zinc-600">
-                                    <label for="copy-scripts" class="ml-2 block text-sm text-zinc-700 dark:text-zinc-300">
-                                        Copy test scripts
-                                    </label>
-                                </div>
-                                <div class="flex items-center">
-                                    <input type="checkbox" id="copy-data" x-model="cloneForm.copy_test_data"
-                                        class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-zinc-300 rounded dark:bg-zinc-700 dark:border-zinc-600">
-                                    <label for="copy-data" class="ml-2 block text-sm text-zinc-700 dark:text-zinc-300">
-                                        Copy test data
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="mt-6 flex justify-end space-x-3">
-                        <button type="button" @click="showCloneModal = false"
-                            class="inline-flex items-center px-4 py-2 border border-zinc-300 dark:border-zinc-600 rounded-md shadow-sm text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                            Cancel
-                        </button>
-                        <button type="button" @click="cloneTestCase()" :disabled="!cloneForm.title || isCloning"
-                            class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed">
-                            <span x-show="!isCloning">Clone Test Case</span>
-                            <span x-show="isCloning" class="flex items-center">
-                                <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg"
-                                    fill="none" viewBox="0 0 24 24">
-                                    <circle class="opacity-25" cx="12" cy="12" r="10"
-                                        stroke="currentColor" stroke-width="4"></circle>
-                                    <path class="opacity-75" fill="currentColor"
-                                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
-                                    </path>
-                                </svg>
-                                Cloning...
-                            </span>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <x-modals.clone-confirmation
+            id="clone-test-case-modal"
+            title="Clone Test Case"
+            message="Create a copy of this test case with the following options:"
+            itemName="'{{ $testCase->title }}'"
+            confirmText="Clone Test Case"
+            cancelText="Cancel" />
     </div>
 @endsection
 
@@ -672,41 +617,31 @@
     <script>
         document.addEventListener('alpine:init', () => {
             Alpine.data('testCaseDetail', () => ({
-                // Test Case deletion
+                // Modal visibility states
                 showDeleteModal: false,
-                showRemoveTestDataModal: false,
                 showDeleteScriptModal: false,
+                showRemoveTestDataModal: false,
                 showPreviewModal: false,
                 showCloneModal: false,
+
+                // Form states
                 isDeleting: false,
                 isCloning: false,
                 deleteConfirmed: false,
 
                 // Clone form data
-                cloneForm: {
-                    title: '',
-                    copy_scripts: true,
-                    copy_test_data: true
+                cloneTitle: '{{ $testCase->title }} (Clone)',
+                cloneOptions: {
+                    scripts: true,
+                    testData: true
                 },
+                cloneFormAction: '{{ route("dashboard.projects.test-cases.clone", [$project->id, $testCase->id]) }}',
 
-                // Test Case actions
-                confirmDelete() {
-                    this.showDeleteModal = true;
-                },
-
-                // Test Script actions
+                // Data for entity operations
                 scriptToDelete: {
                     id: null,
                     name: ''
                 },
-
-                confirmDeleteScript(id, name) {
-                    this.scriptToDelete.id = id;
-                    this.scriptToDelete.name = name;
-                    this.showDeleteScriptModal = true;
-                },
-
-                // Test Data actions
                 testDataToRemove: {
                     id: null,
                     name: ''
@@ -718,78 +653,184 @@
                     content: ''
                 },
 
-                previewTestData(id, name, format) {
-                    this.currentTestData.id = id;
-                    this.currentTestData.name = name;
-                    this.currentTestData.format = format;
-
-                    // Fetch the test data content
-                    fetch(
-                            `/dashboard/projects/{{ $project->id }}/test-cases/{{ $testCase->id }}/data/${id}/content`
-                            )
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.success) {
-                                this.currentTestData.content = data.content;
-                                this.showPreviewModal = true;
-                            } else {
-                                alert('Failed to load test data: ' + data.message);
-                            }
-                        })
-                        .catch(error => {
-                            console.error('Error fetching test data:', error);
-                            alert('Failed to load test data content');
-                        });
+                // Initialize
+                init() {
+                    this.$nextTick(() => {
+                        if (typeof lucide !== 'undefined') lucide.createIcons();
+                    });
                 },
 
+                // Test Case Deletion
+                confirmDelete() {
+                    this.showDeleteModal = true;
+                    this.deleteConfirmed = false;
+                },
+
+                // Test Script Deletion
+                confirmDeleteScript(id, name) {
+                    this.scriptToDelete.id = id;
+                    this.scriptToDelete.name = name;
+                    this.showDeleteScriptModal = true;
+                    this.deleteConfirmed = false;
+                },
+
+                // Delete the script
+                deleteScript() {
+                    if (!this.deleteConfirmed || this.isDeleting) return;
+
+                    this.isDeleting = true;
+
+                    // Use the correct route
+                    fetch(`{{ url('/dashboard/projects') }}/${this.projectId}/test-cases/${this.testCaseId}/scripts/${this.scriptToDelete.id}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                            'Accept': 'application/json',
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        this.showDeleteScriptModal = false;
+                        this.isDeleting = false;
+
+                        if (data.success) {
+                            // Refresh the page to show updated scripts list
+                            window.location.reload();
+                        } else {
+                            alert('Error: ' + data.message);
+                        }
+                    })
+                    .catch(error => {
+                        this.showDeleteScriptModal = false;
+                        this.isDeleting = false;
+                        alert('Error: ' + error.message);
+                    });
+                },
+
+                // Test Data Operations
                 confirmRemoveTestData(id, name) {
                     this.testDataToRemove.id = id;
                     this.testDataToRemove.name = name;
                     this.showRemoveTestDataModal = true;
+                    this.deleteConfirmed = false;
                 },
 
+                // Remove test data relationship
+                removeTestData() {
+                    if (!this.deleteConfirmed || this.isDeleting) return;
+
+                    this.isDeleting = true;
+
+                    // Use the correct route
+                    fetch(`{{ url('/dashboard/projects') }}/${this.projectId}/test-cases/${this.testCaseId}/data/${this.testDataToRemove.id}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                            'Accept': 'application/json',
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        this.showRemoveTestDataModal = false;
+                        this.isDeleting = false;
+
+                        if (data.success) {
+                            // Refresh the page to show updated test data list
+                            window.location.reload();
+                        } else {
+                            alert('Error: ' + data.message);
+                        }
+                    })
+                    .catch(error => {
+                        this.showRemoveTestDataModal = false;
+                        this.isDeleting = false;
+                        alert('Error: ' + error.message);
+                    });
+                },
+
+                // Preview test data
+                previewTestData(id, name, format) {
+                    this.currentTestData.id = id;
+                    this.currentTestData.name = name;
+                    this.currentTestData.format = format;
+                    this.currentTestData.content = 'Loading...';
+
+                    // Show the modal immediately with loading state
+                    this.showPreviewModal = true;
+
+                    // Fetch the test data content
+                    fetch(`{{ url('/dashboard/projects') }}/{{ $project->id }}/test-cases/{{ $testCase->id }}/data/${id}/content`)
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                this.currentTestData.content = data.content;
+                            } else {
+                                this.currentTestData.content = 'Error loading content: ' + data.message;
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error fetching test data:', error);
+                            this.currentTestData.content = 'Error loading content: ' + error.message;
+                        });
+                },
+
+                // Clone functionality
                 openCloneModal() {
-                    this.cloneForm.title = '{{ $testCase->title }} (Copy)';
-                    this.cloneForm.copy_scripts = true;
-                    this.cloneForm.copy_test_data = true;
+                    this.cloneTitle = '{{ $testCase->title }} (Clone)';
+                    this.cloneOptions.scripts = true;
+                    this.cloneOptions.testData = true;
                     this.showCloneModal = true;
                 },
 
-                async cloneTestCase() {
-                    if (!this.cloneForm.title || this.isCloning) return;
+                closeModal() {
+                    this.showPreviewModal = false;
+                    this.showDeleteModal = false;
+                    this.showDeleteScriptModal = false;
+                    this.showRemoveTestDataModal = false;
+                    this.showCloneModal = false;
+                },
+
+                // Clone the test case
+                cloneTestCase() {
+                    if (!this.cloneTitle.trim() || this.isCloning) return;
 
                     this.isCloning = true;
 
-                    try {
-                        const response = await fetch(
-                            `/dashboard/projects/{{ $project->id }}/test-cases/{{ $testCase->id }}/clone`, {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    'X-CSRF-TOKEN': document.querySelector(
-                                        'meta[name="csrf-token"]').content,
-                                    'Accept': 'application/json'
-                                },
-                                body: JSON.stringify(this.cloneForm)
-                            });
+                    // Submit the form data
+                    const formData = {
+                        title: this.cloneTitle,
+                        copy_scripts: this.cloneOptions.scripts,
+                        copy_test_data: this.cloneOptions.testData,
+                        _token: document.querySelector('meta[name="csrf-token"]').content
+                    };
 
-                        const result = await response.json();
-
-                        if (response.ok && result.success) {
-                            window.location.href = result.data.redirect;
-                        } else {
-                            throw new Error(result.message || 'Failed to clone test case');
-                        }
-                    } catch (error) {
-                        console.error('Clone error:', error);
-                        alert('Failed to clone test case: ' + error.message);
+                    fetch('{{ route("dashboard.projects.test-cases.clone", [$project->id, $testCase->id]) }}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                            'Accept': 'application/json',
+                        },
+                        body: JSON.stringify(formData)
+                    })
+                    .then(response => response.json())
+                    .then(data => {
                         this.isCloning = false;
-                    }
-                },
 
-                init() {
-                    this.$nextTick(() => {
-                        if (typeof lucide !== 'undefined') lucide.createIcons();
+                        if (data.success) {
+                            // Redirect to the new test case
+                            window.location.href = data.data.redirect;
+                        } else {
+                            this.showCloneModal = false;
+                            alert('Error: ' + data.message);
+                        }
+                    })
+                    .catch(error => {
+                        this.isCloning = false;
+                        this.showCloneModal = false;
+                        alert('Error: ' + error.message);
                     });
                 }
             }));
