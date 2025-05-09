@@ -165,6 +165,8 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
         Route::get('/{test_case}/edit', [TestCaseController::class, 'edit'])->name('edit');
         Route::put('/{test_case}', [TestCaseController::class, 'update'])->name('update');
         Route::delete('/{test_case}', [TestCaseController::class, 'destroy'])->name('destroy');
+        Route::post('/{test_case}/clone', [TestCaseController::class, 'clone'])->name('clone');
+        Route::get('/{test_case}/data/{test_data}/content', [TestDataController::class, 'getContent'])->name('data.content');
         Route::post('/{test_case}/remove-from-suite', [TestCaseController::class, 'removeFromSuite'])
             ->name('remove-from-suite');
     });

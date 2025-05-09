@@ -230,4 +230,27 @@ class TestDataController extends Controller
             return redirect()->back()->with('error', 'Failed to remove test data: ' . $e->getMessage());
         }
     }
+
+    /**
+     * Get test data content for preview.
+     */
+    public function getContent(Project $project, TestCase $test_case, TestData $test_data)
+    {
+        try {
+            // Validate relationships
+            $this->testDataService->validateTestDataRelationships($project, $test_case, $test_data);
+
+            return response()->json([
+                'success' => true,
+                'content' => $test_data->content,
+                'format' => $test_data->format,
+                'name' => $test_data->name
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 404);
+        }
+    }
 }

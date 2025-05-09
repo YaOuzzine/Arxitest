@@ -340,6 +340,56 @@ class TestCaseController extends Controller
     }
 
     /**
+     * Clone an existing test case.
+     */
+    public function clone(Request $request, Project $project, TestCase $test_case)
+    {
+        $this->authorizeAccess($project);
+
+        $validator = Validator::make($request->all(), [
+            'title' => 'required|string|max:100',
+            'copy_scripts' => 'sometimes|boolean',
+            'copy_test_data' => 'sometimes|boolean',
+        ]);
+
+        if ($validator->fails()) {
+            if ($request->expectsJson()) {
+                return $this->validationErrorResponse($validator);
+            }
+            return back()->withErrors($validator)->withInput();
+        }
+
+        try {
+            // Clone the test case using the service
+            $newTestCase = $this->testCaseService->cloneTestCase(
+                $test_case,
+                $project,
+                $request->input('title'),
+                $request->boolean('copy_scripts', true),
+                $request->boolean('copy_test_data', true)
+            );
+
+            if ($request->expectsJson()) {
+                return $this->successResponse([
+                    'id' => $newTestCase->id,
+                    'redirect' => route('dashboard.projects.test-cases.show', [$project->id, $newTestCase->id])
+                ], 'Test case cloned successfully');
+            }
+
+            return redirect()->route('dashboard.projects.test-cases.show', [$project->id, $newTestCase->id])
+                ->with('success', 'Test case cloned successfully');
+        } catch (\Exception $e) {
+            Log::error('Error cloning test case: ' . $e->getMessage());
+
+            if ($request->expectsJson()) {
+                return $this->errorResponse('Failed to clone test case: ' . $e->getMessage(), 500);
+            }
+
+            return back()->with('error', 'Failed to clone test case: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * Show the form for editing the specified test case.
      */
     public function edit(Project $project, TestCase $test_case)

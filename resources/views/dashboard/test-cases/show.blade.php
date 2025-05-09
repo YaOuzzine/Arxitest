@@ -527,15 +527,15 @@
                         </h2>
                     </div>
                     <div class="p-4 space-y-4">
-                        <a href="#"
-                            class="flex items-center justify-between w-full px-4 py-2 text-sm font-medium text-left text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        <a href="{{ route('dashboard.executions.create', ['script_id' => $testCase->testScripts->first()->id ?? null]) }}"
+                            class="flex items-center justify-between w-full px-4 py-2 text-sm font-medium text-left text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 {{ $testCase->testScripts->count() > 0 ? '' : 'opacity-50 pointer-events-none' }}">
                             <span class="flex items-center">
                                 <i data-lucide="play-circle" class="w-5 h-5 mr-2"></i>
                                 Run Test
                             </span>
                             <i data-lucide="chevron-right" class="w-5 h-5 opacity-75"></i>
                         </a>
-                        <a href="#"
+                        <a href="{{ route('dashboard.executions.index', ['test_case_id' => $testCase->id]) }}"
                             class="flex items-center justify-between w-full px-4 py-2 text-sm font-medium text-left text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900/30 hover:bg-indigo-200 dark:hover:bg-indigo-800/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                             <span class="flex items-center">
                                 <i data-lucide="history" class="w-5 h-5 mr-2"></i>
@@ -543,14 +543,14 @@
                             </span>
                             <i data-lucide="chevron-right" class="w-5 h-5 opacity-75"></i>
                         </a>
-                        <a href="#"
+                        <button @click="openCloneModal"
                             class="flex items-center justify-between w-full px-4 py-2 text-sm font-medium text-left text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-700/50 hover:bg-zinc-200 dark:hover:bg-zinc-600/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                             <span class="flex items-center">
                                 <i data-lucide="clipboard-copy" class="w-5 h-5 mr-2"></i>
                                 Clone Test Case
                             </span>
                             <i data-lucide="chevron-right" class="w-5 h-5 opacity-75"></i>
-                        </a>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -574,41 +574,92 @@
             dangerText="This will only detach the test data from this test case. The test data will still be available for other test cases."
             confirmText="Remove Test Data" cancelText="Cancel" x-show="showRemoveTestDataModal" />
 
-        <div x-show="showTestDataPreviewModal" x-transition:enter="transition ease-out duration-300"
+        <!-- Test Data Preview Modal -->
+        <x-modals.preview-modal id="test-data-preview-modal" showCondition="showPreviewModal"
+            closeAction="showPreviewModal = false" :title="null">
+            <x-slot:icon>
+                <i data-lucide="database" class="w-6 h-6 text-blue-500 mr-2"></i>
+                <span x-text="currentTestData.name"></span>
+                <span class="ml-2 text-sm font-normal text-zinc-500 dark:text-zinc-400"
+                    x-text="'Format: ' + currentTestData.format.toUpperCase()"></span>
+            </x-slot>
+
+            <x-slot:content>
+                <pre class="text-xs font-mono whitespace-pre-wrap break-words text-zinc-800 dark:text-zinc-200"
+                    x-text="currentTestData.content"></pre>
+            </x-slot>
+        </x-modals.preview-modal>
+
+        <!-- Clone Test Case Modal -->
+        <div x-show="showCloneModal" x-transition:enter="transition ease-out duration-300"
             x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
             x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100"
             x-transition:leave-end="opacity-0" class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
             <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center">
                 <div class="fixed inset-0 bg-zinc-900/60 dark:bg-zinc-900/80 backdrop-blur-sm transition-opacity"
-                    @click="showTestDataPreviewModal = false"></div>
+                    @click="showCloneModal = false"></div>
                 <div
-                    class="relative inline-block w-full max-w-4xl p-6 overflow-hidden text-left align-middle transition-all transform bg-white dark:bg-zinc-800 shadow-xl rounded-2xl">
+                    class="relative inline-block w-full max-w-md p-6 overflow-hidden text-left align-middle transition-all transform bg-white dark:bg-zinc-800 shadow-xl rounded-2xl">
                     <div class="absolute top-0 right-0 pt-5 pr-5">
-                        <button type="button" @click="showTestDataPreviewModal = false"
+                        <button type="button" @click="showCloneModal = false"
                             class="text-zinc-400 hover:text-zinc-500 dark:hover:text-zinc-300">
                             <i data-lucide="x" class="w-5 h-5"></i>
                         </button>
                     </div>
                     <div>
                         <h3 class="text-xl font-medium text-zinc-900 dark:text-zinc-100 flex items-center">
-                            <i data-lucide="database" class="w-6 h-6 text-blue-500 mr-2"></i>
-                            <span x-text="currentTestData.name"></span>
-                            <span class="ml-2 text-sm font-normal text-zinc-500 dark:text-zinc-400"
-                                x-text="'Format: ' + currentTestData.format.toUpperCase()"></span>
+                            <i data-lucide="clipboard-copy" class="w-6 h-6 text-indigo-500 mr-2"></i>
+                            Clone Test Case
                         </h3>
 
-                        <div class="mt-4">
-                            <div
-                                class="bg-zinc-50 dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-700 p-4 h-96 overflow-auto">
-                                <pre class="text-xs font-mono whitespace-pre-wrap break-words text-zinc-800 dark:text-zinc-200"
-                                    x-text="currentTestData.content"></pre>
+                        <div class="mt-4 space-y-4">
+                            <div>
+                                <label for="clone-title"
+                                    class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                                    New Title <span class="text-red-500">*</span>
+                                </label>
+                                <input type="text" id="clone-title" x-model="cloneForm.title"
+                                    class="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-zinc-800 dark:text-white"
+                                    placeholder="Enter a title for the cloned test case">
+                            </div>
+
+                            <div class="space-y-2">
+                                <div class="flex items-center">
+                                    <input type="checkbox" id="copy-scripts" x-model="cloneForm.copy_scripts"
+                                        class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-zinc-300 rounded dark:bg-zinc-700 dark:border-zinc-600">
+                                    <label for="copy-scripts" class="ml-2 block text-sm text-zinc-700 dark:text-zinc-300">
+                                        Copy test scripts
+                                    </label>
+                                </div>
+                                <div class="flex items-center">
+                                    <input type="checkbox" id="copy-data" x-model="cloneForm.copy_test_data"
+                                        class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-zinc-300 rounded dark:bg-zinc-700 dark:border-zinc-600">
+                                    <label for="copy-data" class="ml-2 block text-sm text-zinc-700 dark:text-zinc-300">
+                                        Copy test data
+                                    </label>
+                                </div>
                             </div>
                         </div>
                     </div>
-                    <div class="mt-6 flex justify-end">
-                        <button type="button" @click="showTestDataPreviewModal = false"
+                    <div class="mt-6 flex justify-end space-x-3">
+                        <button type="button" @click="showCloneModal = false"
                             class="inline-flex items-center px-4 py-2 border border-zinc-300 dark:border-zinc-600 rounded-md shadow-sm text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                            Close
+                            Cancel
+                        </button>
+                        <button type="button" @click="cloneTestCase()" :disabled="!cloneForm.title || isCloning"
+                            class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <span x-show="!isCloning">Clone Test Case</span>
+                            <span x-show="isCloning" class="flex items-center">
+                                <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg"
+                                    fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10"
+                                        stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor"
+                                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                                    </path>
+                                </svg>
+                                Cloning...
+                            </span>
                         </button>
                     </div>
                 </div>
@@ -625,8 +676,18 @@
                 showDeleteModal: false,
                 showRemoveTestDataModal: false,
                 showDeleteScriptModal: false,
+                showPreviewModal: false,
+                showCloneModal: false,
                 isDeleting: false,
+                isCloning: false,
                 deleteConfirmed: false,
+
+                // Clone form data
+                cloneForm: {
+                    title: '',
+                    copy_scripts: true,
+                    copy_test_data: true
+                },
 
                 // Test Case actions
                 confirmDelete() {
@@ -645,9 +706,7 @@
                     this.showDeleteScriptModal = true;
                 },
 
-
                 // Test Data actions
-                showTestDataPreviewModal: false,
                 testDataToRemove: {
                     id: null,
                     name: ''
@@ -665,11 +724,17 @@
                     this.currentTestData.format = format;
 
                     // Fetch the test data content
-                    fetch(`/api/test-data/${id}/content`)
+                    fetch(
+                            `/dashboard/projects/{{ $project->id }}/test-cases/{{ $testCase->id }}/data/${id}/content`
+                            )
                         .then(response => response.json())
                         .then(data => {
-                            this.currentTestData.content = data.content;
-                            this.showTestDataPreviewModal = true;
+                            if (data.success) {
+                                this.currentTestData.content = data.content;
+                                this.showPreviewModal = true;
+                            } else {
+                                alert('Failed to load test data: ' + data.message);
+                            }
                         })
                         .catch(error => {
                             console.error('Error fetching test data:', error);
@@ -683,6 +748,44 @@
                     this.showRemoveTestDataModal = true;
                 },
 
+                openCloneModal() {
+                    this.cloneForm.title = '{{ $testCase->title }} (Copy)';
+                    this.cloneForm.copy_scripts = true;
+                    this.cloneForm.copy_test_data = true;
+                    this.showCloneModal = true;
+                },
+
+                async cloneTestCase() {
+                    if (!this.cloneForm.title || this.isCloning) return;
+
+                    this.isCloning = true;
+
+                    try {
+                        const response = await fetch(
+                            `/dashboard/projects/{{ $project->id }}/test-cases/{{ $testCase->id }}/clone`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-CSRF-TOKEN': document.querySelector(
+                                        'meta[name="csrf-token"]').content,
+                                    'Accept': 'application/json'
+                                },
+                                body: JSON.stringify(this.cloneForm)
+                            });
+
+                        const result = await response.json();
+
+                        if (response.ok && result.success) {
+                            window.location.href = result.data.redirect;
+                        } else {
+                            throw new Error(result.message || 'Failed to clone test case');
+                        }
+                    } catch (error) {
+                        console.error('Clone error:', error);
+                        alert('Failed to clone test case: ' + error.message);
+                        this.isCloning = false;
+                    }
+                },
 
                 init() {
                     this.$nextTick(() => {

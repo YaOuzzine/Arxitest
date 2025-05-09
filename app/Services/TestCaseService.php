@@ -590,6 +590,70 @@ class TestCaseService
     }
 
     /**
+     * Clone an existing test case.
+     */
+    public function cloneTestCase(TestCase $sourceTestCase, Project $project, string $newTitle, bool $copyScripts = true, bool $copyTestData = true): TestCase
+    {
+        // Validate that the source test case belongs to the project
+        $this->getTestCase($project, $sourceTestCase->testSuite, $sourceTestCase);
+
+        // Start a database transaction
+        DB::beginTransaction();
+
+        try {
+            // Create a new test case with the same properties
+            $newTestCase = new TestCase();
+            $newTestCase->title = $newTitle;
+            $newTestCase->description = $sourceTestCase->description;
+            $newTestCase->steps = $sourceTestCase->steps;
+            $newTestCase->expected_results = $sourceTestCase->expected_results;
+            $newTestCase->priority = $sourceTestCase->priority;
+            $newTestCase->status = 'draft'; // Always set status to draft for cloned cases
+            $newTestCase->tags = $sourceTestCase->tags;
+            $newTestCase->suite_id = $sourceTestCase->suite_id;
+            $newTestCase->story_id = $sourceTestCase->story_id;
+            $newTestCase->save();
+
+            // Clone related test scripts if requested
+            if ($copyScripts && $sourceTestCase->testScripts->count() > 0) {
+                foreach ($sourceTestCase->testScripts as $script) {
+                    $newScript = new \App\Models\TestScript();
+                    $newScript->test_case_id = $newTestCase->id;
+                    $newScript->creator_id = Auth::id();
+                    $newScript->name = $script->name . ' (Clone)';
+                    $newScript->framework_type = $script->framework_type;
+                    $newScript->script_content = $script->script_content;
+                    $newScript->metadata = array_merge(
+                        $script->metadata ?? [],
+                        ['cloned_from' => $script->id, 'cloned_at' => now()->toIso8601String()]
+                    );
+                    $newScript->save();
+                }
+            }
+
+            // Clone test data relationships if requested
+            if ($copyTestData && $sourceTestCase->testData->count() > 0) {
+                $testDataIdsWithPivot = $sourceTestCase->testData()
+                    ->get(['test_data.id', 'test_case_data.usage_context'])
+                    ->mapWithKeys(function ($item) {
+                        return [$item->id => ['usage_context' => $item->pivot->usage_context ?? null]];
+                    });
+
+                if (!empty($testDataIdsWithPivot)) {
+                    $newTestCase->testData()->attach($testDataIdsWithPivot);
+                }
+            }
+
+            DB::commit();
+            return $newTestCase;
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error cloning test case: ' . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    /**
      * Delete a test case.
      */
     public function destroy(TestCase $testCase, Project $project, ?TestSuite $testSuite = null): ?bool
