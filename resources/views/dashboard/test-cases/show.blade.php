@@ -1,3 +1,47 @@
+@php
+/**
+ * @var \App\Models\Project $project
+ * @var \App\Models\TestSuite|null $testSuite
+ * @var \App\Models\TestCase $testCase
+ * @var \Illuminate\Database\Eloquent\Collection $relatedCases
+ */
+
+// Helper to format priority
+$getPriorityBadge = function($priority) {
+    return match(strtolower($priority)) {
+        'high' => '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300">High</span>',
+        'medium' => '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300">Medium</span>',
+        'low' => '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">Low</span>',
+        default => '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-300">Unknown</span>'
+    };
+};
+
+// Helper to format status
+$getStatusBadge = function($status) {
+    return match(strtolower($status)) {
+        'active' => '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">Active</span>',
+        'draft' => '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">Draft</span>',
+        'deprecated' => '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">Deprecated</span>',
+        'archived' => '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-300">Archived</span>',
+        default => '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-300">Unknown</span>'
+    };
+};
+
+// Format the steps
+$steps = is_array($testCase->steps) ? $testCase->steps : json_decode($testCase->steps, true);
+if (!is_array($steps)) {
+    $steps = [$testCase->steps];
+}
+
+// Route URLs
+$editUrl = route('dashboard.projects.test-cases.edit', [$project->id, $testCase->id]);
+$backUrl = $testSuite
+    ? route('dashboard.projects.test-suites.test-cases.index', [$project->id, $testSuite->id])
+    : route('dashboard.projects.test-cases.index', $project->id);
+$deleteUrl = route('dashboard.projects.test-cases.destroy', [$project->id, $testCase->id]);
+$cloneUrl = route('dashboard.projects.test-cases.clone', [$project->id, $testCase->id]);
+@endphp
+
 @extends('layouts.dashboard')
 
 @section('title', $testCase->title)
@@ -5,835 +49,641 @@
 @section('breadcrumbs')
     <li class="flex items-center">
         <i data-lucide="chevron-right" class="w-4 h-4 text-zinc-400 mx-1"></i>
-        <a href="{{ route('dashboard.projects') }}"
-            class="text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300">
-            Projects
-        </a>
+        <a href="{{ route('dashboard.projects') }}" class="text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300">Projects</a>
     </li>
     <li class="flex items-center">
         <i data-lucide="chevron-right" class="w-4 h-4 text-zinc-400 mx-1"></i>
-        <a href="{{ route('dashboard.projects.show', $project->id) }}"
-            class="text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300">
-            {{ $project->name }}
-        </a>
+        <a href="{{ route('dashboard.projects.show', $project->id) }}" class="text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300">{{ $project->name }}</a>
     </li>
-    @if ($testSuite)
-        <li class="flex items-center">
-            <i data-lucide="chevron-right" class="w-4 h-4 text-zinc-400 mx-1"></i>
-            <a href="{{ route('dashboard.projects.test-suites.show', [$project->id, $testSuite->id]) }}"
-                class="text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300">
-                {{ $testSuite->name }}
-            </a>
-        </li>
+    @if($testSuite)
+    <li class="flex items-center">
+        <i data-lucide="chevron-right" class="w-4 h-4 text-zinc-400 mx-1"></i>
+        <a href="{{ route('dashboard.projects.test-suites.show', [$project->id, $testSuite->id]) }}" class="text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300">{{ $testSuite->name }}</a>
+    </li>
     @endif
     <li class="flex items-center">
         <i data-lucide="chevron-right" class="w-4 h-4 text-zinc-400 mx-1"></i>
-        <span class="text-zinc-700 dark:text-zinc-300">{{ $testCase->title }}</span>
+        <span class="text-zinc-700 dark:text-zinc-300">Test Case</span>
     </li>
 @endsection
 
 @section('content')
-    <div x-data="testCaseDetail()" class="space-y-8">
-        <!-- Header with actions -->
-        <div class="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
-            <div>
-                <h1 class="text-2xl font-bold text-zinc-900 dark:text-white flex items-center">
-                    <i data-lucide="file-check-2" class="w-7 h-7 mr-2 text-indigo-600 dark:text-indigo-400"></i>
-                    {{ $testCase->title }}
-                </h1>
-                <p class="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-                    @if ($testCase->story)
-                        <span class="inline-flex items-center">
-                            <i data-lucide="clipboard-list" class="w-4 h-4 mr-1"></i>
-                            Story: <a href="{{ route('dashboard.stories.show', $testCase->story->id) }}"
-                                class="ml-1 text-indigo-600 dark:text-indigo-400 hover:underline">
-                                {{ $testCase->story->title }}
-                            </a>
-                        </span>
-                    @endif
-                    <span class="mx-2 text-zinc-300 dark:text-zinc-600">|</span>
-                    <span class="inline-flex items-center">
-                        <i data-lucide="calendar" class="w-4 h-4 mr-1"></i>
-                        Updated: {{ $testCase->updated_at->diffForHumans() }}
-                    </span>
-                </p>
-            </div>
-            <div class="flex space-x-3">
-                <a href="{{ route('dashboard.projects.test-cases.edit', [$project->id, $testCase->id]) }}"
-                    class="inline-flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-lg font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">
-                    <i data-lucide="edit" class="w-4 h-4 mr-2"></i>
-                    Edit Test Case
-                </a>
-                <button @click="confirmDelete"
-                    class="inline-flex items-center px-4 py-2 bg-white border border-zinc-300 rounded-lg shadow-sm font-medium text-zinc-700 hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors dark:bg-zinc-800 dark:border-zinc-600 dark:text-zinc-200 dark:hover:bg-zinc-700">
-                    <i data-lucide="trash-2" class="w-4 h-4 mr-2 text-red-500"></i>
-                    Delete
-                </button>
+<div x-data="testCaseDetails({
+    testCaseId: '{{ $testCase->id }}',
+    testCaseTitle: '{{ addslashes($testCase->title) }}',
+    projectId: '{{ $project->id }}',
+    deleteUrl: '{{ $deleteUrl }}',
+    cloneUrl: '{{ $cloneUrl }}',
+    csrfToken: '{{ csrf_token() }}'
+})" class="flex flex-col lg:flex-row gap-6">
+    <!-- Main Content (2/3 width on larger screens) -->
+    <div class="w-full lg:w-2/3 space-y-6">
+        <!-- Header Card with Title & Actions -->
+        <div class="bg-white dark:bg-zinc-800/70 shadow-lg rounded-2xl border border-zinc-100 dark:border-zinc-700/60 backdrop-blur-sm overflow-hidden transition-all duration-200 hover:shadow-xl">
+            <div class="p-6 sm:px-8">
+                <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <div class="space-y-2">
+                        <h1 class="text-2xl font-bold text-zinc-900 dark:text-white tracking-tight">
+                            {{ $testCase->title }}
+                        </h1>
+                        <div class="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
+                            <span>ID: <span class="font-mono">{{ Str::limit($testCase->id, 8, '') }}</span></span>
+                            <span class="w-1 h-1 rounded-full bg-zinc-300 dark:bg-zinc-600"></span>
+                            <span>Last updated: {{ $testCase->updated_at->diffForHumans() }}</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 mt-4 lg:mt-0">
+                        <a href="{{ $editUrl }}" class="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-800/40 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">
+                            <i data-lucide="pencil" class="w-4 h-4 mr-2"></i>
+                            Edit
+                        </a>
+                        <button type="button" @click="showCloneModal = true" class="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-800/40 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-colors">
+                            <i data-lucide="copy" class="w-4 h-4 mr-2"></i>
+                            Clone
+                        </button>
+                        <button type="button" @click="openDeleteModal" class="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-800/40 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors">
+                            <i data-lucide="trash-2" class="w-4 h-4 mr-2"></i>
+                            Delete
+                        </button>
+                        <a href="{{ $backUrl }}" class="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-zinc-500 transition-colors">
+                            <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i>
+                            Back
+                        </a>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <!-- Main content -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <!-- Left Column - Details -->
-            <div class="lg:col-span-2 space-y-6">
-                <!-- Info Card -->
-                <div
-                    class="bg-white dark:bg-zinc-800 shadow-sm rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
-                    <div class="px-6 py-4 border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900/50">
-                        <h2 class="text-lg font-medium text-zinc-900 dark:text-white flex items-center">
-                            <i data-lucide="info" class="w-5 h-5 mr-2 text-indigo-500"></i>
-                            Test Case Details
-                        </h2>
-                    </div>
-                    <div class="p-6">
-                        <!-- Test Case Priority and Status -->
-                        <div class="flex flex-wrap gap-3 mb-4">
-                            @php
-                                $priorityColors = [
-                                    'low' => 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-                                    'medium' =>
-                                        'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
-                                    'high' => 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
-                                ];
-                                $statusColors = [
-                                    'draft' => 'bg-zinc-100 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-300',
-                                    'active' => 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
-                                    'deprecated' =>
-                                        'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
-                                    'archived' =>
-                                        'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
-                                ];
-                            @endphp
-                            <span
-                                class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium {{ $priorityColors[$testCase->priority] ?? 'bg-zinc-100 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-300' }}">
-                                <i data-lucide="flag" class="w-4 h-4 mr-1"></i>
-                                {{ ucfirst($testCase->priority) }} Priority
-                            </span>
-                            <span
-                                class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium {{ $statusColors[$testCase->status] ?? 'bg-zinc-100 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-300' }}">
-                                <i data-lucide="activity" class="w-4 h-4 mr-1"></i>
-                                Status: {{ ucfirst($testCase->status) }}
-                            </span>
-                            @if (is_array($testCase->tags) && count($testCase->tags) > 0)
-                                @foreach ($testCase->tags as $tag)
-                                    <span
-                                        class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300">
-                                        <i data-lucide="tag" class="w-4 h-4 mr-1"></i>
-                                        {{ $tag }}
-                                    </span>
-                                @endforeach
-                            @endif
-                        </div>
-
-                        <!-- Description -->
-                        @if ($testCase->description)
-                            <div class="mb-6">
-                                <h3 class="text-sm font-medium text-zinc-500 dark:text-zinc-400 mb-2">Description</h3>
-                                <div
-                                    class="text-zinc-800 dark:text-zinc-200 bg-zinc-50 dark:bg-zinc-800/50 p-4 rounded-lg border border-zinc-200 dark:border-zinc-700">
-                                    {{ $testCase->description }}
-                                </div>
-                            </div>
-                        @endif
-
-                        <!-- Test Steps -->
-                        <div class="mb-6">
-                            <h3 class="text-sm font-medium text-zinc-500 dark:text-zinc-400 mb-2">Test Steps</h3>
-                            <div
-                                class="bg-zinc-50 dark:bg-zinc-800/50 rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden">
-                                <ol class="divide-y divide-zinc-200 dark:divide-zinc-700">
-                                    @if (is_array($testCase->steps))
-                                        @foreach ($testCase->steps as $index => $step)
-                                            <li class="p-4 flex">
-                                                <span
-                                                    class="flex-shrink-0 w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-800 dark:text-indigo-300 font-medium mr-3">
-                                                    {{ $index + 1 }}
-                                                </span>
-                                                <span
-                                                    class="text-zinc-800 dark:text-zinc-200 pt-1.5">{{ $step }}</span>
-                                            </li>
-                                        @endforeach
-                                    @else
-                                        <li class="p-4 italic text-zinc-500 dark:text-zinc-400">No steps defined</li>
-                                    @endif
-                                </ol>
-                            </div>
-                        </div>
-
-                        <!-- Expected Results -->
-                        <div>
-                            <h3 class="text-sm font-medium text-zinc-500 dark:text-zinc-400 mb-2">Expected Results</h3>
-                            <div
-                                class="bg-zinc-50 dark:bg-zinc-800/50 p-4 rounded-lg border border-zinc-200 dark:border-zinc-700">
-                                <p class="text-zinc-800 dark:text-zinc-200 whitespace-pre-line">
-                                    {{ $testCase->expected_results }}</p>
-                            </div>
-                        </div>
+        <!-- Main Info Card -->
+        <div class="bg-white dark:bg-zinc-800/70 shadow-lg rounded-2xl border border-zinc-100 dark:border-zinc-700/60 backdrop-blur-sm overflow-hidden transition-all duration-200 hover:shadow-xl">
+            <div class="p-6 sm:p-8 space-y-6">
+                <!-- Description -->
+                <div>
+                    <h2 class="text-lg font-semibold text-zinc-900 dark:text-white flex items-center mb-2">
+                        <i data-lucide="file-text" class="w-5 h-5 mr-2 text-zinc-500 dark:text-zinc-400"></i>
+                        Description
+                    </h2>
+                    <div class="prose dark:prose-invert max-w-full prose-p:text-zinc-700 dark:prose-p:text-zinc-300 prose-headings:text-zinc-900 dark:prose-headings:text-zinc-100">
+                        {{ $testCase->description ?: 'No description provided.' }}
                     </div>
                 </div>
 
-                <!-- Test Scripts Section with Updated Design -->
-                <div
-                    class="bg-white dark:bg-zinc-800 shadow-sm rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
-                    <div
-                        class="px-6 py-4 border-b border-zinc-200 dark:border-zinc-700 bg-gradient-to-r from-zinc-50 to-indigo-50/30 dark:from-zinc-800 dark:to-indigo-900/10">
-                        <div class="flex justify-between items-center">
-                            <h2 class="text-lg font-medium text-zinc-900 dark:text-white flex items-center">
-                                <i data-lucide="code" class="w-5 h-5 mr-2 text-indigo-500"></i>
-                                Test Scripts
-                            </h2>
-                            <a href="{{ route('dashboard.projects.test-cases.scripts.store', [$project->id, $testCase->id]) }}"
-                                class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 hover:bg-indigo-100 dark:hover:bg-indigo-800/30 rounded-lg transition-colors">
-                                <i data-lucide="plus" class="w-4 h-4 mr-1.5"></i>
-                                Add Script
+                <!-- Steps -->
+                <div>
+                    <h2 class="text-lg font-semibold text-zinc-900 dark:text-white flex items-center mb-3">
+                        <i data-lucide="list-checks" class="w-5 h-5 mr-2 text-zinc-500 dark:text-zinc-400"></i>
+                        Test Steps <span class="ml-2 text-sm font-normal text-zinc-500 dark:text-zinc-400">({{ count($steps) }} steps)</span>
+                    </h2>
+                    <div class="space-y-3">
+                        @foreach($steps as $index => $step)
+                            <div class="flex items-start gap-3 bg-zinc-50 dark:bg-zinc-700/30 p-3 rounded-lg">
+                                <div class="flex-shrink-0 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-800 dark:text-indigo-300 font-medium rounded-full w-6 h-6 flex items-center justify-center text-sm">
+                                    {{ $index + 1 }}
+                                </div>
+                                <div class="flex-grow text-zinc-700 dark:text-zinc-300">
+                                    {{ $step }}
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+
+                <!-- Expected Results -->
+                <div>
+                    <h2 class="text-lg font-semibold text-zinc-900 dark:text-white flex items-center mb-2">
+                        <i data-lucide="target" class="w-5 h-5 mr-2 text-zinc-500 dark:text-zinc-400"></i>
+                        Expected Results
+                    </h2>
+                    <div class="prose dark:prose-invert max-w-full prose-p:text-zinc-700 dark:prose-p:text-zinc-300">
+                        {{ $testCase->expected_results ?: 'No expected results defined.' }}
+                    </div>
+                </div>
+
+                <!-- Meta Info -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="bg-zinc-50 dark:bg-zinc-700/30 p-4 rounded-lg">
+                        <h3 class="text-sm font-medium text-zinc-500 dark:text-zinc-400 mb-2">Priority & Status</h3>
+                        <div class="flex items-center gap-3">
+                            <div>{!! $getPriorityBadge($testCase->priority) !!}</div>
+                            <div>{!! $getStatusBadge($testCase->status) !!}</div>
+                        </div>
+                    </div>
+
+                    <div class="bg-zinc-50 dark:bg-zinc-700/30 p-4 rounded-lg">
+                        <h3 class="text-sm font-medium text-zinc-500 dark:text-zinc-400 mb-2">Associated Story</h3>
+                        @if($testCase->story)
+                            <a href="{{ route('dashboard.stories.show', $testCase->story->id) }}" class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium">
+                                {{ $testCase->story->title }}
+                            </a>
+                        @else
+                            <span class="text-zinc-500 dark:text-zinc-400">No story associated</span>
+                        @endif
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Test Scripts Section -->
+        <div class="bg-white dark:bg-zinc-800/70 shadow-lg rounded-2xl border border-zinc-100 dark:border-zinc-700/60 backdrop-blur-sm overflow-hidden transition-all duration-200 hover:shadow-xl">
+            <div class="px-6 py-4 border-b border-zinc-100 dark:border-zinc-700/60 bg-gradient-to-r from-zinc-50/50 to-indigo-50/20 dark:from-zinc-800/50 dark:to-indigo-900/10 flex justify-between items-center">
+                <div class="flex items-center space-x-2">
+                    <h2 class="text-lg font-semibold text-zinc-900 dark:text-white">
+                        Test Scripts
+                    </h2>
+                    <span class="inline-flex items-center justify-center px-2 py-1 text-xs font-medium rounded-full bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300">
+                        {{ $testCase->testScripts->count() }}
+                    </span>
+                </div>
+                <a href="{{ route('dashboard.projects.test-cases.scripts.index', [$project->id, $testCase->id]) }}" class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 text-sm font-medium">
+                    Manage Scripts
+                </a>
+            </div>
+            <div x-data="{ open: true }" class="border-b border-zinc-100 dark:border-zinc-700/60 last:border-b-0">
+                <div @click="open = !open" class="px-6 py-4 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-700/20 flex justify-between items-center">
+                    <h3 class="text-base font-medium text-zinc-900 dark:text-white">
+                        Test Scripts
+                    </h3>
+                    <i x-bind:data-lucide="open ? 'chevron-up' : 'chevron-down'" class="w-5 h-5 text-zinc-400"></i>
+                </div>
+                <div x-show="open" x-transition class="px-6 pb-4">
+                    @if($testCase->testScripts->isEmpty())
+                        <div class="text-center py-8 px-4">
+                            <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-zinc-100 dark:bg-zinc-800 mb-4">
+                                <i data-lucide="file-code" class="w-8 h-8 text-zinc-400 dark:text-zinc-500"></i>
+                            </div>
+                            <h3 class="text-lg font-medium text-zinc-900 dark:text-white mb-2">No Test Scripts Yet</h3>
+                            <p class="text-zinc-500 dark:text-zinc-400 mb-4">Create automation scripts to execute this test case.</p>
+                            <a href="{{ route('dashboard.projects.test-cases.scripts.index', [$project->id, $testCase->id]) }}" class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
+                                Add Test Script
                             </a>
                         </div>
-                    </div>
-                    <div class="p-6">
-                        <!-- Show scripts if available -->
-                        @if ($testCase->testScripts && $testCase->testScripts->count() > 0)
-                            <div class="space-y-4">
-                                @foreach ($testCase->testScripts as $script)
-                                    <div
-                                        class="bg-zinc-50/80 dark:bg-zinc-800/50 rounded-xl border border-zinc-200/70 dark:border-zinc-700/70 p-4 hover:shadow-md transition-all duration-200 group">
-                                        <div class="flex justify-between items-start">
-                                            <div class="flex items-start space-x-3">
-                                                <div
-                                                    class="p-2 rounded-lg bg-indigo-100/80 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400">
-                                                    @php
-                                                        $frameworkIcons = [
-                                                            'selenium-python' => 'terminal-square',
-                                                            'cypress' => 'globe',
-                                                            'default' => 'code-2',
-                                                        ];
-                                                        $icon =
-                                                            $frameworkIcons[$script->framework_type] ??
-                                                            $frameworkIcons['default'];
-                                                    @endphp
-                                                    <i data-lucide="{{ $icon }}" class="w-5 h-5"></i>
+                    @else
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-zinc-200 dark:divide-zinc-700">
+                                <thead class="bg-zinc-50 dark:bg-zinc-800">
+                                    <tr>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Name</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Framework</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Updated</th>
+                                        <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white dark:bg-zinc-800 divide-y divide-zinc-200 dark:divide-zinc-700">
+                                    @foreach($testCase->testScripts as $script)
+                                        <tr class="hover:bg-zinc-50 dark:hover:bg-zinc-700/30">
+                                            <td class="px-6 py-4 whitespace-nowrap">
+                                                <div class="text-sm font-medium text-zinc-900 dark:text-white">{{ $script->name }}</div>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap">
+                                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                                                    {{ $script->framework_type }}
+                                                </span>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400">
+                                                {{ $script->updated_at->diffForHumans() }}
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                <div class="flex justify-end space-x-2">
+                                                    <a href="{{ route('dashboard.projects.test-cases.scripts.show', [$project->id, $testCase->id, $script->id]) }}" class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300">
+                                                        <i data-lucide="eye" class="w-5 h-5"></i>
+                                                    </a>
+                                                    <form action="{{ route('dashboard.projects.test-cases.scripts.destroy', [$project->id, $testCase->id, $script->id]) }}" method="POST" class="inline-block">
+                                                        @csrf
+                                                        @method('DELETE')
+                                                        <button type="submit" class="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300" onclick="return confirm('Are you sure you want to delete this script?')">
+                                                            <i data-lucide="trash-2" class="w-5 h-5"></i>
+                                                        </button>
+                                                    </form>
                                                 </div>
-                                                <div>
-                                                    <h3 class="text-zinc-900 dark:text-white font-medium">
-                                                        {{ $script->name }}</h3>
-                                                    <p class="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
-                                                        <span class="inline-flex items-center">
-                                                            <i data-lucide="git-branch" class="w-3.5 h-3.5 mr-1"></i>
-                                                            {{ ucfirst($script->framework_type) }}
-                                                        </span>
-                                                        <span class="mx-1.5">•</span>
-                                                        <span class="inline-flex items-center">
-                                                            <i data-lucide="clock" class="w-3.5 h-3.5 mr-1"></i>
-                                                            Updated {{ $script->updated_at->diffForHumans() }}
-                                                        </span>
-                                                    </p>
-                                                </div>
-                                            </div>
-                                            <div class="flex items-center space-x-1">
-                                                <a href="{{ route('dashboard.projects.test-cases.scripts.show', [$project->id, $testCase->id, $script->id]) }}"
-                                                    class="p-1.5 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded-lg transition-colors">
-                                                    <i data-lucide="edit" class="w-4.5 h-4.5"></i>
-                                                </a>
-                                                <button
-                                                    @click="confirmDeleteScript('{{ $script->id }}', '{{ addslashes($script->name) }}')"
-                                                    class="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors">
-                                                    <i data-lucide="trash" class="w-4.5 h-4.5"></i>
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div class="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-700/50">
-                                            <div class="flex justify-between items-center">
-                                                <div class="text-xs text-zinc-500 dark:text-zinc-400">
-                                                    Created by: {{ $script->creator->name ?? 'System' }}
-                                                </div>
-                                                <a href="{{ route('dashboard.projects.test-cases.scripts.show', [$project->id, $testCase->id, $script->id]) }}"
-                                                    class="inline-flex items-center text-xs font-medium text-indigo-600 dark:text-indigo-400 group-hover:text-indigo-700 dark:group-hover:text-indigo-300 transition-colors">
-                                                    View Script
-                                                    <i data-lucide="chevron-right"
-                                                        class="w-3.5 h-3.5 ml-1 group-hover:ml-2 transition-all"></i>
-                                                </a>
-                                            </div>
-                                        </div>
-                                    </div>
-                                @endforeach
-                            </div>
-                        @else
-                            <div class="text-center py-10 px-4">
-                                <div
-                                    class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-indigo-50 to-blue-100 dark:from-indigo-900/20 dark:to-blue-900/20 text-indigo-600 dark:text-indigo-400 mb-4">
-                                    <i data-lucide="code" class="w-8 h-8"></i>
-                                </div>
-                                <h3 class="text-lg font-medium text-zinc-900 dark:text-white mb-2">No Test Scripts Yet</h3>
-                                <p class="text-zinc-500 dark:text-zinc-400 max-w-md mx-auto mb-6">
-                                    Add test scripts to automate this test case with Selenium, Cypress, or other frameworks.
-                                </p>
-                                <a href="{{ route('dashboard.projects.test-cases.scripts.create', [$project->id, $testCase->id]) }}"
-                                    class="inline-flex items-center px-4 py-2.5 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200">
-                                    <i data-lucide="plus" class="w-5 h-5 mr-2"></i>
-                                    Create Test Script
-                                </a>
-                            </div>
-                        @endif
-                    </div>
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @endif
                 </div>
+            </div>
+        </div>
 
-                <!-- Test Data Section with Updated Design -->
-                <div
-                    class="bg-white dark:bg-zinc-800 shadow-sm rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden mt-6">
-                    <div
-                        class="px-6 py-4 border-b border-zinc-200 dark:border-zinc-700 bg-gradient-to-r from-zinc-50 to-blue-50/30 dark:from-zinc-800 dark:to-blue-900/10">
-                        <div class="flex justify-between items-center">
-                            <h2 class="text-lg font-medium text-zinc-900 dark:text-white flex items-center">
-                                <i data-lucide="database" class="w-5 h-5 mr-2 text-blue-500"></i>
-                                Test Data
-                            </h2>
-                            <a href="{{ route('dashboard.projects.test-cases.data.index', [$project->id, $testCase->id]) }}"
-                                class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-800/30 rounded-lg transition-colors">
-                                <i data-lucide="plus" class="w-4 h-4 mr-1.5"></i>
+        <!-- Test Data Section -->
+        <div class="bg-white dark:bg-zinc-800/70 shadow-lg rounded-2xl border border-zinc-100 dark:border-zinc-700/60 backdrop-blur-sm overflow-hidden transition-all duration-200 hover:shadow-xl">
+            <div class="px-6 py-4 border-b border-zinc-100 dark:border-zinc-700/60 bg-gradient-to-r from-zinc-50/50 to-emerald-50/20 dark:from-zinc-800/50 dark:to-emerald-900/10 flex justify-between items-center">
+                <div class="flex items-center space-x-2">
+                    <h2 class="text-lg font-semibold text-zinc-900 dark:text-white">
+                        Test Data
+                    </h2>
+                    <span class="inline-flex items-center justify-center px-2 py-1 text-xs font-medium rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
+                        {{ $testCase->testData->count() }}
+                    </span>
+                </div>
+                <a href="{{ route('dashboard.projects.test-cases.data.index', [$project->id, $testCase->id]) }}" class="text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 text-sm font-medium">
+                    Manage Test Data
+                </a>
+            </div>
+            <div x-data="{ open: true }" class="border-b border-zinc-100 dark:border-zinc-700/60 last:border-b-0">
+                <div @click="open = !open" class="px-6 py-4 cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-700/20 flex justify-between items-center">
+                    <h3 class="text-base font-medium text-zinc-900 dark:text-white">
+                        Test Data
+                    </h3>
+                    <i x-bind:data-lucide="open ? 'chevron-up' : 'chevron-down'" class="w-5 h-5 text-zinc-400"></i>
+                </div>
+                <div x-show="open" x-transition class="px-6 pb-4">
+                    @if($testCase->testData->isEmpty())
+                        <div class="text-center py-8 px-4">
+                            <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-zinc-100 dark:bg-zinc-800 mb-4">
+                                <i data-lucide="database" class="w-8 h-8 text-zinc-400 dark:text-zinc-500"></i>
+                            </div>
+                            <h3 class="text-lg font-medium text-zinc-900 dark:text-white mb-2">No Test Data Yet</h3>
+                            <p class="text-zinc-500 dark:text-zinc-400 mb-4">Add test data to use with this test case.</p>
+                            <a href="{{ route('dashboard.projects.test-cases.data.index', [$project->id, $testCase->id]) }}" class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500">
+                                <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
                                 Add Test Data
                             </a>
                         </div>
-                    </div>
-                    <div class="p-6">
-                        <!-- Show test data if available -->
-                        @if ($testCase->testData && $testCase->testData->count() > 0)
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                @foreach ($testCase->testData as $data)
-                                    <div
-                                        class="bg-zinc-50/80 dark:bg-zinc-800/50 rounded-xl border border-zinc-200/70 dark:border-zinc-700/70 p-4 hover:shadow-md transition-all duration-200 group">
-                                        <div class="flex justify-between items-start">
-                                            <div class="flex items-start space-x-3">
-                                                <div
-                                                    class="p-2 rounded-lg
-                                                    @if ($data->format == 'json') bg-blue-100/80 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400
-                                                    @elseif($data->format == 'csv')
-                                                        bg-green-100/80 dark:bg-green-900/30 text-green-600 dark:text-green-400
-                                                    @elseif($data->format == 'xml')
-                                                        bg-purple-100/80 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400
-                                                    @else
-                                                        bg-cyan-100/80 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400 @endif">
-                                                    @php
-                                                        $formatIcons = [
-                                                            'json' => 'braces',
-                                                            'csv' => 'table',
-                                                            'xml' => 'code',
-                                                            'plain' => 'file-text',
-                                                            'default' => 'database',
-                                                        ];
-                                                        $icon = $formatIcons[$data->format] ?? $formatIcons['default'];
-                                                    @endphp
-                                                    <i data-lucide="{{ $icon }}" class="w-5 h-5"></i>
+                    @else
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-zinc-200 dark:divide-zinc-700">
+                                <thead class="bg-zinc-50 dark:bg-zinc-800">
+                                    <tr>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Name</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Format</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Usage</th>
+                                        <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white dark:bg-zinc-800 divide-y divide-zinc-200 dark:divide-zinc-700">
+                                    @foreach($testCase->testData as $data)
+                                        <tr class="hover:bg-zinc-50 dark:hover:bg-zinc-700/30">
+                                            <td class="px-6 py-4 whitespace-nowrap">
+                                                <div class="text-sm font-medium text-zinc-900 dark:text-white">{{ $data->name }}</div>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap">
+                                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                                    {{ $data->format === 'json' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300' : '' }}
+                                                    {{ $data->format === 'csv' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' : '' }}
+                                                    {{ $data->format === 'xml' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300' : '' }}
+                                                    {{ $data->format === 'plain' ? 'bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-300' : '' }}
+                                                    {{ !in_array($data->format, ['json', 'csv', 'xml', 'plain']) ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300' : '' }}">
+                                                    {{ strtoupper($data->format) }}
+                                                </span>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400">
+                                                {{ $data->pivot->usage_context ?? 'General' }}
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                <div class="flex justify-end space-x-2">
+                                                    <button type="button" @click="previewTestData('{{ $project->id }}', '{{ $testCase->id }}', '{{ $data->id }}')" class="text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300">
+                                                        <i data-lucide="eye" class="w-5 h-5"></i>
+                                                    </button>
+                                                    <form action="{{ route('dashboard.projects.test-cases.data.detach', [$project->id, $testCase->id, $data->id]) }}" method="POST" class="inline-block">
+                                                        @csrf
+                                                        @method('DELETE')
+                                                        <button type="submit" class="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300" onclick="return confirm('Are you sure you want to remove this test data?')">
+                                                            <i data-lucide="unlink" class="w-5 h-5"></i>
+                                                        </button>
+                                                    </form>
                                                 </div>
-                                                <div>
-                                                    <div class="flex items-center">
-                                                        <h3 class="text-zinc-900 dark:text-white font-medium">
-                                                            {{ $data->name }}</h3>
-                                                        @if ($data->is_sensitive)
-                                                            <span
-                                                                class="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300">
-                                                                <i data-lucide="shield" class="w-3 h-3 mr-0.5"></i>
-                                                                Sensitive
-                                                            </span>
-                                                        @endif
-                                                    </div>
-                                                    <p class="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
-                                                        <span class="uppercase font-medium">{{ $data->format }}</span>
-                                                        @if (isset($data->pivot) && $data->pivot->usage_context)
-                                                            <span class="mx-1.5">•</span>
-                                                            {{ $data->pivot->usage_context }}
-                                                        @endif
-                                                    </p>
-                                                </div>
-                                            </div>
-                                            <div class="flex items-center space-x-1">
-                                                <a href="{{ route('dashboard.projects.test-cases.data.show', [$project->id, $testCase->id, $data->id]) }}"
-                                                    class="p-1.5 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded-lg transition-colors">
-                                                    <i data-lucide="edit" class="w-4.5 h-4.5"></i>
-                                                </a>
-                                                <button
-                                                    @click="confirmRemoveTestData('{{ $data->id }}', '{{ addslashes($data->name) }}')"
-                                                    class="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors">
-                                                    <i data-lucide="trash-2" class="w-4.5 h-4.5"></i>
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div class="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-700/50">
-                                            <div class="flex justify-between items-center">
-                                                <div class="text-xs text-zinc-500 dark:text-zinc-400 truncate max-w-[70%]">
-                                                    @php
-                                                        $contentPreview = Str::of($data->content)->limit(60);
-                                                    @endphp
-                                                    {{ $contentPreview }}
-                                                </div>
-                                                <button
-                                                    @click="previewTestData('{{ $data->id }}', '{{ addslashes($data->name) }}', '{{ $data->format }}')"
-                                                    class="inline-flex items-center text-xs font-medium text-blue-600 dark:text-blue-400 group-hover:text-blue-700 dark:group-hover:text-blue-300 transition-colors">
-                                                    Preview
-                                                    <i data-lucide="external-link"
-                                                        class="w-3.5 h-3.5 ml-1 group-hover:ml-2 transition-all"></i>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                @endforeach
-                            </div>
-                        @else
-                            <div class="text-center py-10 px-4">
-                                <div
-                                    class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-blue-50 to-cyan-100 dark:from-blue-900/20 dark:to-cyan-900/20 text-blue-600 dark:text-blue-400 mb-4">
-                                    <i data-lucide="database" class="w-8 h-8"></i>
-                                </div>
-                                <h3 class="text-lg font-medium text-zinc-900 dark:text-white mb-2">No Test Data Yet</h3>
-                                <p class="text-zinc-500 dark:text-zinc-400 max-w-md mx-auto mb-6">
-                                    Add test data to provide inputs for your test scripts and define expected outcomes.
-                                </p>
-                                <a href="{{ route('dashboard.projects.test-cases.data.index', [$project->id, $testCase->id]) }}"
-                                    class="inline-flex items-center px-4 py-2.5 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200">
-                                    <i data-lucide="plus" class="w-5 h-5 mr-2"></i>
-                                    Create Test Data
-                                </a>
-                            </div>
-                        @endif
-                    </div>
-                </div>
-
-            </div>
-
-            <!-- Right Column - Sidebar -->
-            <div class="space-y-6">
-                <!-- Related Info Card -->
-                <div
-                    class="bg-white dark:bg-zinc-800 shadow-sm rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
-                    <div class="px-6 py-4 border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900/50">
-                        <h2 class="text-lg font-medium text-zinc-900 dark:text-white flex items-center">
-                            <i data-lucide="link" class="w-5 h-5 mr-2 text-indigo-500"></i>
-                            Related Information
-                        </h2>
-                    </div>
-                    <div class="p-4">
-                        <ul class="divide-y divide-zinc-200 dark:divide-zinc-700">
-                            <!-- Project -->
-                            <li class="py-3 flex justify-between items-center">
-                                <div class="flex items-center">
-                                    <i data-lucide="folder" class="w-5 h-5 text-indigo-500 mr-3"></i>
-                                    <span class="text-sm text-zinc-500 dark:text-zinc-400">Project</span>
-                                </div>
-                                <a href="{{ route('dashboard.projects.show', $project->id) }}"
-                                    class="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300">
-                                    {{ $project->name }}
-                                </a>
-                            </li>
-
-                            <!-- Test Suite -->
-                            @if ($testSuite)
-                                <li class="py-3 flex justify-between items-center">
-                                    <div class="flex items-center">
-                                        <i data-lucide="folder-open" class="w-5 h-5 text-indigo-500 mr-3"></i>
-                                        <span class="text-sm text-zinc-500 dark:text-zinc-400">Test Suite</span>
-                                    </div>
-                                    <a href="{{ route('dashboard.projects.test-suites.show', [$project->id, $testSuite->id]) }}"
-                                        class="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300">
-                                        {{ $testSuite->name }}
-                                    </a>
-                                </li>
-                            @endif
-
-                            <!-- Story -->
-                            @if ($testCase->story)
-                                <li class="py-3 flex justify-between items-center">
-                                    <div class="flex items-center">
-                                        <i data-lucide="clipboard-list" class="w-5 h-5 text-indigo-500 mr-3"></i>
-                                        <span class="text-sm text-zinc-500 dark:text-zinc-400">Story</span>
-                                    </div>
-                                    <a href="{{ route('dashboard.stories.show', $testCase->story->id) }}"
-                                        class="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300">
-                                        {{ $testCase->story->title }}
-                                    </a>
-                                </li>
-                            @endif
-
-                            <!-- Number of Steps -->
-                            <li class="py-3 flex justify-between items-center">
-                                <div class="flex items-center">
-                                    <i data-lucide="list-checks" class="w-5 h-5 text-indigo-500 mr-3"></i>
-                                    <span class="text-sm text-zinc-500 dark:text-zinc-400">Steps</span>
-                                </div>
-                                <span class="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-                                    {{ is_array($testCase->steps) ? count($testCase->steps) : 0 }}
-                                </span>
-                            </li>
-
-                            <!-- Created Date -->
-                            <li class="py-3 flex justify-between items-center">
-                                <div class="flex items-center">
-                                    <i data-lucide="calendar-plus" class="w-5 h-5 text-indigo-500 mr-3"></i>
-                                    <span class="text-sm text-zinc-500 dark:text-zinc-400">Created</span>
-                                </div>
-                                <span class="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-                                    {{ $testCase->created_at->format('M d, Y') }}
-                                </span>
-                            </li>
-
-                            <!-- Updated Date -->
-                            <li class="py-3 flex justify-between items-center">
-                                <div class="flex items-center">
-                                    <i data-lucide="calendar-clock" class="w-5 h-5 text-indigo-500 mr-3"></i>
-                                    <span class="text-sm text-zinc-500 dark:text-zinc-400">Last Updated</span>
-                                </div>
-                                <span class="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-                                    {{ $testCase->updated_at->format('M d, Y') }}
-                                </span>
-                            </li>
-                        </ul>
-                    </div>
-                </div>
-
-                <!-- Related Test Cases Card -->
-                @if (isset($relatedCases) && $relatedCases->count() > 0)
-                    <div
-                        class="bg-white dark:bg-zinc-800 shadow-sm rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
-                        <div
-                            class="px-6 py-4 border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900/50">
-                            <h2 class="text-lg font-medium text-zinc-900 dark:text-white flex items-center">
-                                <i data-lucide="git-branch" class="w-5 h-5 mr-2 text-indigo-500"></i>
-                                Related Test Cases
-                            </h2>
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
                         </div>
-                        <div class="p-4">
-                            <ul class="divide-y divide-zinc-200 dark:divide-zinc-700">
-                                @foreach ($relatedCases as $relatedCase)
-                                    <li class="py-3">
-                                        <a href="{{ route('dashboard.projects.test-cases.show', [$project->id, $relatedCase->id]) }}"
-                                            class="block hover:bg-zinc-50 dark:hover:bg-zinc-700/30 -mx-2 px-2 py-1 rounded-lg transition-colors">
-                                            <h4 class="text-sm font-medium text-zinc-900 dark:text-white">
-                                                {{ $relatedCase->title }}</h4>
-                                            <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-1 line-clamp-1">
-                                                {{ Str::limit($relatedCase->expected_results, 60) }}
-                                            </p>
-                                        </a>
-                                    </li>
-                                @endforeach
-                            </ul>
-                        </div>
-                    </div>
-                @endif
-
-                <!-- Actions Card -->
-                <div
-                    class="bg-white dark:bg-zinc-800 shadow-sm rounded-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
-                    <div class="px-6 py-4 border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900/50">
-                        <h2 class="text-lg font-medium text-zinc-900 dark:text-white flex items-center">
-                            <i data-lucide="play" class="w-5 h-5 mr-2 text-indigo-500"></i>
-                            Actions
-                        </h2>
-                    </div>
-                    <div class="p-4 space-y-4">
-                        <a href="{{ route('dashboard.executions.create', ['script_id' => $testCase->testScripts->first()->id ?? null]) }}"
-                            class="flex items-center justify-between w-full px-4 py-2 text-sm font-medium text-left text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 {{ $testCase->testScripts->count() > 0 ? '' : 'opacity-50 pointer-events-none' }}">
-                            <span class="flex items-center">
-                                <i data-lucide="play-circle" class="w-5 h-5 mr-2"></i>
-                                Run Test
-                            </span>
-                            <i data-lucide="chevron-right" class="w-5 h-5 opacity-75"></i>
-                        </a>
-                        <a href="{{ route('dashboard.executions.index', ['test_case_id' => $testCase->id]) }}"
-                            class="flex items-center justify-between w-full px-4 py-2 text-sm font-medium text-left text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900/30 hover:bg-indigo-200 dark:hover:bg-indigo-800/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                            <span class="flex items-center">
-                                <i data-lucide="history" class="w-5 h-5 mr-2"></i>
-                                View Execution History
-                            </span>
-                            <i data-lucide="chevron-right" class="w-5 h-5 opacity-75"></i>
-                        </a>
-                        <button @click="openCloneModal"
-                            class="flex items-center justify-between w-full px-4 py-2 text-sm font-medium text-left text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-700/50 hover:bg-zinc-200 dark:hover:bg-zinc-600/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                            <span class="flex items-center">
-                                <i data-lucide="clipboard-copy" class="w-5 h-5 mr-2"></i>
-                                Clone Test Case
-                            </span>
-                            <i data-lucide="chevron-right" class="w-5 h-5 opacity-75"></i>
-                        </button>
-                    </div>
+                    @endif
                 </div>
             </div>
         </div>
-
-        <!-- Delete Confirmation Modal -->
-        <x-modals.delete-confirmation
-            id="delete-test-case-modal"
-            title="Delete Test Case"
-            message="Are you sure you want to delete this test case?"
-            itemName="'{{ $testCase->title }}'"
-            dangerText="This action cannot be undone. All associated scripts and data relationships will be lost."
-            confirmText="Delete Test Case"
-            cancelText="Cancel" />
-
-        <!-- Test Script Delete Modal -->
-        <x-modals.delete-confirmation
-            id="delete-test-script-modal"
-            title="Delete Test Script"
-            message="Are you sure you want to delete this test script?"
-            itemName="scriptToDelete.name"
-            dangerText="This action cannot be undone and the script will be permanently deleted."
-            confirmText="Delete Script"
-            cancelText="Cancel" />
-
-        <!-- Test Data Remove Modal -->
-        <x-modals.delete-confirmation
-            id="remove-test-data-modal"
-            title="Remove Test Data"
-            message="Are you sure you want to remove this test data from the test case?"
-            itemName="testDataToRemove.name"
-            dangerText="This will only detach the test data from this test case. The test data will still be available for other test cases."
-            confirmText="Remove Test Data"
-            cancelText="Cancel" />
-
-        <!-- Test Data Preview Modal -->
-        <x-modals.preview-modal
-            id="test-data-preview-modal">
-            <x-slot:icon>
-                <i data-lucide="database" class="w-6 h-6 text-blue-500 mr-2"></i>
-                <span x-text="currentTestData.name"></span>
-                <span class="ml-2 text-sm font-normal text-zinc-500 dark:text-zinc-400"
-                    x-text="'Format: ' + currentTestData.format.toUpperCase()"></span>
-            </x-slot>
-
-            <x-slot:content>
-                <pre class="text-xs font-mono whitespace-pre-wrap break-words text-zinc-800 dark:text-zinc-200"
-                    x-text="currentTestData.content"></pre>
-            </x-slot>
-        </x-modals.preview-modal>
-
-        <!-- Clone Test Case Modal -->
-        <x-modals.clone-confirmation
-            id="clone-test-case-modal"
-            title="Clone Test Case"
-            message="Create a copy of this test case with the following options:"
-            itemName="'{{ $testCase->title }}'"
-            confirmText="Clone Test Case"
-            cancelText="Cancel" />
     </div>
+
+    <!-- Sidebar (1/3 width on larger screens) -->
+    <div class="w-full lg:w-1/3 space-y-6">
+        <!-- Project & Suite Info -->
+        <div class="bg-white dark:bg-zinc-800/70 shadow-lg rounded-2xl border border-zinc-100 dark:border-zinc-700/60 backdrop-blur-sm overflow-hidden transition-all duration-200 hover:shadow-xl">
+            <div class="px-6 py-4 border-b border-zinc-100 dark:border-zinc-700/60 bg-gradient-to-r from-zinc-50/50 to-zinc-100/20 dark:from-zinc-800/50 dark:to-zinc-700/20">
+                <h2 class="text-lg font-semibold text-zinc-900 dark:text-white">
+                    Related Entities
+                </h2>
+            </div>
+            <div class="p-6 space-y-4">
+                <div>
+                    <h3 class="text-sm font-medium text-zinc-500 dark:text-zinc-400 mb-1">Project</h3>
+                    <a href="{{ route('dashboard.projects.show', $project->id) }}" class="block text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium">
+                        {{ $project->name }}
+                    </a>
+                </div>
+
+                @if($testSuite)
+                <div>
+                    <h3 class="text-sm font-medium text-zinc-500 dark:text-zinc-400 mb-1">Test Suite</h3>
+                    <a href="{{ route('dashboard.projects.test-suites.show', [$project->id, $testSuite->id]) }}" class="block text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium">
+                        {{ $testSuite->name }}
+                    </a>
+                </div>
+                @endif
+
+                @if($testCase->story)
+                <div>
+                    <h3 class="text-sm font-medium text-zinc-500 dark:text-zinc-400 mb-1">Story</h3>
+                    <a href="{{ route('dashboard.stories.show', $testCase->story->id) }}" class="block text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium">
+                        {{ $testCase->story->title }}
+                    </a>
+                </div>
+                @endif
+            </div>
+        </div>
+
+        <!-- Metadata Card -->
+        <div class="bg-white dark:bg-zinc-800/70 shadow-lg rounded-2xl border border-zinc-100 dark:border-zinc-700/60 backdrop-blur-sm overflow-hidden transition-all duration-200 hover:shadow-xl">
+            <div class="px-6 py-4 border-b border-zinc-100 dark:border-zinc-700/60 bg-gradient-to-r from-zinc-50/50 to-zinc-100/20 dark:from-zinc-800/50 dark:to-zinc-700/20">
+                <h2 class="text-lg font-semibold text-zinc-900 dark:text-white">
+                    Metadata
+                </h2>
+            </div>
+            <div class="p-6 space-y-4">
+                <div class="grid grid-cols-1 gap-4">
+                    <div class="flex justify-between">
+                        <span class="text-sm font-medium text-zinc-500 dark:text-zinc-400">ID</span>
+                        <span class="text-sm text-zinc-900 dark:text-white font-mono">{{ $testCase->id }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Test Steps</span>
+                        <span class="text-sm text-zinc-900 dark:text-white">{{ count($steps) }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Status</span>
+                        <span class="text-sm text-zinc-900 dark:text-white">{!! $getStatusBadge($testCase->status) !!}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Priority</span>
+                        <span class="text-sm text-zinc-900 dark:text-white">{!! $getPriorityBadge($testCase->priority) !!}</span>
+                    </div>
+                </div>
+
+                <hr class="border-zinc-100 dark:border-zinc-700/60">
+
+                <div class="grid grid-cols-1 gap-4">
+                    <div class="flex justify-between">
+                        <span class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Created At</span>
+                        <span class="text-sm text-zinc-900 dark:text-white">{{ $testCase->created_at->format('M d, Y') }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Last Updated</span>
+                        <span class="text-sm text-zinc-900 dark:text-white">{{ $testCase->updated_at->format('M d, Y h:i A') }}</span>
+                    </div>
+                </div>
+
+                @if(!empty($testCase->tags) && (is_array($testCase->tags) || is_object($testCase->tags)))
+                <hr class="border-zinc-100 dark:border-zinc-700/60">
+
+                <div>
+                    <h3 class="text-sm font-medium text-zinc-500 dark:text-zinc-400 mb-2">Tags</h3>
+                    <div class="flex flex-wrap gap-2">
+                        @foreach(is_array($testCase->tags) ? $testCase->tags : (array)$testCase->tags as $tag)
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                                {{ $tag }}
+                            </span>
+                        @endforeach
+                    </div>
+                </div>
+                @endif
+            </div>
+        </div>
+
+        <!-- Related Test Cases -->
+        @if($relatedCases->isNotEmpty())
+        <div class="bg-white dark:bg-zinc-800/70 shadow-lg rounded-2xl border border-zinc-100 dark:border-zinc-700/60 backdrop-blur-sm overflow-hidden transition-all duration-200 hover:shadow-xl">
+            <div class="px-6 py-4 border-b border-zinc-100 dark:border-zinc-700/60 bg-gradient-to-r from-zinc-50/50 to-zinc-100/20 dark:from-zinc-800/50 dark:to-zinc-700/20">
+                <h2 class="text-lg font-semibold text-zinc-900 dark:text-white">
+                    Related Test Cases
+                </h2>
+            </div>
+            <div class="p-6">
+                <ul class="space-y-3">
+                    @foreach($relatedCases as $relatedCase)
+                        <li>
+                            <a href="{{ route('dashboard.projects.test-cases.show', [$project->id, $relatedCase->id]) }}" class="block p-3 rounded-lg border border-zinc-100 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-700/30 transition-colors">
+                                <h3 class="text-sm font-medium text-zinc-900 dark:text-white mb-1">{{ $relatedCase->title }}</h3>
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center gap-2">
+                                        {!! $getPriorityBadge($relatedCase->priority) !!}
+                                        {!! $getStatusBadge($relatedCase->status) !!}
+                                    </div>
+                                    <span class="text-xs text-zinc-500 dark:text-zinc-400">{{ $relatedCase->updated_at->diffForHumans() }}</span>
+                                </div>
+                            </a>
+                        </li>
+                    @endforeach
+                </ul>
+            </div>
+        </div>
+        @endif
+    </div>
+
+    <!-- Modals -->
+    <!-- Delete Confirmation Modal -->
+    <x-modals.delete-confirmation
+        title="Delete Test Case"
+        message="Are you sure you want to delete the test case"
+        itemName="testCaseTitle"
+        dangerText="This will permanently delete this test case and all its associations. This action cannot be undone."
+        confirmText="Delete Test Case"
+    />
+
+    <!-- Clone Modal -->
+    <x-modals.clone-confirmation
+        title="Clone Test Case"
+        message="Create a copy of this test case with the following options:"
+        itemName="testCaseTitle"
+        confirmText="Clone Test Case"
+    />
+
+    <!-- Test Data Preview Modal -->
+    <x-modals.preview-modal
+        id="preview-data-modal"
+        title="Test Data Preview"
+        contentClass="font-mono text-sm whitespace-pre overflow-x-auto"
+    >
+        <div x-html="previewContent"></div>
+    </x-modals.preview-modal>
+</div>
 @endsection
 
 @push('scripts')
-    <script>
-        document.addEventListener('alpine:init', () => {
-            Alpine.data('testCaseDetail', () => ({
-                // Modal visibility states
-                showDeleteModal: false,
-                showDeleteScriptModal: false,
-                showRemoveTestDataModal: false,
-                showPreviewModal: false,
-                showCloneModal: false,
+<script>
+document.addEventListener('alpine:init', () => {
+    Alpine.data('testCaseDetails', (config) => ({
+        testCaseId: config.testCaseId,
+        testCaseTitle: config.testCaseTitle,
+        projectId: config.projectId,
+        deleteUrl: config.deleteUrl,
+        cloneUrl: config.cloneUrl,
+        csrfToken: config.csrfToken,
 
-                // Form states
-                isDeleting: false,
-                isCloning: false,
-                deleteConfirmed: false,
+        // Modal states
+        showDeleteModal: false,
+        showCloneModal: false,
+        showModal: false,
+        previewContent: '',
 
-                // Clone form data
-                cloneTitle: '{{ $testCase->title }} (Clone)',
-                cloneOptions: {
-                    scripts: true,
-                    testData: true
-                },
-                cloneFormAction: '{{ route("dashboard.projects.test-cases.clone", [$project->id, $testCase->id]) }}',
+        // Clone options
+        cloneTitle: '',
+        cloneOptions: {
+            scripts: true,
+            testData: true
+        },
 
-                // Data for entity operations
-                scriptToDelete: {
-                    id: null,
-                    name: ''
-                },
-                testDataToRemove: {
-                    id: null,
-                    name: ''
-                },
-                currentTestData: {
-                    id: null,
-                    name: '',
-                    format: '',
-                    content: ''
-                },
+        // Form states
+        isDeleting: false,
+        isCloning: false,
+        deleteConfirmed: false,
+        requireConfirmation: true,
 
-                // Initialize
-                init() {
-                    this.$nextTick(() => {
-                        if (typeof lucide !== 'undefined') lucide.createIcons();
-                    });
-                },
+        init() {
+            // Set initial clone title
+            this.cloneTitle = `${this.testCaseTitle} (Copy)`;
 
-                // Test Case Deletion
-                confirmDelete() {
-                    this.showDeleteModal = true;
-                    this.deleteConfirmed = false;
-                },
-
-                // Test Script Deletion
-                confirmDeleteScript(id, name) {
-                    this.scriptToDelete.id = id;
-                    this.scriptToDelete.name = name;
-                    this.showDeleteScriptModal = true;
-                    this.deleteConfirmed = false;
-                },
-
-                // Delete the script
-                deleteScript() {
-                    if (!this.deleteConfirmed || this.isDeleting) return;
-
-                    this.isDeleting = true;
-
-                    // Use the correct route
-                    fetch(`{{ url('/dashboard/projects') }}/${this.projectId}/test-cases/${this.testCaseId}/scripts/${this.scriptToDelete.id}`, {
-                        method: 'DELETE',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                            'Accept': 'application/json',
-                        }
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        this.showDeleteScriptModal = false;
-                        this.isDeleting = false;
-
-                        if (data.success) {
-                            // Refresh the page to show updated scripts list
-                            window.location.reload();
-                        } else {
-                            alert('Error: ' + data.message);
-                        }
-                    })
-                    .catch(error => {
-                        this.showDeleteScriptModal = false;
-                        this.isDeleting = false;
-                        alert('Error: ' + error.message);
-                    });
-                },
-
-                // Test Data Operations
-                confirmRemoveTestData(id, name) {
-                    this.testDataToRemove.id = id;
-                    this.testDataToRemove.name = name;
-                    this.showRemoveTestDataModal = true;
-                    this.deleteConfirmed = false;
-                },
-
-                // Remove test data relationship
-                removeTestData() {
-                    if (!this.deleteConfirmed || this.isDeleting) return;
-
-                    this.isDeleting = true;
-
-                    // Use the correct route
-                    fetch(`{{ url('/dashboard/projects') }}/${this.projectId}/test-cases/${this.testCaseId}/data/${this.testDataToRemove.id}`, {
-                        method: 'DELETE',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                            'Accept': 'application/json',
-                        }
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        this.showRemoveTestDataModal = false;
-                        this.isDeleting = false;
-
-                        if (data.success) {
-                            // Refresh the page to show updated test data list
-                            window.location.reload();
-                        } else {
-                            alert('Error: ' + data.message);
-                        }
-                    })
-                    .catch(error => {
-                        this.showRemoveTestDataModal = false;
-                        this.isDeleting = false;
-                        alert('Error: ' + error.message);
-                    });
-                },
-
-                // Preview test data
-                previewTestData(id, name, format) {
-                    this.currentTestData.id = id;
-                    this.currentTestData.name = name;
-                    this.currentTestData.format = format;
-                    this.currentTestData.content = 'Loading...';
-
-                    // Show the modal immediately with loading state
-                    this.showPreviewModal = true;
-
-                    // Fetch the test data content
-                    fetch(`{{ url('/dashboard/projects') }}/{{ $project->id }}/test-cases/{{ $testCase->id }}/data/${id}/content`)
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.success) {
-                                this.currentTestData.content = data.content;
-                            } else {
-                                this.currentTestData.content = 'Error loading content: ' + data.message;
-                            }
-                        })
-                        .catch(error => {
-                            console.error('Error fetching test data:', error);
-                            this.currentTestData.content = 'Error loading content: ' + error.message;
-                        });
-                },
-
-                // Clone functionality
-                openCloneModal() {
-                    this.cloneTitle = '{{ $testCase->title }} (Clone)';
-                    this.cloneOptions.scripts = true;
-                    this.cloneOptions.testData = true;
-                    this.showCloneModal = true;
-                },
-
-                closeModal() {
-                    this.showPreviewModal = false;
-                    this.showDeleteModal = false;
-                    this.showDeleteScriptModal = false;
-                    this.showRemoveTestDataModal = false;
-                    this.showCloneModal = false;
-                },
-
-                // Clone the test case
-                cloneTestCase() {
-                    if (!this.cloneTitle.trim() || this.isCloning) return;
-
-                    this.isCloning = true;
-
-                    // Submit the form data
-                    const formData = {
-                        title: this.cloneTitle,
-                        copy_scripts: this.cloneOptions.scripts,
-                        copy_test_data: this.cloneOptions.testData,
-                        _token: document.querySelector('meta[name="csrf-token"]').content
-                    };
-
-                    fetch('{{ route("dashboard.projects.test-cases.clone", [$project->id, $testCase->id]) }}', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                            'Accept': 'application/json',
-                        },
-                        body: JSON.stringify(formData)
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        this.isCloning = false;
-
-                        if (data.success) {
-                            // Redirect to the new test case
-                            window.location.href = data.data.redirect;
-                        } else {
-                            this.showCloneModal = false;
-                            alert('Error: ' + data.message);
-                        }
-                    })
-                    .catch(error => {
-                        this.isCloning = false;
-                        this.showCloneModal = false;
-                        alert('Error: ' + error.message);
-                    });
+            // Initialize lucide icons after each Alpine render
+            this.$nextTick(() => {
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
                 }
-            }));
-        });
-    </script>
+            });
+        },
+
+        openDeleteModal() {
+            this.showDeleteModal = true;
+            this.isDeleting = false;
+            this.deleteConfirmed = false;
+        },
+
+        closeDeleteModal() {
+            if (!this.isDeleting) {
+                this.showDeleteModal = false;
+            }
+        },
+
+        confirmDelete() {
+            if (this.isDeleting) return;
+
+            this.isDeleting = true;
+
+            // Create a form and submit it
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = this.deleteUrl;
+
+            // Add CSRF token
+            const csrfField = document.createElement('input');
+            csrfField.type = 'hidden';
+            csrfField.name = '_token';
+            csrfField.value = this.csrfToken;
+            form.appendChild(csrfField);
+
+            // Add method field
+            const methodField = document.createElement('input');
+            methodField.type = 'hidden';
+            methodField.name = '_method';
+            methodField.value = 'DELETE';
+            form.appendChild(methodField);
+
+            // Append to body and submit
+            document.body.appendChild(form);
+            form.submit();
+        },
+
+        async previewTestData(projectId, testCaseId, testDataId) {
+            try {
+                this.showModal = true;
+                this.previewContent = 'Loading...';
+
+                const response = await fetch(`/dashboard/projects/${projectId}/test-cases/${testCaseId}/data/${testDataId}/content`);
+                const data = await response.json();
+
+                if (data.success) {
+                    // Format content based on the data type
+                    let formattedContent = data.content;
+
+                    if (data.format === 'json') {
+                        try {
+                            // Attempt to pretty-print JSON
+                            const obj = typeof data.content === 'string' ? JSON.parse(data.content) : data.content;
+                            formattedContent = JSON.stringify(obj, null, 2);
+                        } catch (e) {
+                            // If it fails, just use the raw content
+                            console.error('Failed to format JSON:', e);
+                        }
+                    }
+
+                    this.previewContent = `<p class="mb-2 text-xs text-zinc-500 dark:text-zinc-400">${data.format.toUpperCase()} Format</p><pre>${this.escapeHtml(formattedContent)}</pre>`;
+                } else {
+                    this.previewContent = '<div class="text-red-500">Failed to load test data content</div>';
+                }
+            } catch (error) {
+                console.error('Error fetching test data:', error);
+                this.previewContent = '<div class="text-red-500">An error occurred while loading the test data</div>';
+            }
+        },
+
+        closeModal() {
+            this.showModal = false;
+        },
+
+        escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    }));
+});
+</script>
+@endpush
+
+@push('styles')
+<style>
+    /* Custom scrollbar for code blocks */
+    pre {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(161, 161, 170, 0.5) rgba(63, 63, 70, 0.1);
+        max-height: 400px;
+        overflow-y: auto;
+    }
+
+    pre::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+
+    pre::-webkit-scrollbar-track {
+        background: rgba(63, 63, 70, 0.1);
+        border-radius: 3px;
+    }
+
+    pre::-webkit-scrollbar-thumb {
+        background-color: rgba(161, 161, 170, 0.5);
+        border-radius: 3px;
+    }
+
+    /* Tooltip styles */
+    .tooltip {
+        position: relative;
+    }
+
+    .tooltip:hover::after {
+        content: attr(data-tooltip);
+        position: absolute;
+        z-index: 10;
+        bottom: 125%;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 0.5rem;
+        background: rgba(15, 23, 42, 0.9);
+        color: white;
+        border-radius: 0.375rem;
+        white-space: nowrap;
+        font-size: 0.75rem;
+        pointer-events: none;
+    }
+</style>
 @endpush
