@@ -28,7 +28,7 @@
     aiConfig: {{ json_encode($aiConfiguration) }},
     isEdit: {{ $isEdit ? 'true' : 'false' }},
     oldData: {{ json_encode($oldData) }},
-    csrfToken: '{{ csrf_token() }}'
+    csrfToken: '{{ csrf_token() }}',
 })" class="h-full">
     <!-- Animated Header -->
     <div class="mb-6 transform transition-all duration-300 ease-out"
@@ -440,7 +440,7 @@ document.addEventListener('alpine:init', () => {
         notificationMessage: '',
 
         // AI state
-        creationMode: config.hasAI ? 'manual' : 'manual',
+        creationMode: 'manual',
         aiPrompt: '',
         promptError: '',
         aiContext: {},
