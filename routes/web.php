@@ -195,10 +195,12 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
     // Test Data Routes
     Route::prefix('/dashboard/projects/{project}/test-cases/{test_case}/data')->name('dashboard.projects.test-cases.data.')->group(function () {
         Route::get('/', [TestDataController::class, 'index'])->name('index');
+        Route::get('/create', [TestDataController::class, 'create'])->name('create'); // Add this
         Route::post('/', [TestDataController::class, 'store'])->name('store');
         Route::get('/{test_data}', [TestDataController::class, 'show'])->name('show');
-        Route::delete('/{test_data}', [TestDataController::class, 'detach'])->name('detach');
+        Route::get('/{test_data}/edit', [TestDataController::class, 'edit'])->name('edit'); // Add this
         Route::put('/{test_data}', [TestDataController::class, 'update'])->name('update');
+        Route::delete('/{test_data}', [TestDataController::class, 'detach'])->name('detach');
     });
 
     // Global Stories Index (All projects)

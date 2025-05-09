@@ -45,7 +45,7 @@ class TestScriptController extends Controller
     }
 
     /**
-     * Show the form for editing a test script.
+     * Show the form for editing the specified test script.
      */
     public function edit(Project $project, TestCase $test_case, TestScript $test_script)
     {

@@ -6,24 +6,19 @@
 @section('breadcrumbs')
     <li class="flex items-center">
         <i data-lucide="chevron-right" class="w-4 h-4 text-zinc-400 mx-1"></i>
-        <a href="{{ route('dashboard.projects.show', $project->id) }}"
-            class="text-indigo-500 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors">{{ $project->name }}</a>
+        <a href="{{ route('dashboard.projects.show', $project->id) }}" class="text-indigo-500 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors">{{ $project->name }}</a>
     </li>
     <li class="flex items-center">
         <i data-lucide="chevron-right" class="w-4 h-4 text-zinc-400 mx-1"></i>
-        <a href="{{ route('dashboard.projects.test-cases.show', [$project->id, $testCase->id]) }}"
-            class="text-indigo-500 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors">{{ $testCase->title }}</a>
+        <a href="{{ route('dashboard.projects.test-cases.show', [$project->id, $testCase->id]) }}" class="text-indigo-500 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors">{{ $testCase->title }}</a>
     </li>
     <li class="flex items-center">
         <i data-lucide="chevron-right" class="w-4 h-4 text-zinc-400 mx-1"></i>
-        <a href="{{ route('dashboard.projects.test-cases.scripts.index', [$project->id, $testCase->id]) }}"
-            class="text-indigo-500 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors">Test
-            Scripts</a>
+        <a href="{{ route('dashboard.projects.test-cases.scripts.index', [$project->id, $testCase->id]) }}" class="text-indigo-500 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors">Test Scripts</a>
     </li>
     <li class="flex items-center">
         <i data-lucide="chevron-right" class="w-4 h-4 text-zinc-400 mx-1"></i>
-        <a href="{{ route('dashboard.projects.test-cases.scripts.show', [$project->id, $testCase->id, $testScript->id]) }}"
-            class="text-indigo-500 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors">{{ $testScript->name }}</a>
+        <a href="{{ route('dashboard.projects.test-cases.scripts.show', [$project->id, $testCase->id, $testScript->id]) }}" class="text-indigo-500 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors">{{ $testScript->name }}</a>
     </li>
     <li class="flex items-center">
         <i data-lucide="chevron-right" class="w-4 h-4 text-zinc-400 mx-1"></i>
@@ -32,644 +27,649 @@
 @endsection
 
 @section('content')
-    <div class="h-full space-y-6" x-data="scriptEditor({
-        scriptId: '{{ $testScript->id }}',
-        initialName: '{{ addslashes($testScript->name) }}',
-        initialFramework: '{{ $testScript->framework_type }}',
-        initialContent: {{ json_encode($testScript->script_content) }},
-        updateUrl: '{{ route('dashboard.projects.test-cases.scripts.update', [$project->id, $testCase->id, $testScript->id]) }}',
-        csrfToken: '{{ csrf_token() }}',
-        testCaseSteps: {{ json_encode($testCase->steps) }},
-        testCaseExpectedResults: {{ json_encode($testCase->expected_results) }}
-    })">
+    <div class="h-full space-y-6" x-data="testScriptEditor" x-init="initEditor()">
         <!-- Header -->
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
             <div>
-                <h1
-                    class="text-2xl font-bold bg-gradient-to-r from-zinc-800 dark:from-zinc-100 to-zinc-600 dark:to-zinc-300 bg-clip-text text-transparent tracking-tight">
-                    Edit Test Script
+                <h1 class="text-2xl font-bold bg-gradient-to-r from-zinc-800 dark:from-zinc-100 to-zinc-600 dark:to-zinc-300 bg-clip-text text-transparent tracking-tight">
+                    Edit: {{ $testScript->name }}
                 </h1>
                 <p class="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-                    Modify the test script for {{ $testCase->title }}
+                    Update test script for {{ $testCase->title }}
                 </p>
             </div>
             <div class="flex flex-wrap gap-3">
                 <a href="{{ route('dashboard.projects.test-cases.scripts.show', [$project->id, $testCase->id, $testScript->id]) }}"
-                    class="btn-secondary px-4 py-2 rounded-lg flex items-center">
+                   class="btn-secondary px-4 py-2 rounded-lg flex items-center">
                     <i data-lucide="x" class="w-4 h-4 mr-2"></i>
                     Cancel
                 </a>
-                <button @click="saveScript" type="button" class="btn-primary px-5 py-2 rounded-lg flex items-center"
-                    :disabled="isSubmitting">
-                    <template x-if="!isSubmitting">
-                        <i data-lucide="save" class="w-4 h-4 mr-2"></i>
-                    </template>
-                    <template x-if="isSubmitting">
-                        <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg"
-                            fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor"
-                                stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor"
-                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
-                            </path>
-                        </svg>
-                    </template>
-                    <span x-text="isSubmitting ? 'Saving...' : 'Save Changes'"></span>
+                <button @click="saveScript" type="button"
+                   class="btn-primary px-4 py-2 rounded-lg flex items-center">
+                    <i data-lucide="save" class="w-4 h-4 mr-2"></i>
+                    <span x-text="isSaving ? 'Saving...' : 'Save Changes'"></span>
                 </button>
             </div>
         </div>
 
-        <!-- Form Container -->
-        <div
-            class="bg-white dark:bg-zinc-800 shadow-sm rounded-xl border border-zinc-200/70 dark:border-zinc-700/50 overflow-hidden">
-            <!-- Basic Details Section -->
-            <div class="px-6 py-4 border-b border-zinc-200/50 dark:border-zinc-700/50 bg-zinc-50/30 dark:bg-zinc-800/30">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <!-- Script Name -->
-                    <div>
-                        <label for="script-name" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                            Script Name <span class="text-red-500">*</span>
-                        </label>
-                        <input x-model="name" type="text" id="script-name" class="w-full px-4 py-2.5 rounded-lg"
-                            required>
+        <!-- Editor Container -->
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <!-- Script Metadata -->
+            <div class="lg:col-span-1">
+                <div class="bg-white dark:bg-zinc-800 shadow-sm rounded-xl border border-zinc-200/70 dark:border-zinc-700/50 overflow-hidden">
+                    <div class="px-6 py-4 border-b border-zinc-200/50 dark:border-zinc-700/50 bg-zinc-50/50 dark:bg-zinc-800/50">
+                        <h2 class="text-lg font-medium text-zinc-900 dark:text-white">Script Details</h2>
                     </div>
+                    <div class="p-6 space-y-4">
+                        <!-- Script Name -->
+                        <div>
+                            <label for="script-name" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                                Script Name <span class="text-red-500">*</span>
+                            </label>
+                            <input
+                                x-model="formData.name"
+                                type="text"
+                                id="script-name"
+                                class="w-full px-4 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
+                                required
+                            >
+                        </div>
 
-                    <!-- Framework Type -->
-                    <div>
-                        <label for="framework-type" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                            Framework Type <span class="text-red-500">*</span>
-                        </label>
-                        <select x-model="framework" id="framework-type" class="w-full px-4 py-2.5 rounded-lg"
-                            @change="updateMode" required>
-                            <option value="">Select Framework</option>
-                            <option value="selenium-python">Selenium Python</option>
-                            <option value="cypress">Cypress</option>
-                            <option value="other">Other</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
+                        <!-- Framework Type -->
+                        <div>
+                            <label for="framework-type" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                                Framework Type <span class="text-red-500">*</span>
+                            </label>
+                            <select
+                                x-model="formData.framework_type"
+                                id="framework-type"
+                                class="w-full px-4 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
+                                @change="updateEditorMode"
+                                required
+                            >
+                                <option value="selenium-python">Selenium Python</option>
+                                <option value="cypress">Cypress</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
 
-            <!-- Editor Toolbar -->
-            <div
-                class="px-6 py-2 bg-zinc-50 dark:bg-zinc-900/50 flex flex-wrap gap-2 items-center border-b border-zinc-200/50 dark:border-zinc-700/50">
-                <button @click="toggleWordWrap"
-                    class="p-1.5 text-sm rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
-                    :class="wordWrap ? 'bg-zinc-200 dark:bg-zinc-700' : ''">
-                    <i data-lucide="wrap-text" class="w-4 h-4"></i>
-                    <span class="sr-only">Toggle Word Wrap</span>
-                </button>
+                        <div class="pt-4 border-t border-zinc-200 dark:border-zinc-700">
+                            <h3 class="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-3">Editor Settings</h3>
 
-                <button @click="indentCode"
-                    class="p-1.5 text-sm rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors">
-                    <i data-lucide="indent" class="w-4 h-4"></i>
-                    <span class="sr-only">Indent</span>
-                </button>
+                            <!-- Theme Selection -->
+                            <div class="mb-3">
+                                <label for="editor-theme" class="block text-xs text-zinc-500 dark:text-zinc-400 mb-1">
+                                    Editor Theme
+                                </label>
+                                <select
+                                    x-model="editorSettings.theme"
+                                    id="editor-theme"
+                                    class="w-full px-3 py-1.5 text-xs border border-zinc-300 dark:border-zinc-600 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
+                                    @change="updateEditorTheme"
+                                >
+                                    <option value="default">Light</option>
+                                    <option value="dracula">Dark</option>
+                                    <option value="material">Material</option>
+                                    <option value="monokai">Monokai</option>
+                                </select>
+                            </div>
 
-                <button @click="outdentCode"
-                    class="p-1.5 text-sm rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors">
-                    <i data-lucide="outdent" class="w-4 h-4"></i>
-                    <span class="sr-only">Outdent</span>
-                </button>
-
-                <div class="h-4 border-r border-zinc-300 dark:border-zinc-600 mx-1"></div>
-
-                <button @click="insertSnippet('assert')"
-                    class="p-1.5 text-sm rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors">
-                    <i data-lucide="check" class="w-4 h-4"></i>
-                    <span class="ml-1">Insert Assertion</span>
-                </button>
-
-                <button @click="insertSnippet('wait')"
-                    class="p-1.5 text-sm rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors">
-                    <i data-lucide="hourglass" class="w-4 h-4"></i>
-                    <span class="ml-1">Insert Wait</span>
-                </button>
-
-                <div class="h-4 border-r border-zinc-300 dark:border-zinc-600 mx-1"></div>
-
-                <div>
-                    <span class="text-xs text-zinc-500 dark:text-zinc-400">Theme:</span>
-                    <select x-model="editorTheme" @change="updateTheme"
-                        class="ml-1 text-sm px-1.5 py-1 rounded bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600">
-                        <option value="vs">Light</option>
-                        <option value="vs-dark">Dark</option>
-                    </select>
-                </div>
-
-                <div>
-                    <span class="text-xs text-zinc-500 dark:text-zinc-400">Font Size:</span>
-                    <select x-model="fontSize" @change="updateFontSize"
-                        class="ml-1 text-sm px-1.5 py-1 rounded bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-600">
-                        <option value="12">12px</option>
-                        <option value="14">14px</option>
-                        <option value="16">16px</option>
-                        <option value="18">18px</option>
-                    </select>
-                </div>
-
-                <div class="ml-auto">
-                    <button @click="openHelpModal"
-                        class="p-1.5 text-sm rounded hover:bg-zinc-200 dark:hover:bg-zinc-700 flex items-center transition-colors">
-                        <i data-lucide="help-circle" class="w-4 h-4 mr-1"></i>
-                        <span>Help</span>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Code Editor -->
-            <div class="relative">
-                <div class="border-0 w-full h-[600px]" id="codemirror-editor"></div>
-            </div>
-        </div>
-
-        <!-- Test Case Context -->
-        <div
-            class="bg-white dark:bg-zinc-800 shadow-sm rounded-xl border border-zinc-200/70 dark:border-zinc-700/50 overflow-hidden">
-            <div
-                class="px-6 py-4 border-b border-zinc-200/50 dark:border-zinc-700/50 bg-zinc-50/30 dark:bg-zinc-800/30 flex justify-between items-center">
-                <h2 class="text-lg font-medium text-zinc-900 dark:text-white">Test Case Context</h2>
-                <button @click="toggleContextPanel"
-                    class="text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200">
-                    <i data-lucide="chevron-down" class="w-5 h-5" :class="{ 'rotate-180': !showContext }"></i>
-                </button>
-            </div>
-            <div x-show="showContext" x-transition class="p-6 space-y-4">
-                <div>
-                    <h3 class="text-sm font-medium text-zinc-700 dark:text-zinc-300">Test Steps:</h3>
-                    <ul class="mt-2 list-decimal pl-5 space-y-1">
-                        <template x-for="(step, index) in testCaseSteps" :key="index">
-                            <li class="text-sm text-zinc-600 dark:text-zinc-400" x-text="step"></li>
-                        </template>
-                    </ul>
-                </div>
-                <div>
-                    <h3 class="text-sm font-medium text-zinc-700 dark:text-zinc-300">Expected Results:</h3>
-                    <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-400" x-text="testCaseExpectedResults"></p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Help Modal -->
-        <div x-show="showHelpModal" x-transition:enter="transition ease-out duration-300"
-            x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
-            x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100"
-            x-transition:leave-end="opacity-0" class="fixed inset-0 z-50 overflow-y-auto"
-            aria-labelledby="help-modal-title" role="dialog" aria-modal="true" style="display: none;">
-            <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center">
-                <div class="fixed inset-0 bg-zinc-900/60 dark:bg-zinc-900/80 backdrop-blur-sm transition-opacity"
-                    @click="showHelpModal = false"></div>
-                <div
-                    class="relative inline-block w-full max-w-3xl p-6 overflow-hidden text-left align-middle transition-all transform bg-white dark:bg-zinc-800 shadow-xl rounded-2xl">
-                    <div class="absolute top-0 right-0 pt-5 pr-5">
-                        <button type="button" @click="showHelpModal = false"
-                            class="text-zinc-400 hover:text-zinc-500 dark:hover:text-zinc-300">
-                            <i data-lucide="x" class="w-5 h-5"></i>
-                        </button>
-                    </div>
-                    <div>
-                        <h3 class="text-xl font-medium text-zinc-900 dark:text-zinc-100" id="help-modal-title">
-                            Editor Help & Keyboard Shortcuts
-                        </h3>
-
-                        <div class="mt-4 space-y-4">
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div>
-                                    <h4 class="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">General Shortcuts
-                                    </h4>
-                                    <div class="space-y-2">
-                                        <div class="flex justify-between text-sm">
-                                            <span class="text-zinc-600 dark:text-zinc-400">Save</span>
-                                            <span
-                                                class="font-mono text-xs bg-zinc-100 dark:bg-zinc-700 px-1.5 py-0.5 rounded">Ctrl+S</span>
-                                        </div>
-                                        <div class="flex justify-between text-sm">
-                                            <span class="text-zinc-600 dark:text-zinc-400">Find</span>
-                                            <span
-                                                class="font-mono text-xs bg-zinc-100 dark:bg-zinc-700 px-1.5 py-0.5 rounded">Ctrl+F</span>
-                                        </div>
-                                        <div class="flex justify-between text-sm">
-                                            <span class="text-zinc-600 dark:text-zinc-400">Replace</span>
-                                            <span
-                                                class="font-mono text-xs bg-zinc-100 dark:bg-zinc-700 px-1.5 py-0.5 rounded">Ctrl+H</span>
-                                        </div>
-                                        <div class="flex justify-between text-sm">
-                                            <span class="text-zinc-600 dark:text-zinc-400">Undo</span>
-                                            <span
-                                                class="font-mono text-xs bg-zinc-100 dark:bg-zinc-700 px-1.5 py-0.5 rounded">Ctrl+Z</span>
-                                        </div>
-                                        <div class="flex justify-between text-sm">
-                                            <span class="text-zinc-600 dark:text-zinc-400">Redo</span>
-                                            <span
-                                                class="font-mono text-xs bg-zinc-100 dark:bg-zinc-700 px-1.5 py-0.5 rounded">Ctrl+Y</span>
-                                        </div>
+                            <!-- Font Size -->
+                            <div class="mb-3">
+                                <label for="font-size" class="block text-xs text-zinc-500 dark:text-zinc-400 mb-1">
+                                    Font Size
+                                </label>
+                                <div class="flex items-center">
+                                    <button
+                                        @click="changeFontSize(-1)"
+                                        class="px-2 py-1 border border-zinc-300 dark:border-zinc-600 rounded-l-lg bg-zinc-50 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300"
+                                    >
+                                        <i data-lucide="minus" class="w-3 h-3"></i>
+                                    </button>
+                                    <div class="px-3 py-1 border-t border-b border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-center text-xs min-w-[40px]">
+                                        <span x-text="editorSettings.fontSize"></span>px
                                     </div>
-                                </div>
-
-                                <div>
-                                    <h4 class="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Code Formatting
-                                    </h4>
-                                    <div class="space-y-2">
-                                        <div class="flex justify-between text-sm">
-                                            <span class="text-zinc-600 dark:text-zinc-400">Format Document</span>
-                                            <span
-                                                class="font-mono text-xs bg-zinc-100 dark:bg-zinc-700 px-1.5 py-0.5 rounded">Shift+Alt+F</span>
-                                        </div>
-                                        <div class="flex justify-between text-sm">
-                                            <span class="text-zinc-600 dark:text-zinc-400">Indent Line</span>
-                                            <span
-                                                class="font-mono text-xs bg-zinc-100 dark:bg-zinc-700 px-1.5 py-0.5 rounded">Tab</span>
-                                        </div>
-                                        <div class="flex justify-between text-sm">
-                                            <span class="text-zinc-600 dark:text-zinc-400">Outdent Line</span>
-                                            <span
-                                                class="font-mono text-xs bg-zinc-100 dark:bg-zinc-700 px-1.5 py-0.5 rounded">Shift+Tab</span>
-                                        </div>
-                                        <div class="flex justify-between text-sm">
-                                            <span class="text-zinc-600 dark:text-zinc-400">Comment Line</span>
-                                            <span
-                                                class="font-mono text-xs bg-zinc-100 dark:bg-zinc-700 px-1.5 py-0.5 rounded">Ctrl+/</span>
-                                        </div>
-                                        <div class="flex justify-between text-sm">
-                                            <span class="text-zinc-600 dark:text-zinc-400">Duplicate Line</span>
-                                            <span
-                                                class="font-mono text-xs bg-zinc-100 dark:bg-zinc-700 px-1.5 py-0.5 rounded">Shift+Alt+Down</span>
-                                        </div>
-                                    </div>
+                                    <button
+                                        @click="changeFontSize(1)"
+                                        class="px-2 py-1 border border-zinc-300 dark:border-zinc-600 rounded-r-lg bg-zinc-50 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300"
+                                    >
+                                        <i data-lucide="plus" class="w-3 h-3"></i>
+                                    </button>
                                 </div>
                             </div>
 
-                            <div x-show="framework === 'selenium-python'" class="mt-6">
-                                <h4 class="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Selenium Python
-                                    Snippets</h4>
-                                <div class="bg-zinc-50 dark:bg-zinc-900 rounded-lg p-4 overflow-x-auto">
-                                    <pre class="text-xs text-zinc-800 dark:text-zinc-200 font-mono">
-# Example Selenium Python structure
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-
-class TestExample:
-    def setup_method(self):
-        self.driver = webdriver.Chrome()
-        self.driver.maximize_window()
-
-    def teardown_method(self):
-        self.driver.quit()
-
-    def test_example(self):
-        # Navigate to URL
-        self.driver.get("https://example.com")
-
-        # Wait for element to be visible
-        element = WebDriverWait(self.driver, 10).until(
-            EC.visibility_of_element_located((By.ID, "example-id"))
-        )
-
-        # Click element
-        element.click()
-
-        # Assert page title
-        assert "Expected Title" in self.driver.title
-                                </pre>
-                                </div>
+                            <!-- Indentation -->
+                            <div class="mb-3">
+                                <label for="tab-size" class="block text-xs text-zinc-500 dark:text-zinc-400 mb-1">
+                                    Tab Size
+                                </label>
+                                <select
+                                    x-model.number="editorSettings.tabSize"
+                                    id="tab-size"
+                                    class="w-full px-3 py-1.5 text-xs border border-zinc-300 dark:border-zinc-600 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
+                                    @change="updateEditorTabSize"
+                                >
+                                    <option value="2">2 spaces</option>
+                                    <option value="4">4 spaces</option>
+                                    <option value="8">8 spaces</option>
+                                </select>
                             </div>
 
-                            <div x-show="framework === 'cypress'" class="mt-6">
-                                <h4 class="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Cypress Snippets</h4>
-                                <div class="bg-zinc-50 dark:bg-zinc-900 rounded-lg p-4 overflow-x-auto">
-                                    <pre class="text-xs text-zinc-800 dark:text-zinc-200 font-mono">
-// Example Cypress test structure
-describe('Example Test', () => {
-  beforeEach(() => {
-    cy.visit('https://example.com')
-  })
-
-  it('should perform an action and verify result', () => {
-    // Click on element
-    cy.get('#example-id').click()
-
-    // Type text
-    cy.get('#username').type('testuser')
-
-    // Assert element contains text
-    cy.get('h1').should('contain', 'Welcome')
-
-    // Wait for API response
-    cy.intercept('GET', '/api/users').as('getUsers')
-    cy.wait('@getUsers')
-
-    // Verify URL
-    cy.url().should('include', '/dashboard')
-  })
-})
-                                </pre>
-                                </div>
+                            <!-- Options -->
+                            <div class="space-y-2">
+                                <label class="flex items-center text-xs text-zinc-700 dark:text-zinc-300">
+                                    <input
+                                        type="checkbox"
+                                        x-model="editorSettings.lineWrapping"
+                                        @change="updateEditorWrapping"
+                                        class="rounded border-zinc-300 dark:border-zinc-600 text-indigo-600 mr-2"
+                                    >
+                                    Wrap long lines
+                                </label>
+                                <label class="flex items-center text-xs text-zinc-700 dark:text-zinc-300">
+                                    <input
+                                        type="checkbox"
+                                        x-model="editorSettings.lineNumbers"
+                                        @change="updateEditorLineNumbers"
+                                        class="rounded border-zinc-300 dark:border-zinc-600 text-indigo-600 mr-2"
+                                    >
+                                    Show line numbers
+                                </label>
+                                <label class="flex items-center text-xs text-zinc-700 dark:text-zinc-300">
+                                    <input
+                                        type="checkbox"
+                                        x-model="editorSettings.autoCloseBrackets"
+                                        @change="updateEditorBrackets"
+                                        class="rounded border-zinc-300 dark:border-zinc-600 text-indigo-600 mr-2"
+                                    >
+                                    Auto-close brackets
+                                </label>
                             </div>
                         </div>
                     </div>
                 </div>
+            </div>
+
+            <!-- Editor -->
+            <div class="lg:col-span-3">
+                <div class="bg-white dark:bg-zinc-800 shadow-sm rounded-xl border border-zinc-200/70 dark:border-zinc-700/50 overflow-hidden h-full flex flex-col">
+                    <div class="px-6 py-4 border-b border-zinc-200/50 dark:border-zinc-700/50 bg-zinc-50/50 dark:bg-zinc-800/50 flex justify-between items-center">
+                        <h2 class="text-lg font-medium text-zinc-900 dark:text-white">Script Code</h2>
+                        <div class="flex space-x-2">
+                            <button
+                                @click="formatCode"
+                                class="px-2 py-1 text-xs rounded-md bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600 transition-colors"
+                                title="Format code"
+                            >
+                                <i data-lucide="text-quote" class="w-3 h-3 inline-block mr-1"></i>
+                                Format
+                            </button>
+                            <button
+                                @click="toggleFullscreen"
+                                class="px-2 py-1 text-xs rounded-md bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600 transition-colors"
+                                title="Toggle fullscreen"
+                            >
+                                <i data-lucide="maximize-2" class="w-3 h-3 inline-block"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="relative flex-grow">
+                        <!-- Loading indicator -->
+                        <div
+                            x-show="isLoading"
+                            class="absolute inset-0 flex items-center justify-center bg-white/80 dark:bg-zinc-800/80 z-10"
+                        >
+                            <div class="flex flex-col items-center">
+                                <svg class="animate-spin h-8 w-8 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <span class="mt-2 text-sm text-zinc-600 dark:text-zinc-400">Loading editor...</span>
+                            </div>
+                        </div>
+
+                        <!-- Editor container -->
+                        <div id="code-editor" class="h-full min-h-[500px]"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Notification -->
+        <div
+            x-show="notification.show"
+            x-transition:enter="transition ease-out duration-300"
+            x-transition:enter-start="opacity-0 transform translate-y-2"
+            x-transition:enter-end="opacity-100 transform translate-y-0"
+            x-transition:leave="transition ease-in duration-200"
+            x-transition:leave-start="opacity-100 transform translate-y-0"
+            x-transition:leave-end="opacity-0 transform translate-y-2"
+            class="fixed bottom-6 right-6 z-50 max-w-sm w-full p-4 rounded-xl shadow-lg border"
+            :class="{
+                'bg-green-50/80 border-green-200/50 dark:bg-green-900/30 dark:border-green-800/30': notification.type === 'success',
+                'bg-red-50/80 border-red-200/50 dark:bg-red-900/30 dark:border-red-800/30': notification.type === 'error',
+                'bg-yellow-50/80 border-yellow-200/50 dark:bg-yellow-900/30 dark:border-yellow-800/30': notification.type === 'warning'
+            }"
+            style="display: none;"
+        >
+            <div class="flex items-start">
+                <div class="flex-shrink-0 w-5 h-5 mr-3">
+                    <template x-if="notification.type === 'success'">
+                        <i data-lucide="check-circle" class="w-5 h-5 text-green-600 dark:text-green-400"></i>
+                    </template>
+                    <template x-if="notification.type === 'error'">
+                        <i data-lucide="alert-circle" class="w-5 h-5 text-red-600 dark:text-red-400"></i>
+                    </template>
+                    <template x-if="notification.type === 'warning'">
+                        <i data-lucide="alert-triangle" class="w-5 h-5 text-yellow-600 dark:text-yellow-400"></i>
+                    </template>
+                </div>
+                <div>
+                    <h4 class="font-medium mb-1"
+                        :class="{
+                            'text-green-800 dark:text-green-200': notification.type === 'success',
+                            'text-red-800 dark:text-red-200': notification.type === 'error',
+                            'text-yellow-800 dark:text-yellow-200': notification.type === 'warning'
+                        }"
+                        x-text="notification.title"></h4>
+                    <p class="text-sm"
+                        :class="{
+                            'text-green-700/90 dark:text-green-300/90': notification.type === 'success',
+                            'text-red-700/90 dark:text-red-300/90': notification.type === 'error',
+                            'text-yellow-700/90 dark:text-yellow-300/90': notification.type === 'warning'
+                        }"
+                        x-text="notification.message"></p>
+                </div>
+                <button @click="hideNotification" class="ml-auto -mt-1 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
             </div>
         </div>
     </div>
 @endsection
 
 @push('styles')
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/dracula.min.css">
-    <style>
-        /* Custom CodeMirror styling */
-        .CodeMirror {
-            height: 100%;
-            font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
-            font-size: 14px;
-            line-height: 1.5;
-        }
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/dracula.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/material.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/theme/monokai.min.css">
+<style>
+    .CodeMirror {
+        height: 100%;
+        font-family: "Fira Code", "Menlo", "Monaco", "Consolas", monospace;
+    }
 
-        .dark .CodeMirror-gutters {
-            background-color: #2d3748;
-            border-right: 1px solid #4a5568;
-        }
+    .btn-secondary {
+        @apply bg-white/50 dark:bg-zinc-700/50 border border-zinc-300/70 dark:border-zinc-600/50 hover:bg-zinc-50/70 dark:hover:bg-zinc-600/50 shadow-sm text-zinc-700 dark:text-zinc-300 transition-all;
+    }
 
-        .CodeMirror-linenumber {
-            min-width: 2.5em;
-            text-align: right;
-            padding: 0 6px;
-        }
+    .btn-primary {
+        @apply bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm hover:shadow-md transition-all;
+    }
 
-        /* Fix toolbar buttons */
-        .code-toolbar-btn {
-            padding: 0.5rem;
-            border-radius: 0.25rem;
-            transition: background-color 0.2s;
-        }
+    .editor-fullscreen {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 100vh;
+        width: 100vw;
+        z-index: 9999;
+        background: white;
+    }
 
-        .code-toolbar-btn:hover {
-            background-color: rgba(0, 0, 0, 0.1);
-        }
+    .dark .editor-fullscreen {
+        background: #1f2937;
+    }
 
-        .dark .code-toolbar-btn:hover {
-            background-color: rgba(255, 255, 255, 0.1);
-        }
-    </style>
+    .editor-fullscreen .CodeMirror {
+        height: calc(100vh - 60px);
+    }
+
+    .editor-fullscreen-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 20px;
+        background: #f3f4f6;
+        border-bottom: 1px solid #e5e7eb;
+    }
+
+    .dark .editor-fullscreen-header {
+        background: #374151;
+        border-color: #4b5563;
+    }
+</style>
 @endpush
 
 @push('scripts')
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
-    <script>
-        document.addEventListener('alpine:init', () => {
-            Alpine.data('scriptEditor', (config) => ({
-                scriptId: config.scriptId,
-                name: config.initialName,
-                framework: config.initialFramework,
-                content: config.initialContent,
-                updateUrl: config.updateUrl,
-                csrfToken: config.csrfToken,
-                testCaseSteps: config.testCaseSteps || [],
-                testCaseExpectedResults: config.testCaseExpectedResults || '',
-
-                editor: null,
-                wordWrap: true,
-                isDarkMode: document.documentElement.classList.contains('dark'),
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/python/python.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/mode/javascript/javascript.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/edit/closebrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/edit/matchbrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.13/addon/selection/active-line.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/js-beautify/1.14.9/beautify.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/js-beautify/1.14.9/beautify-html.min.js"></script>
+<script>
+    document.addEventListener('alpine:init', () => {
+        Alpine.data('testScriptEditor', () => ({
+            editor: null,
+            isLoading: true,
+            isSaving: false,
+            isFullscreen: false,
+            notification: {
+                show: false,
+                type: 'success',
+                title: '',
+                message: '',
+                timeout: null
+            },
+            formData: {
+                name: @json($testScript->name),
+                framework_type: @json($testScript->framework_type),
+                script_content: @json($testScript->script_content)
+            },
+            editorSettings: {
+                theme: 'default',
                 fontSize: 14,
-                showHelpModal: false,
-                showContext: true,
-                isSubmitting: false,
+                tabSize: 4,
+                lineWrapping: true,
+                lineNumbers: true,
+                autoCloseBrackets: true
+            },
 
-                init() {
-                    // Initialize editor after DOM is loaded
-                    this.$nextTick(() => {
-                        this.setupEditor();
+            initEditor() {
+                // Set default theme based on dark mode
+                this.editorSettings.theme = document.documentElement.classList.contains('dark') ? 'dracula' : 'default';
 
-                        // Handle dark mode changes
-                        const observer = new MutationObserver((mutations) => {
-                            mutations.forEach((mutation) => {
-                                if (mutation.attributeName === 'class') {
-                                    const isDark = document.documentElement
-                                        .classList.contains('dark');
-                                    if (this.isDarkMode !== isDark) {
-                                        this.isDarkMode = isDark;
-                                        this.updateTheme();
-                                    }
-                                }
-                            });
-                        });
-                        observer.observe(document.documentElement, {
-                            attributes: true
-                        });
-
-                        // Set up keyboard shortcut for save
-                        document.addEventListener('keydown', (e) => {
-                            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-                                e.preventDefault();
-                                this.saveScript();
-                            }
-                        });
-                    });
-                },
-
-                setupEditor() {
-                    const editorContainer = document.getElementById('codemirror-editor');
+                // Wait for DOM to be ready
+                setTimeout(() => {
+                    const editorContainer = document.getElementById('code-editor');
                     if (!editorContainer) return;
 
-                    // Clear container
-                    editorContainer.innerHTML = '';
-
-                    // Determine language mode
-                    const mode = this.framework === 'cypress' ? 'javascript' : 'python';
-
-                    // Create editor
+                    // Initialize CodeMirror
                     this.editor = CodeMirror(editorContainer, {
-                        value: this.content,
-                        mode: mode,
-                        theme: this.isDarkMode ? 'dracula' : 'default',
-                        lineNumbers: true,
-                        lineWrapping: this.wordWrap,
-                        tabSize: 4,
-                        indentUnit: 4,
-                        indentWithTabs: false,
-                        smartIndent: true,
+                        value: this.formData.script_content,
+                        mode: this.getEditorMode(),
+                        theme: this.editorSettings.theme,
+                        lineNumbers: this.editorSettings.lineNumbers,
+                        lineWrapping: this.editorSettings.lineWrapping,
+                        tabSize: this.editorSettings.tabSize,
+                        indentUnit: this.editorSettings.tabSize,
+                        matchBrackets: true,
+                        autoCloseBrackets: this.editorSettings.autoCloseBrackets,
+                        styleActiveLine: true,
                         extraKeys: {
-                            "Ctrl-S": () => this.saveScript(),
-                            "Cmd-S": () => this.saveScript(),
-                            "Tab": (cm) => cm.execCommand("indentMore"),
-                            "Shift-Tab": (cm) => cm.execCommand("indentLess")
-                        },
-                        autofocus: true
-                    });
-
-                    // Set font size
-                    this.updateFontSize();
-
-                    // Set up change handler
-                    this.editor.on('change', () => {
-                        this.content = this.editor.getValue();
-                    });
-                },
-
-                saveScript() {
-                    if (this.isSubmitting) return;
-
-                    if (!this.name.trim()) {
-                        this.showNotification('error', 'Please enter a script name');
-                        return;
-                    }
-
-                    if (!this.framework) {
-                        this.showNotification('error', 'Please select a framework type');
-                        return;
-                    }
-
-                    const content = this.editor.getValue();
-                    if (!content.trim()) {
-                        this.showNotification('error', 'Script content cannot be empty');
-                        return;
-                    }
-
-                    this.isSubmitting = true;
-
-                    fetch(this.updateUrl, {
-                            method: 'PUT',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'X-CSRF-TOKEN': this.csrfToken,
-                                'Accept': 'application/json'
-                            },
-                            body: JSON.stringify({
-                                name: this.name,
-                                framework_type: this.framework,
-                                script_content: content
-                            })
-                        })
-                        .then(response => response.json())
-                        .then(result => {
-                            if (result.success) {
-                                this.showNotification('success',
-                                    'Test script updated successfully');
-
-                                // Redirect back to the test script details page after successful save
-                                setTimeout(() => {
-                                    window.location.href = window.location.href.replace(
-                                        '/edit', '');
-                                }, 1000);
-                            } else {
-                                throw new Error(result.message || 'Failed to update script');
+                            "Ctrl-S": (cm) => this.saveScript(),
+                            "Cmd-S": (cm) => this.saveScript(),
+                            "F11": (cm) => this.toggleFullscreen(),
+                            "Esc": (cm) => {
+                                if (this.isFullscreen) this.toggleFullscreen();
                             }
-                        })
-                        .catch(error => {
-                            console.error('Error:', error);
-                            this.showNotification('error', error.message || 'An error occurred');
-                        })
-                        .finally(() => {
-                            this.isSubmitting = false;
-                        });
-                },
-
-                updateMode() {
-                    // Update editor language mode when framework changes
-                    if (!this.editor) return;
-
-                    const mode = this.framework === 'cypress' ? 'javascript' : 'python';
-                    this.editor.setOption('mode', mode);
-                },
-
-                toggleWordWrap() {
-                    this.wordWrap = !this.wordWrap;
-                    if (this.editor) {
-                        this.editor.setOption('lineWrapping', this.wordWrap);
-                    }
-                },
-
-                indentCode() {
-                    if (!this.editor) return;
-                    this.editor.execCommand('indentMore');
-                },
-
-                outdentCode() {
-                    if (!this.editor) return;
-                    this.editor.execCommand('indentLess');
-                },
-
-                updateTheme() {
-                    if (!this.editor) return;
-                    this.editor.setOption('theme', this.isDarkMode ? 'dracula' : 'default');
-                },
-
-                updateFontSize() {
-                    if (!this.editor) return;
-
-                    // Get the editor's DOM node
-                    const editorNode = this.editor.getWrapperElement();
-                    editorNode.style.fontSize = `${this.fontSize}px`;
-
-                    // Refresh the editor to apply changes
-                    this.editor.refresh();
-                },
-
-                insertSnippet(type) {
-                    if (!this.editor) return;
-
-                    let snippet = '';
-
-                    if (this.framework === 'selenium-python') {
-                        if (type === 'assert') {
-                            snippet =
-                                'assert expected == actual, "Assertion failed: values do not match"';
-                        } else if (type === 'wait') {
-                            snippet =
-                                'element = WebDriverWait(self.driver, 10).until(\n    EC.visibility_of_element_located((By.ID, "element_id"))\n)';
                         }
-                    } else if (this.framework === 'cypress') {
-                        if (type === 'assert') {
-                            snippet = "cy.get('selector').should('contain', 'expected value')";
-                        } else if (type === 'wait') {
-                            snippet = "cy.wait('@aliasName', { timeout: 5000 })";
+                    });
+
+                    // Set editor font size
+                    const cmElement = editorContainer.querySelector('.CodeMirror');
+                    if (cmElement) {
+                        cmElement.style.fontSize = `${this.editorSettings.fontSize}px`;
+                    }
+
+                    // Update content on change
+                    this.editor.on('change', (cm) => {
+                        this.formData.script_content = cm.getValue();
+                    });
+
+                    // Hide loading indicator
+                    this.isLoading = false;
+
+                    // Watch for dark mode changes
+                    const observer = new MutationObserver((mutations) => {
+                        mutations.forEach((mutation) => {
+                            if (mutation.attributeName === 'class') {
+                                const isDark = document.documentElement.classList.contains('dark');
+                                this.editorSettings.theme = isDark ? 'dracula' : 'default';
+                                this.updateEditorTheme();
+                            }
+                        });
+                    });
+
+                    observer.observe(document.documentElement, { attributes: true });
+                }, 100);
+            },
+
+            getEditorMode() {
+                switch (this.formData.framework_type) {
+                    case 'cypress':
+                        return 'javascript';
+                    case 'selenium-python':
+                    default:
+                        return 'python';
+                }
+            },
+
+            updateEditorMode() {
+                if (!this.editor) return;
+                this.editor.setOption('mode', this.getEditorMode());
+            },
+
+            updateEditorTheme() {
+                if (!this.editor) return;
+                this.editor.setOption('theme', this.editorSettings.theme);
+            },
+
+            updateEditorWrapping() {
+                if (!this.editor) return;
+                this.editor.setOption('lineWrapping', this.editorSettings.lineWrapping);
+            },
+
+            updateEditorLineNumbers() {
+                if (!this.editor) return;
+                this.editor.setOption('lineNumbers', this.editorSettings.lineNumbers);
+            },
+
+            updateEditorTabSize() {
+                if (!this.editor) return;
+                this.editor.setOption('tabSize', this.editorSettings.tabSize);
+                this.editor.setOption('indentUnit', this.editorSettings.tabSize);
+            },
+
+            updateEditorBrackets() {
+                if (!this.editor) return;
+                this.editor.setOption('autoCloseBrackets', this.editorSettings.autoCloseBrackets);
+            },
+
+            changeFontSize(delta) {
+                this.editorSettings.fontSize = Math.max(10, Math.min(24, this.editorSettings.fontSize + delta));
+                const cmElement = document.querySelector('.CodeMirror');
+                if (cmElement) {
+                    cmElement.style.fontSize = `${this.editorSettings.fontSize}px`;
+                    // Force re-render
+                    this.editor?.refresh();
+                }
+            },
+
+            formatCode() {
+                if (!this.editor) return;
+
+                try {
+                    let formatted;
+                    const code = this.editor.getValue();
+
+                    if (this.formData.framework_type === 'cypress') {
+                        // JavaScript beautifier
+                        formatted = js_beautify(code, {
+                            indent_size: this.editorSettings.tabSize,
+                            indent_with_tabs: false,
+                            space_in_empty_paren: true
+                        });
+                    } else {
+                        // For Python and others, do a simple indentation pass
+                        // This is a simple approach - for production you might want a proper Python formatter
+                        formatted = code;
+                    }
+
+                    // Replace the editor content
+                    this.editor.setValue(formatted);
+
+                    this.showNotification('success', 'Code formatted', 'Code formatting applied successfully.');
+                } catch (error) {
+                    this.showNotification('error', 'Format Error', 'Failed to format code: ' + error.message);
+                    console.error('Formatting error:', error);
+                }
+            },
+
+            toggleFullscreen() {
+                if (!this.editor) return;
+
+                const editorContainer = document.getElementById('code-editor');
+                const parentElement = editorContainer.closest('.lg\\:col-span-3');
+
+                if (this.isFullscreen) {
+                    // Exit fullscreen
+                    document.body.style.overflow = '';
+                    editorContainer.classList.remove('editor-fullscreen');
+
+                    // Remove the fullscreen header if it exists
+                    const header = document.querySelector('.editor-fullscreen-header');
+                    if (header) header.remove();
+
+                    // Move the editor back to its original position
+                    if (parentElement) {
+                        parentElement.appendChild(editorContainer);
+                    }
+                } else {
+                    // Enter fullscreen
+                    document.body.style.overflow = 'hidden';
+
+                    // Create fullscreen header
+                    const header = document.createElement('div');
+                    header.className = 'editor-fullscreen-header';
+                    header.innerHTML = `
+                        <div class="text-lg font-medium text-zinc-900 dark:text-white">Editing: ${this.formData.name}</div>
+                        <div class="flex space-x-3">
+                            <button id="fs-format-btn" class="px-3 py-1.5 text-sm rounded-md bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600 transition-colors">
+                                <i data-lucide="text-quote" class="w-4 h-4 inline-block mr-1"></i>
+                                Format
+                            </button>
+                            <button id="fs-save-btn" class="px-3 py-1.5 text-sm rounded-md bg-indigo-600 hover:bg-indigo-700 text-white transition-colors">
+                                <i data-lucide="save" class="w-4 h-4 inline-block mr-1"></i>
+                                Save
+                            </button>
+                            <button id="fs-exit-btn" class="px-3 py-1.5 text-sm rounded-md bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600 transition-colors">
+                                <i data-lucide="minimize-2" class="w-4 h-4 inline-block mr-1"></i>
+                                Exit Fullscreen
+                            </button>
+                        </div>
+                    `;
+
+                    // Place the editor at the body level
+                    editorContainer.classList.add('editor-fullscreen');
+                    editorContainer.prepend(header);
+                    document.body.appendChild(editorContainer);
+
+                    // Add event listeners to the fullscreen header buttons
+                    document.getElementById('fs-format-btn').addEventListener('click', () => this.formatCode());
+                    document.getElementById('fs-save-btn').addEventListener('click', () => this.saveScript());
+                    document.getElementById('fs-exit-btn').addEventListener('click', () => this.toggleFullscreen());
+
+                    // Initialize Lucide icons in the fullscreen header
+                    if (typeof lucide !== 'undefined') {
+                        lucide.createIcons({
+                            attrs: {
+                                'stroke-width': 2,
+                                'class': 'w-4 h-4'
+                            }
+                        });
+                    }
+                }
+
+                this.isFullscreen = !this.isFullscreen;
+
+                // Force CodeMirror to refresh its size
+                setTimeout(() => {
+                    this.editor.refresh();
+                }, 100);
+            },
+
+            async saveScript() {
+                if (this.isSaving) return;
+
+                // Check if we need to get the latest content from CodeMirror
+                if (this.editor) {
+                    this.formData.script_content = this.editor.getValue();
+                }
+
+                // Validation
+                if (!this.formData.name || !this.formData.name.trim()) {
+                    this.showNotification('error', 'Validation Error', 'Script name is required.');
+                    return;
+                }
+
+                if (!this.formData.script_content || !this.formData.script_content.trim()) {
+                    this.showNotification('error', 'Validation Error', 'Script content cannot be empty.');
+                    return;
+                }
+
+                this.isSaving = true;
+
+                try {
+                    const response = await fetch('{{ route("dashboard.projects.test-cases.scripts.update", [$project->id, $testCase->id, $testScript->id]) }}', {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify(this.formData)
+                    });
+
+                    const result = await response.json();
+
+                    if (response.ok) {
+                        this.showNotification('success', 'Success', 'Test script saved successfully.');
+
+                        // If we're in fullscreen mode, stay there; otherwise redirect
+                        if (!this.isFullscreen) {
+                            setTimeout(() => {
+                                window.location.href = '{{ route("dashboard.projects.test-cases.scripts.show", [$project->id, $testCase->id, $testScript->id]) }}';
+                            }, 1000);
                         }
                     } else {
-                        // Generic snippets
-                        if (type === 'assert') {
-                            snippet = "// Assert that expected equals actual\n";
-                        } else if (type === 'wait') {
-                            snippet = "// Wait for element with selector\n";
-                        }
+                        throw new Error(result.message || 'Failed to save test script.');
                     }
-
-                    // Get cursor position
-                    const cursor = this.editor.getCursor();
-
-                    // Insert snippet at cursor position
-                    this.editor.replaceRange(snippet, cursor);
-
-                    // Focus editor
-                    this.editor.focus();
-                },
-
-                openHelpModal() {
-                    this.showHelpModal = true;
-                },
-
-                toggleContextPanel() {
-                    this.showContext = !this.showContext;
-                },
-
-                showNotification(type, message) {
-                    // Dispatch event to notification system
-                    window.dispatchEvent(new CustomEvent('notify', {
-                        detail: {
-                            type,
-                            message
-                        }
-                    }));
+                } catch (error) {
+                    console.error('Save error:', error);
+                    this.showNotification('error', 'Error', error.message || 'An error occurred while saving.');
+                } finally {
+                    this.isSaving = false;
                 }
-            }));
-        });
+            },
 
-    </script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/javascript/javascript.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/python/python.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/comment/comment.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/selection/active-line.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/keymap/sublime.min.js"></script>
+            showNotification(type, title, message) {
+                // Clear any existing timeout
+                if (this.notification.timeout) {
+                    clearTimeout(this.notification.timeout);
+                }
+
+                // Update notification data
+                this.notification.type = type;
+                this.notification.title = title;
+                this.notification.message = message;
+                this.notification.show = true;
+
+                // Auto-hide after delay
+                this.notification.timeout = setTimeout(() => {
+                    this.hideNotification();
+                }, 5000);
+            },
+
+            hideNotification() {
+                this.notification.show = false;
+            }
+        }));
+    });
+</script>
 @endpush
