@@ -179,7 +179,7 @@
 
             <!-- Code Editor -->
             <div class="relative">
-                <div class="border-0 w-full h-[600px]" id="monaco-editor"></div>
+                <div class="border-0 w-full h-[600px]" id="codemirror-editor"></div>
             </div>
         </div>
 
@@ -376,22 +376,41 @@ describe('Example Test', () => {
 @endsection
 
 @push('styles')
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/dracula.min.css">
     <style>
-        .btn-secondary {
-            @apply bg-white/50 dark:bg-zinc-700/50 border border-zinc-300/70 dark:border-zinc-600/50 hover:bg-zinc-50/70 dark:hover:bg-zinc-600/50 shadow-sm text-zinc-700 dark:text-zinc-300 transition-all;
+        /* Custom CodeMirror styling */
+        .CodeMirror {
+            height: 100%;
+            font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.5;
         }
 
-        .btn-primary {
-            @apply bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm hover:shadow-md transition-all;
+        .dark .CodeMirror-gutters {
+            background-color: #2d3748;
+            border-right: 1px solid #4a5568;
         }
 
-        /* Fix for Monaco editor in dark mode */
-        .dark .monaco-editor .margin {
-            background-color: #2d3748 !important;
+        .CodeMirror-linenumber {
+            min-width: 2.5em;
+            text-align: right;
+            padding: 0 6px;
         }
 
-        .dark .monaco-editor .monaco-scrollable-element {
-            background-color: #1a202c !important;
+        /* Fix toolbar buttons */
+        .code-toolbar-btn {
+            padding: 0.5rem;
+            border-radius: 0.25rem;
+            transition: background-color 0.2s;
+        }
+
+        .code-toolbar-btn:hover {
+            background-color: rgba(0, 0, 0, 0.1);
+        }
+
+        .dark .code-toolbar-btn:hover {
+            background-color: rgba(255, 255, 255, 0.1);
         }
     </style>
 @endpush
@@ -412,92 +431,80 @@ describe('Example Test', () => {
 
                 editor: null,
                 wordWrap: true,
-                editorTheme: 'vs',
+                isDarkMode: document.documentElement.classList.contains('dark'),
                 fontSize: 14,
                 showHelpModal: false,
                 showContext: true,
                 isSubmitting: false,
 
                 init() {
-                    this.setupEditor();
+                    // Initialize editor after DOM is loaded
+                    this.$nextTick(() => {
+                        this.setupEditor();
 
-                    // Initialize theme based on current color mode
-                    this.editorTheme = document.documentElement.classList.contains('dark') ? 'vs-dark' :
-                        'vs';
+                        // Handle dark mode changes
+                        const observer = new MutationObserver((mutations) => {
+                            mutations.forEach((mutation) => {
+                                if (mutation.attributeName === 'class') {
+                                    const isDark = document.documentElement
+                                        .classList.contains('dark');
+                                    if (this.isDarkMode !== isDark) {
+                                        this.isDarkMode = isDark;
+                                        this.updateTheme();
+                                    }
+                                }
+                            });
+                        });
+                        observer.observe(document.documentElement, {
+                            attributes: true
+                        });
 
-                    // Set up keyboard shortcut for save
-                    document.addEventListener('keydown', (e) => {
-                        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-                            e.preventDefault();
-                            this.saveScript();
-                        }
-                    });
-
-                    // Listen for dark mode changes
-                    const observer = new MutationObserver((mutations) => {
-                        mutations.forEach((mutation) => {
-                            if (mutation.attributeName === 'class') {
-                                const isDark = document.documentElement.classList
-                                    .contains('dark');
-                                this.editorTheme = isDark ? 'vs-dark' : 'vs';
-                                this.updateTheme();
+                        // Set up keyboard shortcut for save
+                        document.addEventListener('keydown', (e) => {
+                            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                                e.preventDefault();
+                                this.saveScript();
                             }
                         });
-                    });
-                    observer.observe(document.documentElement, {
-                        attributes: true
                     });
                 },
 
                 setupEditor() {
-                    require.config({
-                        paths: {
-                            'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs'
-                        }
+                    const editorContainer = document.getElementById('codemirror-editor');
+                    if (!editorContainer) return;
+
+                    // Clear container
+                    editorContainer.innerHTML = '';
+
+                    // Determine language mode
+                    const mode = this.framework === 'cypress' ? 'javascript' : 'python';
+
+                    // Create editor
+                    this.editor = CodeMirror(editorContainer, {
+                        value: this.content,
+                        mode: mode,
+                        theme: this.isDarkMode ? 'dracula' : 'default',
+                        lineNumbers: true,
+                        lineWrapping: this.wordWrap,
+                        tabSize: 4,
+                        indentUnit: 4,
+                        indentWithTabs: false,
+                        smartIndent: true,
+                        extraKeys: {
+                            "Ctrl-S": () => this.saveScript(),
+                            "Cmd-S": () => this.saveScript(),
+                            "Tab": (cm) => cm.execCommand("indentMore"),
+                            "Shift-Tab": (cm) => cm.execCommand("indentLess")
+                        },
+                        autofocus: true
                     });
 
-                    require(['vs/editor/editor.main'], () => {
-                        // Determine language based on framework
-                        const language = this.framework === 'cypress' ? 'javascript' : 'python';
+                    // Set font size
+                    this.updateFontSize();
 
-                        // Create editor
-                        this.editor = monaco.editor.create(document.getElementById(
-                            'monaco-editor'), {
-                            value: this.content,
-                            language: language,
-                            theme: this.editorTheme,
-                            wordWrap: this.wordWrap ? 'on' : 'off',
-                            lineNumbers: 'on',
-                            minimap: {
-                                enabled: true
-                            },
-                            scrollBeyondLastLine: false,
-                            automaticLayout: true,
-                            fontSize: this.fontSize,
-                            tabSize: 4,
-                            insertSpaces: true,
-                            formatOnPaste: true,
-                            formatOnType: true,
-                            scrollbar: {
-                                verticalScrollbarSize: 12,
-                                horizontalScrollbarSize: 12
-                            },
-                            renderLineHighlight: 'all',
-                            bracketPairColorization: {
-                                enabled: true
-                            }
-                        });
-
-                        // Set up change handler to update content
-                        this.editor.onDidChangeModelContent(() => {
-                            this.content = this.editor.getValue();
-                        });
-
-                        // Add command for saving with Ctrl+S
-                        this.editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS,
-                        () => {
-                                this.saveScript();
-                            });
+                    // Set up change handler
+                    this.editor.on('change', () => {
+                        this.content = this.editor.getValue();
                     });
                 },
 
@@ -539,7 +546,7 @@ describe('Example Test', () => {
                         .then(result => {
                             if (result.success) {
                                 this.showNotification('success',
-                                'Test script updated successfully');
+                                    'Test script updated successfully');
 
                                 // Redirect back to the test script details page after successful save
                                 setTimeout(() => {
@@ -563,84 +570,78 @@ describe('Example Test', () => {
                     // Update editor language mode when framework changes
                     if (!this.editor) return;
 
-                    const language = this.framework === 'cypress' ? 'javascript' : 'python';
-                    const model = this.editor.getModel();
-                    monaco.editor.setModelLanguage(model, language);
+                    const mode = this.framework === 'cypress' ? 'javascript' : 'python';
+                    this.editor.setOption('mode', mode);
                 },
 
                 toggleWordWrap() {
                     this.wordWrap = !this.wordWrap;
                     if (this.editor) {
-                        this.editor.updateOptions({
-                            wordWrap: this.wordWrap ? 'on' : 'off'
-                        });
+                        this.editor.setOption('lineWrapping', this.wordWrap);
                     }
                 },
 
                 indentCode() {
                     if (!this.editor) return;
-                    this.editor.getAction('editor.action.indentLines').run();
+                    this.editor.execCommand('indentMore');
                 },
 
                 outdentCode() {
                     if (!this.editor) return;
-                    this.editor.getAction('editor.action.outdentLines').run();
+                    this.editor.execCommand('indentLess');
                 },
 
                 updateTheme() {
                     if (!this.editor) return;
-                    monaco.editor.setTheme(this.editorTheme);
+                    this.editor.setOption('theme', this.isDarkMode ? 'dracula' : 'default');
                 },
 
                 updateFontSize() {
                     if (!this.editor) return;
-                    this.editor.updateOptions({
-                        fontSize: parseInt(this.fontSize)
-                    });
+
+                    // Get the editor's DOM node
+                    const editorNode = this.editor.getWrapperElement();
+                    editorNode.style.fontSize = `${this.fontSize}px`;
+
+                    // Refresh the editor to apply changes
+                    this.editor.refresh();
                 },
 
                 insertSnippet(type) {
                     if (!this.editor) return;
-
-                    const selection = this.editor.getSelection();
-                    const id = monaco.editor.createModel('temp').id;
 
                     let snippet = '';
 
                     if (this.framework === 'selenium-python') {
                         if (type === 'assert') {
                             snippet =
-                                'assert ${1:expected} == ${2:actual}, "Assertion failed: values do not match"';
+                                'assert expected == actual, "Assertion failed: values do not match"';
                         } else if (type === 'wait') {
                             snippet =
-                                'element = WebDriverWait(self.driver, ${1:10}).until(\n    EC.visibility_of_element_located((By.${2:ID}, "${3:element_id}"))\n)';
+                                'element = WebDriverWait(self.driver, 10).until(\n    EC.visibility_of_element_located((By.ID, "element_id"))\n)';
                         }
                     } else if (this.framework === 'cypress') {
                         if (type === 'assert') {
-                            snippet =
-                                "cy.get('${1:selector}').should('${2:contain}', '${3:expected value}')";
+                            snippet = "cy.get('selector').should('contain', 'expected value')";
                         } else if (type === 'wait') {
-                            snippet = "cy.wait('${1:@aliasName}', { timeout: ${2:5000} })";
+                            snippet = "cy.wait('@aliasName', { timeout: 5000 })";
                         }
                     } else {
                         // Generic snippets
                         if (type === 'assert') {
-                            snippet = "// Assert that ${1:expected} equals ${2:actual}\n";
+                            snippet = "// Assert that expected equals actual\n";
                         } else if (type === 'wait') {
-                            snippet = "// Wait for element with ${1:selector}\n";
+                            snippet = "// Wait for element with selector\n";
                         }
                     }
 
-                    this.editor.executeEdits('', [{
-                        identifier: {
-                            major: 1,
-                            minor: 1
-                        },
-                        range: selection,
-                        text: snippet,
-                        forceMoveMarkers: true
-                    }]);
+                    // Get cursor position
+                    const cursor = this.editor.getCursor();
 
+                    // Insert snippet at cursor position
+                    this.editor.replaceRange(snippet, cursor);
+
+                    // Focus editor
                     this.editor.focus();
                 },
 
@@ -663,5 +664,12 @@ describe('Example Test', () => {
                 }
             }));
         });
+
     </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/javascript/javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/python/python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/comment/comment.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/selection/active-line.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/keymap/sublime.min.js"></script>
 @endpush
