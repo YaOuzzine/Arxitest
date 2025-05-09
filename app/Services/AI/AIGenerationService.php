@@ -55,17 +55,36 @@ class AIGenerationService
     public function generate(string $entityType, string $prompt, array $context = []): array
     {
         try {
+            // Add GitHub context from session if available
+            if (session()->has('github_context')) {
+                $githubContext = session('github_context');
+
+                // Add GitHub files as code context
+                $codeContent = '';
+                foreach ($githubContext['files'] as $file) {
+                    $codeContent .= "\n\n--- File: {$file['path']} ---\n\n{$file['content']}";
+                }
+
+                // Add to context
+                $context['code'] = $codeContent ?? null;
+                $context['github_repo'] = $githubContext['repo'] ?? null;
+                $context['github_owner'] = $githubContext['owner'] ?? null;
+
+                Log::debug("Added GitHub context", [
+                    'repo' => $githubContext['repo'],
+                    'files_count' => count($githubContext['files'])
+                ]);
+            }
+
             // Get the system prompt based on entity type
             $systemPrompt = $this->getSystemPrompt($entityType, $context);
-            Log::debug("SystemPrompt: {$systemPrompt}");
+
             // Generate with the selected provider
             $result = $this->provider->generate($systemPrompt, [
                 'user_prompt' => $prompt,
                 'context' => $context,
                 'output_format' => $this->getOutputFormat($entityType)
             ]);
-
-            Log::debug("After Generating with Selected Provider");
 
             return $result;
         } catch (\Exception $e) {

@@ -12,6 +12,73 @@
             </svg>
         </button>
 
+        <button id="session-context-toggle"
+            class="group fixed bottom-28 right-6 z-50 bg-gradient-to-br from-indigo-600 to-indigo-700 dark:from-indigo-700 dark:to-indigo-800 text-white p-3.5 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center hover:scale-105 hover:rotate-3 ring-offset-2 ring-offset-white dark:ring-offset-zinc-900 hover:ring-2 ring-indigo-300">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                class="w-6 h-6 transform group-hover:scale-110 transition-transform">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
+            </svg>
+        </button>
+
+        <!-- session context files -->
+        <div id="session-context-panel"
+            class="fixed right-20 bottom-20 bg-white dark:bg-zinc-800 shadow-2xl rounded-xl w-96 border border-zinc-200 dark:border-zinc-700 transform transition-all duration-300 scale-95 opacity-0 flex flex-col h-[500px] max-h-[80vh] hidden">
+
+            <div
+                class="flex-shrink-0 px-4 py-3 border-b border-zinc-200 dark:border-zinc-700 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/30 dark:to-purple-900/30 flex justify-between items-center">
+                <h3 class="text-lg font-medium text-indigo-800 dark:text-indigo-200 flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round" class="w-5 h-5">
+                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
+                    </svg>
+                    Session Context Files
+                </h3>
+                <button id="session-context-close"
+                    class="text-indigo-500 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-200 p-1 rounded-full hover:bg-indigo-100 dark:hover:bg-indigo-800/50 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round" class="w-5 h-5">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+
+            <div
+                class="flex-shrink-0 p-4 border-b border-zinc-200 dark:border-zinc-700 bg-indigo-50/50 dark:bg-indigo-900/20">
+                <div id="context-repo-info" class="text-sm flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round" class="w-4 h-4 mr-2 text-indigo-600 dark:text-indigo-400">
+                        <path
+                            d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22">
+                        </path>
+                    </svg>
+                    <span id="context-repo-owner-name" class="font-medium">Loading...</span>
+                </div>
+                <div id="context-added-time" class="text-xs text-indigo-500 dark:text-indigo-400 mt-1">Added:
+                    <span>Loading...</span>
+                </div>
+            </div>
+
+            <div class="flex-grow overflow-y-auto p-4">
+                <div id="session-context-files" class="space-y-2">
+                    <div class="animate-pulse text-center py-8">Loading context files...</div>
+                </div>
+            </div>
+
+            <div
+                class="flex-shrink-0 p-4 border-t border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 flex justify-between">
+                <span id="context-file-count" class="text-sm text-zinc-600 dark:text-zinc-400">0 files in context</span>
+                <button id="clear-context-btn"
+                    class="px-3 py-1.5 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-md text-sm hover:bg-red-200 dark:hover:bg-red-800/50 transition-colors">
+                    Clear Context
+                </button>
+            </div>
+        </div>
+
         <!-- Progress Indicator -->
         <div id="github-progress-indicator"
             class="hidden fixed bottom-6 right-20 bg-white dark:bg-zinc-800 shadow-lg rounded-lg p-3 flex flex-col items-start gap-2 border border-zinc-200 dark:border-zinc-700 animate-fade-in min-w-[300px]">
@@ -148,8 +215,7 @@
                                     </label>
                                     <input type="number" id="max-file-size"
                                         class="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-md shadow-sm placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-zinc-800 dark:text-zinc-200"
-                                        placeholder="Default: 64 KB" value="64" min="1"
-                                        max="128">
+                                        placeholder="Default: 64 KB" value="64" min="1" max="128">
                                     <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
                                         Files larger than this size will be skipped (1-128 KB)
                                     </p>
@@ -442,6 +508,71 @@
                 }, 300);
             }
 
+            let progressHidden = false;
+
+            // Function to toggle progress visibility
+            function toggleProgressVisibility() {
+                if (progressIndicator.classList.contains('hidden')) {
+                    progressIndicator.classList.remove('hidden');
+                    progressHidden = false;
+                } else {
+                    progressIndicator.classList.add('hidden');
+                    progressHidden = true;
+                }
+                // Save state to localStorage
+                localStorage.setItem('github_progress_hidden', progressHidden);
+            }
+
+            // Add toggle button to the progress indicator
+            const toggleButton = document.createElement('button');
+            toggleButton.className =
+                'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 ml-2';
+            toggleButton.innerHTML = '<i data-lucide="minimize-2" class="w-4 h-4"></i>';
+            toggleButton.title = 'Minimize progress';
+            toggleButton.addEventListener('click', function(e) {
+                e.stopPropagation();
+                toggleProgressVisibility();
+            });
+
+            // Insert the toggle button next to the close button
+            const progressHeader = progressIndicator.querySelector('div.flex.items-center.justify-between');
+            if (progressHeader) {
+                progressHeader.appendChild(toggleButton);
+            }
+
+            // Add a floating button to show progress when hidden
+            const floatingButton = document.createElement('button');
+            floatingButton.className =
+                'fixed bottom-4 left-4 z-50 bg-indigo-600 text-white p-2 rounded-full shadow-lg hover:bg-indigo-700 hidden';
+            floatingButton.innerHTML = '<i data-lucide="activity" class="w-5 h-5"></i>';
+            floatingButton.title = 'Show progress';
+            floatingButton.id = 'show-progress-button';
+            floatingButton.addEventListener('click', toggleProgressVisibility);
+            document.body.appendChild(floatingButton);
+
+            // Check for active jobs on page load
+            function checkForActiveJobs() {
+                const savedJobId = localStorage.getItem('github_current_job_id');
+                const progressHidden = localStorage.getItem('github_progress_hidden') === 'true';
+
+                if (savedJobId) {
+                    currentJobId = savedJobId;
+                    startTime = new Date(parseInt(localStorage.getItem('github_start_time') || Date.now()));
+
+                    // Show or hide based on saved preference
+                    if (progressHidden) {
+                        progressIndicator.classList.add('hidden');
+                        document.getElementById('show-progress-button').classList.remove('hidden');
+                    } else {
+                        progressIndicator.classList.remove('hidden');
+                    }
+
+                    // Start tracking progress
+                    checkJobProgress();
+                    progressInterval = setInterval(checkJobProgress, 2000);
+                }
+            }
+
             // Progress tracking functions
             function startProgressTracking(jobId) {
                 currentJobId = jobId;
@@ -462,8 +593,18 @@
                 failureIndicator.classList.add('hidden');
                 viewProjectBtn.classList.add('hidden');
 
-                // Show progress indicator
-                progressIndicator.classList.remove('hidden');
+                // Show progress indicator based on preference
+                progressHidden = localStorage.getItem('github_progress_hidden') === 'true';
+                if (progressHidden) {
+                    progressIndicator.classList.add('hidden');
+                    document.getElementById('show-progress-button').classList.remove('hidden');
+                } else {
+                    progressIndicator.classList.remove('hidden');
+                }
+
+                // Save state to localStorage
+                localStorage.setItem('github_current_job_id', jobId);
+                localStorage.setItem('github_start_time', startTime.getTime());
 
                 // Initial check immediately
                 checkJobProgress();
@@ -535,6 +676,10 @@
                                             window.location.href = `/dashboard/projects/${projectId}`;
                                         });
                                     }
+                                    if (progressHidden) {
+                                        document.getElementById('show-progress-button').classList.remove(
+                                            'hidden');
+                                    }
                                 } else {
                                     failureIndicator.classList.remove('hidden');
                                     errorMessage.textContent = data.data.status || 'An error occurred';
@@ -560,6 +705,7 @@
                     });
             }
 
+            // Modify stopProgressTracking
             function stopProgressTracking() {
                 if (progressInterval) {
                     clearInterval(progressInterval);
@@ -568,18 +714,25 @@
 
                 currentJobId = null;
                 startTime = null;
-            }
 
+                // Clear localStorage
+                localStorage.removeItem('github_current_job_id');
+                localStorage.removeItem('github_start_time');
+                localStorage.removeItem('github_progress_hidden');
+
+                // Hide the floating button
+                document.getElementById('show-progress-button').classList.add('hidden');
+            }
             // Progress control button handlers
             document.getElementById('close-progress').addEventListener('click', function() {
                 progressIndicator.classList.add('hidden');
+                localStorage.setItem('github_progress_hidden', 'true');
+                document.getElementById('show-progress-button').classList.remove('hidden');
             });
-
             dismissProgressBtn.addEventListener('click', function() {
                 progressIndicator.classList.add('hidden');
                 stopProgressTracking();
             });
-
             // Toggle browser visibility
             bubble.addEventListener('click', function() {
                 if (browser.classList.contains('hidden')) {
@@ -681,6 +834,8 @@
 
                 updateSelectedFilesUI();
             });
+
+            checkForActiveJobs();
 
             // Clear selection
             clearSelectionBtn.addEventListener('click', clearSelection);
@@ -792,6 +947,21 @@
                         repo: currentRepo,
                         owner: currentOwner
                     }));
+
+                    await fetch('/api/github/save-context', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')
+                                .getAttribute('content'),
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            files: fileContents,
+                            repo: currentRepo,
+                            owner: currentOwner
+                        })
+                    });
 
                     // Show success message
                     showToast(`${fileContents.length} file(s) added to context`);
@@ -1035,8 +1205,21 @@
                                     // Choose icon based on file type
                                     let icon = '';
                                     if (item.type === 'dir') {
-                                        icon =
-                                            '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 mr-2.5 text-blue-500"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>';
+                                        div.innerHTML = `
+        <div class="w-5 h-5 mr-3 flex items-center justify-center">
+            ${selectionMode ?
+                `<button class="folder-select w-5 h-5 rounded-md flex items-center justify-center text-zinc-400 bg-zinc-100 dark:bg-zinc-700 dark:text-zinc-500 hover:bg-indigo-100 hover:text-indigo-600">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3 h-3">
+                            <polyline points="9 11 12 14 22 4"></polyline>
+                            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                        </svg>
+                    </button>`
+                : ''
+            }
+        </div>
+        ${icon}
+        <span class="text-zinc-700 dark:text-zinc-300 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">${item.name}</span>
+    `;
                                     } else {
                                         // Determine file icon based on extension
                                         const ext = item.name.split('.').pop().toLowerCase();
@@ -1278,6 +1461,211 @@
                     }
                 }
             });
+            // Add these variables to your state section
+            let sessionContextPanelVisible = false;
+            let sessionContextFiles = [];
+            let folderSelectionEnabled = false;
+            let selectedFolders = [];
+
+            // Add event listeners for the session context panel
+            document.getElementById('session-context-toggle')?.addEventListener('click', function() {
+                toggleSessionContextPanel();
+            });
+
+            document.getElementById('session-context-close')?.addEventListener('click', function() {
+                hideSessionContextPanel();
+            });
+
+            document.getElementById('clear-context-btn')?.addEventListener('click', function() {
+                clearSessionContext();
+            });
+
+            // Functions to handle the session context panel
+            function toggleSessionContextPanel() {
+                const panel = document.getElementById('session-context-panel');
+                if (sessionContextPanelVisible) {
+                    hideSessionContextPanel();
+                } else {
+                    showSessionContextPanel();
+                    fetchSessionContext();
+                }
+            }
+
+            function showSessionContextPanel() {
+                const panel = document.getElementById('session-context-panel');
+                panel.classList.remove('hidden', 'scale-95', 'opacity-0');
+                panel.classList.add('scale-100', 'opacity-100');
+                sessionContextPanelVisible = true;
+            }
+
+            function hideSessionContextPanel() {
+                const panel = document.getElementById('session-context-panel');
+                panel.classList.add('scale-95', 'opacity-0');
+                setTimeout(() => {
+                    panel.classList.add('hidden');
+                }, 300);
+                sessionContextPanelVisible = false;
+            }
+
+            async function fetchSessionContext() {
+                try {
+                    const response = await fetch('/api/github/session-context');
+                    const result = await response.json();
+
+                    if (result.success) {
+                        sessionContextFiles = result.data.files || [];
+                        updateSessionContextUI(result.data);
+                    } else {
+                        console.error('Failed to fetch session context:', result.message);
+                    }
+                } catch (error) {
+                    console.error('Error fetching session context:', error);
+                }
+            }
+
+            function updateSessionContextUI(data) {
+                const filesContainer = document.getElementById('session-context-files');
+                const repoOwnerName = document.getElementById('context-repo-owner-name');
+                const addedTimeSpan = document.getElementById('context-added-time').querySelector('span');
+                const fileCountElem = document.getElementById('context-file-count');
+
+                // Update repo info
+                if (data.repo && data.owner) {
+                    repoOwnerName.textContent = `${data.owner}/${data.repo}`;
+                } else {
+                    repoOwnerName.textContent = 'No repository set';
+                }
+
+                // Update time
+                if (data.added_at) {
+                    const addedDate = new Date(data.added_at);
+                    addedTimeSpan.textContent = addedDate.toLocaleString();
+                } else {
+                    addedTimeSpan.textContent = 'Never';
+                }
+
+                // Update file count
+                const fileCount = data.files ? data.files.length : 0;
+                fileCountElem.textContent = `${fileCount} file${fileCount !== 1 ? 's' : ''} in context`;
+
+                // Update files list
+                filesContainer.innerHTML = '';
+
+                if (!data.files || data.files.length === 0) {
+                    filesContainer.innerHTML = `
+            <div class="text-center py-8 text-zinc-500 dark:text-zinc-400">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-12 h-12 mx-auto mb-4 text-zinc-300 dark:text-zinc-600">
+                    <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+                    <polyline points="13 2 13 9 20 9"></polyline>
+                </svg>
+                <p class="text-sm">No files in context yet</p>
+                <p class="text-xs mt-2">Use the file browser to select and add files</p>
+            </div>
+        `;
+                    return;
+                }
+
+                data.files.forEach(file => {
+                    const fileDiv = document.createElement('div');
+                    fileDiv.className =
+                        'p-3 rounded-lg bg-white dark:bg-zinc-700/30 border border-zinc-200 dark:border-zinc-700 flex items-start gap-2';
+
+                    // Determine icon based on file type
+                    const ext = file.path.split('.').pop().toLowerCase();
+                    let iconColor = 'text-zinc-500';
+
+                    if (['js', 'jsx', 'ts', 'tsx'].includes(ext)) {
+                        iconColor = 'text-yellow-500';
+                    } else if (['py'].includes(ext)) {
+                        iconColor = 'text-blue-500';
+                    } else if (['php'].includes(ext)) {
+                        iconColor = 'text-purple-500';
+                    } else if (['json', 'yml', 'yaml'].includes(ext)) {
+                        iconColor = 'text-green-500';
+                    } else if (['html', 'css'].includes(ext)) {
+                        iconColor = 'text-orange-500';
+                    }
+
+                    fileDiv.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 mt-0.5 ${iconColor}">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+            </svg>
+            <div class="flex-1 overflow-hidden">
+                <div class="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate" title="${file.path}">${file.name}</div>
+                <div class="text-xs text-zinc-500 dark:text-zinc-400 truncate" title="${file.path}">${file.path}</div>
+            </div>
+            <button class="text-zinc-400 hover:text-red-500 dark:text-zinc-500 dark:hover:text-red-400 p-1" onclick="removeFileFromContext('${file.path}')">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        `;
+
+                    filesContainer.appendChild(fileDiv);
+                });
+            }
+
+            async function removeFileFromContext(filePath) {
+                try {
+                    const response = await fetch('/api/github/remove-context-file', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')
+                                .getAttribute('content'),
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            filePath
+                        })
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        // Refresh the context display
+                        fetchSessionContext();
+                        showToast('File removed from context');
+                    } else {
+                        showToast('Error removing file from context', 'error');
+                    }
+                } catch (error) {
+                    console.error('Error removing file:', error);
+                    showToast('Error removing file from context', 'error');
+                }
+            }
+
+            async function clearSessionContext() {
+                if (!confirm('Are you sure you want to clear all files from the context?')) {
+                    return;
+                }
+
+                try {
+                    const response = await fetch('/api/github/clear-context', {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')
+                                .getAttribute('content'),
+                            'Accept': 'application/json'
+                        }
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        // Refresh the context display
+                        fetchSessionContext();
+                        showToast('Context cleared successfully');
+                    } else {
+                        showToast('Error clearing context', 'error');
+                    }
+                } catch (error) {
+                    console.error('Error clearing context:', error);
+                    showToast('Error clearing context', 'error');
+                }
+            }
         });
     </script>
 @endif

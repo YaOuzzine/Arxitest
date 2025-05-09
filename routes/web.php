@@ -354,6 +354,21 @@ Route::prefix('/api/github')->name('api.github.')->middleware(['web', 'auth:web'
         ->name('create.project');
     Route::get('/job-progress/{jobId}', [GitHubIntegrationController::class, 'getJobProgress'])
         ->name('job.progress');
+
+    Route::get('/session-context', [GitHubIntegrationController::class, 'getSessionContext'])
+        ->name('session-context');
+
+    Route::post('/save-context', [GitHubIntegrationController::class, 'saveFilesToSession'])
+        ->name('save-context');
+
+    Route::post('/remove-context-file', [GitHubIntegrationController::class, 'removeFileFromContext'])
+        ->name('remove-context-file');
+
+    Route::post('/clear-context', [GitHubIntegrationController::class, 'clearContext'])
+        ->name('clear-context');
+
+    Route::post('/folder-contents', [GitHubIntegrationController::class, 'getFolderContents'])
+        ->name('folder-contents');
 });
 
 // GitHub OAuth Routes

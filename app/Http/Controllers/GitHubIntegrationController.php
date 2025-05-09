@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use App\Traits\JsonResponse;
+use Illuminate\Support\Facades\Validator;
 
 class GitHubIntegrationController extends Controller
 {
@@ -487,5 +488,264 @@ class GitHubIntegrationController extends Controller
             ->whereHas('integration', fn($q) => $q->where('type', Integration::TYPE_GITHUB))
             ->where('is_active', true)
             ->first();
+    }
+
+    /**
+     * Save selected GitHub files to session for AI context
+     */
+    public function saveFilesToSession(Request $request)
+    {
+
+        $validator = Validator::make($request->all(), [
+            'files' => 'required|array',
+            'files.*.path' => 'required|string',
+            'files.*.name' => 'required|string',
+            'files.*.content' => 'required|string',
+            'repo' => 'required|string',
+            'owner' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->errorResponse('Invalid file data format', 400);
+        }
+
+        // Limit to first 5 files to avoid making the context too large
+        $files = array_slice($request->input('files'), 0, 5);
+
+        // Store in session
+        session([
+            'github_context' => [
+                'files' => $files,
+                'repo' => $request->input('repo'),
+                'owner' => $request->input('owner'),
+                'added_at' => now()->toIso8601String()
+            ]
+        ]);
+
+        return $this->successResponse([
+            'files_count' => count($files)
+        ], 'GitHub context saved to session');
+    }
+
+    /**
+     * Remove a file from session context
+     */
+    public function removeFileFromContext(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'filePath' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->errorResponse('Invalid file path', 400);
+        }
+
+        if (!session()->has('github_context')) {
+            return $this->successResponse([], 'No context to modify');
+        }
+
+        $context = session('github_context');
+        $filePath = $request->input('filePath');
+
+        // Filter out the file to be removed
+        $context['files'] = array_filter($context['files'], function ($file) use ($filePath) {
+            return $file['path'] !== $filePath;
+        });
+
+        // Re-index the array
+        $context['files'] = array_values($context['files']);
+
+        session(['github_context' => $context]);
+
+        return $this->successResponse([
+            'files_count' => count($context['files'])
+        ], 'File removed from context');
+    }
+
+    /**
+     * Clear all GitHub context from session
+     */
+    public function clearContext()
+    {
+        session()->forget('github_context');
+
+        return $this->successResponse([], 'Context cleared successfully');
+    }
+
+    /**
+     * Get contents of a folder recursively to support folder selection
+     */
+    public function getFolderContents(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'owner' => 'required|string',
+            'repo' => 'required|string',
+            'path' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->errorResponse('Invalid request', 400);
+        }
+
+        try {
+            $team = $this->getCurrentTeam($request);
+            $integration = $this->getGitHubIntegration($team->id);
+
+            if (!$integration) {
+                return $this->errorResponse('GitHub integration not found.', 404);
+            }
+
+            $credentials = json_decode(Crypt::decryptString($integration->encrypted_credentials), true);
+            $accessToken = $credentials['access_token'];
+
+            $this->githubClient->setAccessToken($accessToken);
+            $owner = $request->input('owner');
+            $repo = $request->input('repo');
+            $path = $request->input('path');
+
+            $allFiles = $this->collectFilesRecursively($owner, $repo, $path);
+
+            return $this->successResponse([
+                'files' => $allFiles
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error getting folder contents', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return $this->errorResponse('Failed to get folder contents: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Recursively collect all files in a folder
+     */
+    private function collectFilesRecursively(string $owner, string $repo, string $path, int $maxFiles = 100): array
+    {
+        $allFiles = [];
+        $queue = [[$path, 0]]; // [path, depth]
+        $processedCount = 0;
+        $maxDepth = 5; // Limit recursion depth
+
+        while (!empty($queue) && $processedCount < $maxFiles) {
+            [$currentPath, $depth] = array_shift($queue);
+
+            // Skip if we've gone too deep
+            if ($depth > $maxDepth) {
+                continue;
+            }
+
+            try {
+                $contents = $this->githubClient->getRepositoryContents($owner, $repo, $currentPath);
+
+                // Skip if API returned an error or a file instead of directory contents
+                if (!is_array($contents) || isset($contents['message']) || isset($contents['content'])) {
+                    continue;
+                }
+
+                foreach ($contents as $item) {
+                    $processedCount++;
+
+                    if ($item['type'] === 'dir') {
+                        // Add directory to queue for processing
+                        $queue[] = [$item['path'], $depth + 1];
+                    } else if ($item['type'] === 'file') {
+                        // Skip very large files or binary files
+                        if ($item['size'] > 100000 || $this->isBinaryFile($item['name'])) {
+                            continue;
+                        }
+
+                        $allFiles[] = [
+                            'path' => $item['path'],
+                            'name' => $item['name'],
+                            'type' => 'file',
+                            'size' => $item['size'],
+                            'url' => $item['html_url']
+                        ];
+                    }
+
+                    // Stop if we've reached the limit
+                    if ($processedCount >= $maxFiles) {
+                        break;
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::warning("Error processing path: {$currentPath}", [
+                    'error' => $e->getMessage()
+                ]);
+                // Continue with other paths
+            }
+        }
+
+        return $allFiles;
+    }
+
+    /**
+ * Get GitHub files stored in session context
+ */
+public function getSessionContext()
+{
+    if (!session()->has('github_context')) {
+        return $this->successResponse([
+            'files' => [],
+            'repo' => null,
+            'owner' => null
+        ]);
+    }
+
+    $context = session('github_context');
+
+    return $this->successResponse([
+        'files' => $context['files'] ?? [],
+        'repo' => $context['repo'] ?? null,
+        'owner' => $context['owner'] ?? null,
+        'added_at' => $context['added_at'] ?? null
+    ]);
+}
+
+    /**
+     * Check if filename suggests a binary file
+     */
+    private function isBinaryFile(string $filename): bool
+    {
+        $binaryExtensions = [
+            'jpg',
+            'jpeg',
+            'png',
+            'gif',
+            'bmp',
+            'ico',
+            'svg',
+            'mp3',
+            'mp4',
+            'avi',
+            'mov',
+            'wmv',
+            'flv',
+            'zip',
+            'rar',
+            'tar',
+            'gz',
+            '7z',
+            'pdf',
+            'doc',
+            'docx',
+            'xls',
+            'xlsx',
+            'ppt',
+            'pptx',
+            'exe',
+            'dll',
+            'so',
+            'dylib',
+            'woff',
+            'woff2',
+            'ttf',
+            'eot',
+            'otf'
+        ];
+
+        $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+        return in_array($ext, $binaryExtensions);
     }
 }
