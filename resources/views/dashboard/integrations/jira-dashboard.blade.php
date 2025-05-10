@@ -82,7 +82,8 @@
                             <option value="">Select a Jira project...</option>
                             @foreach ($jiraProjects as $jiraProject)
                                 <option value="{{ $jiraProject['key'] }}">{{ $jiraProject['name'] }}
-                                    ({{ $jiraProject['key'] }})</option>
+                                    ({{ $jiraProject['key'] }})
+                                </option>
                             @endforeach
                         </select>
                     </div>
@@ -126,6 +127,15 @@
                                 <div id="project-info" class="mb-4 pb-3 border-b border-zinc-200 dark:border-zinc-700">
                                     <h3 class="text-lg font-semibold text-zinc-900 dark:text-white" id="project-name"></h3>
                                     <p class="text-sm text-zinc-500 dark:text-zinc-400" id="project-key"></p>
+                                </div>
+
+                                <div class="mb-4 flex justify-between items-center">
+                                    <button id="select-all-btn"
+                                        class="px-3 py-1 text-sm rounded-md bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-200 dark:hover:bg-indigo-800/30">
+                                        Select All Issues
+                                    </button>
+                                    <span class="text-xs text-zinc-500 dark:text-zinc-400" id="total-issues-count">0
+                                        issues</span>
                                 </div>
 
                                 <!-- Structure Tree -->
@@ -332,7 +342,27 @@
         <script>
             document.addEventListener('DOMContentLoaded', function() {
                 // Initialize Lucide icons
-                lucide.createIcons();
+                lucide.createIcons({
+                    icons: {
+                        // Add any missing icons here
+                        'plug-off': '<circle cx="12" cy="12" r="3"></circle><path d="M2 8L8 2"></path><path d="M22 8L16 2"></path><path d="M16 22L22 16"></path><path d="M2 16L8 22"></path>',
+                        'chevron-right': '<polyline points="9 18 15 12 9 6"></polyline>',
+                        'mountain': '<path d="m8 3 4 8 5-5 5 15H2L8 3z"></path>',
+                        'file-question': '<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><path d="M10 10.3c.2-.4.5-.8.9-1a2.1 2.1 0 0 1 2.6.4c.3.4.5.8.5 1.3 0 1.3-2 2-2 2"></path><path d="M12 17h.01"></path>',
+                        'book-open': '<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>',
+                        'bug': '<path d="m8 2 1.88 1.88"></path><path d="M14.12 3.88 16 2"></path><path d="M9 7.13v-1a3.003 3.003 0 1 1 6 0v1"></path><path d="M12 20c-3.3 0-6-2.7-6-6v-3h12v3c0 3.3-2.7 6-6 6"></path><path d="M6 11V8c0-.9.1-1.7.3-2.5"></path><path d="M18 11V8c0-.9-.1-1.7-.3-2.5"></path><path d="M12 19v3"></path><path d="M12 13v4"></path><path d="M6 16h12"></path>',
+                        'check-square': '<polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>',
+                        'file-text': '<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><line x1="10" y1="9" x2="8" y2="9"></line>',
+                        'plus': '<line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line>',
+                        'check': '<polyline points="20 6 9 17 4 12"></polyline>',
+                        'download': '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line>',
+                        'folder-open': '<path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"></path>',
+                        'folder': '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"></path>',
+                        'move-right': '<path d="M18 8L22 12L18 16"></path><path d="M2 12H22"></path>',
+                        'x': '<line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>',
+                        'plug': '<path d="M12 22v-5"></path><path d="M9 7V2"></path><path d="M15 7V2"></path><path d="M6 13V8h12v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4Z"></path>'
+                    }
+                });
 
                 // Global variables
                 let currentProject = null;
@@ -402,6 +432,75 @@
                     });
                 });
 
+                document.getElementById('select-all-btn')?.addEventListener('click', function() {
+                    if (!projectData) {
+                        console.warn('No project data available for select all');
+                        return;
+                    }
+
+                    // Collect all issue keys that should be added
+                    const allIssueKeys = [];
+
+                    // Add epics
+                    if (projectData.epics && Array.isArray(projectData.epics)) {
+                        projectData.epics.forEach(epic => {
+                            if (epic && epic.key) allIssueKeys.push(epic.key);
+                        });
+                    }
+
+                    // Add stories
+                    if (projectData.stories && Array.isArray(projectData.stories)) {
+                        projectData.stories.forEach(story => {
+                            if (story && story.key) allIssueKeys.push(story.key);
+                        });
+                    }
+
+                    // Add unassigned
+                    if (projectData.unassigned && Array.isArray(projectData.unassigned)) {
+                        projectData.unassigned.forEach(issue => {
+                            if (issue && issue.key) allIssueKeys.push(issue.key);
+                        });
+                    }
+
+                    console.log(`Attempting to select ${allIssueKeys.length} issues`);
+
+                    // Expand all categories if they're not already expanded
+                    document.querySelectorAll('.category-header').forEach(header => {
+                        if (header) {
+                            const category = header.dataset.category;
+                            const itemsContainer = document.getElementById(`${category}-items`);
+                            if (itemsContainer) {
+                                header.setAttribute('aria-expanded', 'true');
+                                itemsContainer.classList.remove('hidden');
+                            }
+                        }
+                    });
+
+                    // For each issue, find the element and toggle selection
+                    allIssueKeys.forEach(key => {
+                        const itemElement = document.querySelector(
+                            `.jira-issue-item[data-key="${key}"]`);
+                        if (itemElement && !selectedIssues.has(key)) {
+                            // Add directly to selected issues set
+                            selectedIssues.add(key);
+
+                            // Update UI to reflect selection
+                            itemElement.classList.add('selected');
+
+                            const iconElement = itemElement.querySelector('.select-issue-btn i');
+                            if (iconElement) {
+                                iconElement.setAttribute('data-lucide', 'check');
+                                lucide.createIcons({
+                                    scope: itemElement
+                                });
+                            }
+                        }
+                    });
+
+                    // Update selected items display
+                    updateSelectedUI();
+                });
+
                 clearSelectionBtn.addEventListener('click', clearSelection);
 
                 // Radio button event listeners
@@ -430,6 +529,7 @@
                 });
 
                 // Functions
+                // Add this to the loadProject function in jira-dashboard.blade.php
                 function loadProject(projectKey) {
                     currentProject = projectKey;
                     selectedIssues.clear();
@@ -454,15 +554,17 @@
                                     // Project is being loaded in background
                                     const progress = data.data.progress;
 
-                                    // Add to progress tracker
-                                    window.progressTracker.addJob(progress.id, projectKey);
+                                    // Add to progress tracker - THIS IS THE KEY CHANGE
+                                    if (window.progressTracker) {
+                                        window.progressTracker.addJob(progress.id, projectKey);
+                                        window.progressTracker.show();
+                                    }
 
                                     // Set up polling to check when data is ready
                                     const checkInterval = setInterval(() => {
                                         // Correctly construct the URL with the progress ID
                                         const progressUrl =
-                                            "{{ route('dashboard.integrations.jira.import.progress', ['progressId' => '_placeholder_']) }}"
-                                            .replace('_placeholder_', progress.id);
+                                            `/dashboard/integrations/jira/import/progress/${jobId}`;
 
                                         fetch(progressUrl, {
                                                 headers: {
@@ -476,8 +578,10 @@
                                                     const progressInfo = progressData.data;
 
                                                     // Update progress tracker
-                                                    window.progressTracker.updateJobProgress(progress
-                                                        .id, progressInfo);
+                                                    if (window.progressTracker) {
+                                                        window.progressTracker.updateJobProgress(
+                                                            progress.id, progressInfo);
+                                                    }
 
                                                     // If complete and successful, reload the data
                                                     if (progressInfo.is_complete && progressInfo
@@ -525,31 +629,48 @@
                     projectName.textContent = data.project.name;
                     projectKey.textContent = data.project.key;
 
+                    // Count total issues
+                    const totalIssues = (data.epics?.length || 0) + (data.stories?.length || 0) + (data.unassigned
+                        ?.length || 0);
+                    document.getElementById('total-issues-count').textContent = `${totalIssues} issues`;
+
                     // Render epics
-                    epicsCount.textContent = data.epics.length;
+                    epicsCount.textContent = data.epics?.length || 0;
                     epicsItems.innerHTML = '';
 
-                    data.epics.forEach(epic => {
-                        const epicItem = createIssueItem(epic, 'epic');
-                        epicsItems.appendChild(epicItem);
-                    });
+                    if (data.epics && data.epics.length) {
+                        data.epics.forEach(epic => {
+                            const epicItem = createIssueItem(epic, 'epic');
+                            epicsItems.appendChild(epicItem);
+                        });
+                    }
 
                     // Render unassigned issues
-                    unassignedCount.textContent = data.unassigned.length;
+                    unassignedCount.textContent = data.unassigned?.length || 0;
                     unassignedItems.innerHTML = '';
 
-                    data.unassigned.forEach(issue => {
-                        const issueItem = createIssueItem(issue, issue.fields.issuetype.name.toLowerCase());
-                        unassignedItems.appendChild(issueItem);
-                    });
+                    if (data.unassigned && data.unassigned.length) {
+                        data.unassigned.forEach(issue => {
+                            const issueItem = createIssueItem(issue, issue.fields.issuetype.name.toLowerCase());
+                            unassignedItems.appendChild(issueItem);
+                        });
+                    }
                 }
 
+                // Replace the createIssueItem function with this improved version:
                 function createIssueItem(issue, type) {
+                    if (!issue || !issue.key || !issue.fields || !issue.fields.summary) {
+                        console.warn('Invalid issue data:', issue);
+                        return document.createElement('div'); // Return empty div to avoid errors
+                    }
+
                     const container = document.createElement('div');
 
                     // Determine icon based on issue type
                     let typeIcon, typeColor;
-                    switch (type) {
+                    const issueTypeLower = (type || '').toLowerCase();
+
+                    switch (issueTypeLower) {
                         case 'epic':
                             typeIcon = 'mountain';
                             typeColor = 'purple';
@@ -574,37 +695,59 @@
                     // Create issue item
                     const issueKey = issue.key;
                     const issueSummary = issue.fields.summary;
-                    container.className = 'jira-issue-item';
+                    container.className = 'jira-issue-item cursor-pointer';
                     container.dataset.key = issueKey;
-                    container.innerHTML = `
-            <div class="w-5 h-5 bg-${typeColor}-100 dark:bg-${typeColor}-900/30 rounded-md flex items-center justify-center mt-0.5">
-                <i data-lucide="${typeIcon}" class="w-3 h-3 text-${typeColor}-600 dark:text-${typeColor}-400"></i>
-            </div>
-            <div class="flex-1 min-w-0">
-                <div class="font-medium text-sm truncate">${issueSummary}</div>
-                <div class="text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-1">
-                    ${issueKey}
-                    <span class="inline-block w-1.5 h-1.5 rounded-full bg-${getStatusColor(issue.fields.status.name)}"></span>
-                    ${issue.fields.status.name}
-                </div>
-            </div>
-            <div class="flex-shrink-0">
-                <button class="select-issue-btn w-5 h-5 rounded border border-zinc-300 dark:border-zinc-600 flex items-center justify-center">
-                    <i data-lucide="plus" class="w-3 h-3 text-zinc-500 dark:text-zinc-400"></i>
-                </button>
-            </div>
-        `;
 
-                    // Handle click event
-                    container.querySelector('.select-issue-btn').addEventListener('click', function(e) {
-                        e.stopPropagation();
-                        toggleIssueSelection(issueKey, container);
+                    // Ensure status exists
+                    const statusName = issue.fields.status?.name || 'Unknown';
+                    const statusColor = getStatusColor(statusName);
+
+                    container.innerHTML = `
+        <div class="w-5 h-5 bg-${typeColor}-100 dark:bg-${typeColor}-900/30 rounded-md flex items-center justify-center mt-0.5">
+            <i data-lucide="${typeIcon}" class="w-3 h-3 text-${typeColor}-600 dark:text-${typeColor}-400"></i>
+        </div>
+        <div class="flex-1 min-w-0">
+            <div class="font-medium text-sm truncate">${issueSummary}</div>
+            <div class="text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-1">
+                ${issueKey}
+                <span class="inline-block w-1.5 h-1.5 rounded-full bg-${statusColor}"></span>
+                ${statusName}
+            </div>
+        </div>
+        <div class="flex-shrink-0">
+            <button class="select-issue-btn w-5 h-5 rounded border border-zinc-300 dark:border-zinc-600 flex items-center justify-center">
+                <i data-lucide="plus" class="w-3 h-3 text-zinc-500 dark:text-zinc-400"></i>
+            </button>
+        </div>
+    `;
+
+                    // Handle click event for the whole container
+                    container.addEventListener('click', function(e) {
+                        // Only handle click if not clicking on the button
+                        if (!e.target.closest('.select-issue-btn')) {
+                            toggleIssueSelection(issueKey, container);
+                        }
                     });
 
+                    // Handle click event for the button specifically
+                    const selectBtn = container.querySelector('.select-issue-btn');
+                    if (selectBtn) {
+                        selectBtn.addEventListener('click', function(e) {
+                            e.stopPropagation();
+                            toggleIssueSelection(issueKey, container);
+                        });
+                    }
+
                     // Refresh Lucide icons
-                    setTimeout(() => lucide.createIcons({
-                        scope: container
-                    }), 0);
+                    setTimeout(() => {
+                        try {
+                            lucide.createIcons({
+                                scope: container
+                            });
+                        } catch (error) {
+                            console.error('Error creating icons:', error);
+                        }
+                    }, 0);
 
                     return container;
                 }
@@ -625,14 +768,27 @@
                 }
 
                 function toggleIssueSelection(issueKey, itemElement) {
+                    // Create a safety check to prevent null reference errors
+                    if (!itemElement) {
+                        console.error('Item element is null when trying to toggle selection for key:', issueKey);
+                        return;
+                    }
+
+                    // Find the icon element first
+                    const iconElement = itemElement.querySelector('.select-issue-btn i');
+                    if (!iconElement) {
+                        console.error('Icon element not found in item:', issueKey);
+                        return;
+                    }
+
                     if (selectedIssues.has(issueKey)) {
                         selectedIssues.delete(issueKey);
                         itemElement.classList.remove('selected');
-                        itemElement.querySelector('.select-issue-btn i').setAttribute('data-lucide', 'plus');
+                        iconElement.setAttribute('data-lucide', 'plus');
                     } else {
                         selectedIssues.add(issueKey);
                         itemElement.classList.add('selected');
-                        itemElement.querySelector('.select-issue-btn i').setAttribute('data-lucide', 'check');
+                        iconElement.setAttribute('data-lucide', 'check');
                     }
 
                     // Refresh Lucide icons
@@ -802,21 +958,21 @@
                     if (selectedIssues.size === 0) return;
 
                     const createNew = createNewProjectRadio.checked;
-                    const projectData = {
+                    const importData = {
                         project_key: currentProject,
-                        create_new_project: createNew,
+                        create_new_project: createNew ? 1 : 0,
                         issues: Array.from(selectedIssues)
                     };
 
                     if (createNew) {
-                        projectData.new_project_name = newProjectNameInput.value;
-                        if (!projectData.new_project_name) {
+                        importData.new_project_name = newProjectNameInput.value;
+                        if (!importData.new_project_name) {
                             alert('Please enter a name for the new project');
                             return;
                         }
                     } else {
-                        projectData.arxitest_project_id = existingProjectSelect.value;
-                        if (!projectData.arxitest_project_id) {
+                        importData.arxitest_project_id = existingProjectSelect.value;
+                        if (!importData.arxitest_project_id) {
                             alert('Please select an existing project');
                             return;
                         }
@@ -826,82 +982,192 @@
                     importContent.classList.add('hidden');
                     importProgress.classList.remove('hidden');
 
-                    // Simulate progress for now (in a real app, this would be updated via AJAX)
-                    let progress = 0;
-                    const totalIssues = selectedIssues.size;
-                    const interval = setInterval(() => {
-                        progress += 5;
-                        if (progress > 100) {
-                            clearInterval(interval);
-                            completeImport(projectData);
-                            return;
-                        }
+                    // Initial progress state
+                    progressBar.style.width = '0%';
+                    progressPercent.textContent = '0%';
+                    progressCount.textContent = '0/' + selectedIssues.size;
+                    progressStatus.textContent = 'Starting import...';
+                    progressDetail.textContent = 'Initializing project';
 
-                        const processedIssues = Math.floor((progress / 100) * totalIssues);
-                        progressBar.style.width = `${progress}%`;
-                        progressPercent.textContent = `${progress}%`;
-                        progressCount.textContent = `${processedIssues}/${totalIssues}`;
+                    // Make the actual API call to import the issues
+                    fetch('{{ route('integrations.jira.import.project') }}', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                                'Accept': 'application/json'
+                            },
+                            body: JSON.stringify(importData)
+                        })
+                        .then(response => {
+                            if (!response.ok) {
+                                throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+                            }
+                            return response.json();
+                        })
+                        .then(data => {
+                            if (data.success) {
+                                // Store project ID for progress tracking
+                                const projectId = data.data.project_id;
 
-                        if (progress < 30) {
-                            progressStatus.textContent = 'Preparing import...';
-                            progressDetail.textContent = 'Setting up project structure';
-                        } else if (progress < 60) {
-                            progressStatus.textContent = 'Importing issues...';
-                            progressDetail.textContent =
-                            `Processing issue ${processedIssues} of ${totalIssues}`;
-                        } else {
-                            progressStatus.textContent = 'Finalizing import...';
-                            progressDetail.textContent = 'Creating relationships between issues';
-                        }
-                    }, 100);
+                                // Check if there's a job ID for tracking
+                                if (data.data.job_id) {
+                                    trackImportProgress(data.data.job_id, projectId);
+                                } else {
+                                    // No job tracking, just complete the import
+                                    completeImport(data.data);
+                                }
+                            } else {
+                                throw new Error(data.message || 'Import failed');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error importing issues:', error);
+                            alert('Error importing issues: ' + error.message);
+                            resetImportUI();
+                        });
+                }
 
-                    // In a real app, you would make an AJAX call here instead of the simulation above
-                    /*
-                    fetch('{{ route('dashboard.integrations.jira.import-issues') }}', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                            'Accept': 'application/json'
-                        },
-                        body: JSON.stringify(projectData)
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            completeImport(data.data);
-                        } else {
-                            throw new Error(data.message || 'Import failed');
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error importing issues:', error);
-                        alert('Error importing issues: ' + error.message);
-                        resetImportUI();
-                    });
-                    */
+                function trackImportProgress(jobId, projectId) {
+                    // Add to global progress tracker if available
+                    if (window.progressTracker) {
+                        window.progressTracker.addJob(jobId, currentProject);
+                        window.progressTracker.show();
+                    }
+
+                    // Set up local polling for UI updates
+                    let checkCount = 0;
+                    const maxChecks = 300; // Prevent infinite polling
+
+                    const checkProgress = () => {
+                        fetch(`{{ route('integrations.jira.import.progress') }}?job_id=${jobId}`, {
+                                headers: {
+                                    'Accept': 'application/json',
+                                    'X-Requested-With': 'XMLHttpRequest'
+                                }
+                            })
+                            .then(response => {
+                                if (!response.ok) {
+                                    throw new Error('Progress check failed');
+                                }
+                                return response.json();
+                            })
+                            .then(data => {
+                                if (data.success) {
+                                    const progress = data.data;
+
+                                    // Update UI with progress info
+                                    const percent = progress.percent || 0;
+                                    progressBar.style.width = `${percent}%`;
+                                    progressPercent.textContent = `${percent}%`;
+
+                                    // Update message
+                                    if (progress.message) {
+                                        progressDetail.textContent = progress.message;
+                                    }
+
+                                    // Count stats if available
+                                    if (progress.stats) {
+                                        const total = progress.stats.epicCount + progress.stats.storyCount +
+                                            progress.stats.testCaseCount;
+                                        progressCount.textContent = `${total}/${selectedIssues.size}`;
+                                    }
+
+                                    // Check if complete
+                                    if (progress.completed) {
+                                        if (progress.success) {
+                                            completeImport({
+                                                project_id: projectId,
+                                                imported: progress.stats || {},
+                                                create_new_project: createNewProjectRadio.checked
+                                            });
+                                        } else {
+                                            throw new Error(progress.error || 'Import failed');
+                                        }
+                                        return;
+                                    }
+
+                                    // Continue checking if not complete
+                                    checkCount++;
+                                    if (checkCount < maxChecks) {
+                                        setTimeout(checkProgress, 2000);
+                                    } else {
+                                        console.warn('Max progress checks reached');
+                                        // Just show complete anyway
+                                        completeImport({
+                                            project_id: projectId,
+                                            warning: 'Import may still be processing in the background',
+                                            create_new_project: createNewProjectRadio.checked
+                                        });
+                                    }
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Error checking import progress:', error);
+                                checkCount++;
+                                // Keep trying a few times even with errors
+                                if (checkCount < 5) {
+                                    setTimeout(checkProgress, 2000);
+                                } else {
+                                    alert('Error tracking import progress: ' + error.message);
+                                    resetImportUI();
+                                }
+                            });
+                    };
+
+                    // Start checking progress
+                    checkProgress();
                 }
 
                 function completeImport(data) {
-                    // In a real app, 'data' would be the response from the server
-                    // For now, we'll use the projectData we prepared earlier
-
                     importProgress.classList.add('hidden');
                     importComplete.classList.remove('hidden');
 
-                    // Create a sample project ID (would come from the server in a real app)
-                    const projectId = '123e4567-e89b-12d3-a456-426614174000';
+                    // Get the actual project ID from the response
+                    const projectId = data.project_id;
 
-                    // Update the summary text
-                    importSummary.textContent =
-                        `Successfully imported ${selectedIssues.size} issues to ${data.create_new_project ? 'new project' : 'existing project'}.`;
+                    // Update the summary text with actual import stats
+                    let summaryText =
+                        `Successfully imported issues to ${data.create_new_project ? 'new project' : 'existing project'}.`;
 
-                    // Set up the "View Project" link
-                    viewProjectLink.href = `/dashboard/projects/${projectId}`;
+                    // Add stats if available
+                    if (data.imported) {
+                        const stats = data.imported;
+                        const totalItems =
+                            (stats.epics || 0) +
+                            (stats.stories || 0) +
+                            (stats.test_cases || 0);
+
+                        summaryText = `Successfully imported ${totalItems} items: `;
+
+                        const details = [];
+                        if (stats.epics) details.push(`${stats.epics} epics`);
+                        if (stats.stories) details.push(`${stats.stories} stories`);
+                        if (stats.test_cases) details.push(`${stats.test_cases} test cases`);
+
+                        summaryText += details.join(', ') + '.';
+                    }
+
+                    // Add warning if any
+                    if (data.warning) {
+                        summaryText += ' ' + data.warning;
+                    }
+
+                    importSummary.textContent = summaryText;
+
+                    // Set up the "View Project" link with actual project ID
+                    if (projectId) {
+                        viewProjectLink.href = `/dashboard/projects/${projectId}`;
+                    } else {
+                        // If no project ID, change button text to indicate issue
+                        viewProjectLink.textContent = "Back to Dashboard";
+                        viewProjectLink.href = "/dashboard";
+                    }
                 }
 
                 function resetImportUI() {
                     importComplete.classList.add('hidden');
+                    importProgress.classList.add('hidden');
 
                     if (selectedIssues.size > 0) {
                         importContent.classList.remove('hidden');

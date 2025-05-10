@@ -406,9 +406,10 @@ class ProgressTracker {
     }
 
     fetchJobProgress(jobId) {
-        // Construct URL based on base path
+        // Construct URL based on base path, properly handle URL encoding
         const basePath = window.location.origin;
-        const url = `${basePath}/dashboard/integrations/jira/import-progress/${jobId}`;
+        const progressEndpoint = '/dashboard/integrations/jira/import/progress/' + encodeURIComponent(jobId);
+        const url = `${basePath}${progressEndpoint}`;
 
         fetch(url, {
             headers: {
@@ -416,13 +417,26 @@ class ProgressTracker {
                 'X-Requested-With': 'XMLHttpRequest'
             }
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Progress endpoint returned status: ' + response.status);
+            }
+            return response.json();
+        })
         .then(data => {
             if (data.success) {
                 this.updateJobProgress(jobId, data.data);
             }
         })
-        .catch(error => console.error('Error fetching job progress:', error));
+        .catch(error => {
+            console.error('Error fetching job progress:', error);
+            // Don't remove job on first error, let it retry a few times
+            this.retryCount = (this.retryCount || 0) + 1;
+            if (this.retryCount > 5) {
+                // After 5 retries, stop trying to prevent infinite errors
+                console.warn('Giving up on progress updates after multiple failures');
+            }
+        });
     }
 
     showNotification(title, message, type) {
@@ -445,6 +459,9 @@ class ProgressTracker {
     }
 }
 
+if (typeof window !== 'undefined' && !window.progressTracker) {
+    window.progressTracker = new ProgressTracker();
+}
 // Initialize the tracker
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize only if not already initialized
