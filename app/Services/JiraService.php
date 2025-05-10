@@ -210,39 +210,84 @@ class JiraService
     }
 
     /**
-     * Fetch issues by JQL, with pagination.
+     * Fetch issues by JQL with better pagination and logging.
      *
-     * @param  string  $jql
-     * @param  array   $fields
-     * @param  int     $maxIssues
+     * @param string $jql JQL query
+     * @param array $fields Fields to return
+     * @param int $maxIssues Maximum issues to return (0 for unlimited)
      * @return array
-     * @throws Exception
+     * @throws \Exception
      */
     public function getIssuesWithJql(string $jql, array $fields = [], int $maxIssues = 0): array
     {
         $this->ensureValidToken();
 
         $allIssues = [];
-        $startAt   = 0;
-        $pageSize  = min($maxIssues ?: 50, 100);
+        $startAt = 0;
+        $pageSize = 100; // Max per page
+        $totalFetched = 0;
+        $totalAvailable = null;
+
+        Log::info('Starting JQL query', [
+            'jql' => $jql,
+            'fields_count' => count($fields),
+            'max_issues' => $maxIssues
+        ]);
 
         do {
-            $opts = [
-                'headers' => ['Authorization' => "Bearer {$this->accessToken}"],
-                'query'   => [
-                    'jql'        => $jql,
-                    'fields'     => implode(',', $fields),
-                    'maxResults' => $pageSize,
-                    'startAt'    => $startAt,
-                ],
-            ];
+            try {
+                $opts = [
+                    'headers' => ['Authorization' => "Bearer {$this->accessToken}"],
+                    'query' => [
+                        'jql' => $jql,
+                        'fields' => implode(',', $fields),
+                        'maxResults' => $pageSize,
+                        'startAt' => $startAt,
+                    ],
+                ];
 
-            $result     = $this->client->api($this->cloudId, 'get', '/rest/api/3/search', $opts);
-            $issues     = $result['issues'] ?? [];
-            $allIssues  = array_merge($allIssues, $issues);
-            $fetched    = count($issues);
-            $startAt   += $fetched;
-        } while ($fetched > 0 && (!$maxIssues || $startAt < $maxIssues));
+                Log::debug('Fetching page of issues', [
+                    'start_at' => $startAt,
+                    'page_size' => $pageSize,
+                    'total_fetched_so_far' => $totalFetched
+                ]);
+
+                $result = $this->client->api($this->cloudId, 'get', '/rest/api/3/search', $opts);
+
+                $issues = $result['issues'] ?? [];
+                $totalAvailable = $result['total'] ?? 0;
+                $fetched = count($issues);
+
+                Log::debug('Issues page received', [
+                    'fetched_in_page' => $fetched,
+                    'total_available' => $totalAvailable
+                ]);
+
+                $allIssues = array_merge($allIssues, $issues);
+                $totalFetched += $fetched;
+                $startAt += $fetched;
+
+                // Prevent rate limiting
+                if ($fetched > 0 && $startAt < $totalAvailable) {
+                    usleep(100000); // 100ms pause between requests
+                }
+            } catch (\Exception $e) {
+                Log::error('Error fetching Jira issues', [
+                    'error' => $e->getMessage(),
+                    'jql' => $jql
+                ]);
+                throw new \Exception('Failed to fetch issues: ' . $e->getMessage());
+            }
+        } while (
+            $fetched > 0 &&
+            $startAt < $totalAvailable &&
+            ($maxIssues === 0 || $totalFetched < $maxIssues)
+        );
+
+        Log::info('JQL query completed', [
+            'total_fetched' => $totalFetched,
+            'total_available' => $totalAvailable
+        ]);
 
         return $allIssues;
     }
@@ -266,12 +311,10 @@ class JiraService
             if ($key === 'statuses' && is_array($value)) {
                 $escaped = implode('","', array_map(fn($s) => str_replace('"', '\"', $s), $value));
                 $jqlParts[] = "status IN (\"{$escaped}\")";
-            }
-            else if ($key === 'labels' && is_array($value)) {
+            } else if ($key === 'labels' && is_array($value)) {
                 $labels = array_map(fn($l) => sprintf('labels = "%s"', str_replace('"', '\"', $l)), $value);
                 $jqlParts[] = '(' . implode(' OR ', $labels) . ')';
-            }
-            else if ($key === 'customJql' && !empty($value)) {
+            } else if ($key === 'customJql' && !empty($value)) {
                 $jqlParts[] = "({$value})";
             }
         }
@@ -307,18 +350,18 @@ class JiraService
         // Build JQL
         $jqlParts = [];
         if (!empty($options['projectKey'])) {
-            $jqlParts[] = sprintf('project = "%s"', str_replace('"','\"',$options['projectKey']));
+            $jqlParts[] = sprintf('project = "%s"', str_replace('"', '\"', $options['projectKey']));
         }
         if (!empty($options['issueTypes'])) {
-            $escaped = implode('","', array_map(fn($t)=>str_replace('"','\"',$t), $options['issueTypes']));
+            $escaped = implode('","', array_map(fn($t) => str_replace('"', '\"', $t), $options['issueTypes']));
             $jqlParts[] = "issuetype IN (\"{$escaped}\")";
         }
         if (!empty($options['statuses'])) {
-            $escaped = implode('","', array_map(fn($s)=>str_replace('"','\"',$s), $options['statuses']));
+            $escaped = implode('","', array_map(fn($s) => str_replace('"', '\"', $s), $options['statuses']));
             $jqlParts[] = "status IN (\"{$escaped}\")";
         }
         if (!empty($options['labels'])) {
-            $labels = array_map(fn($l)=>sprintf('labels = "%s"',str_replace('"','\"',$l)), $options['labels']);
+            $labels = array_map(fn($l) => sprintf('labels = "%s"', str_replace('"', '\"', $l)), $options['labels']);
             $jqlParts[] = '(' . implode(' OR ', $labels) . ')';
         }
         if (!empty($options['customJql'])) {
@@ -334,11 +377,11 @@ class JiraService
         try {
             $response = $this->client->api($this->cloudId, 'get', '/rest/api/3/search', [
                 'headers' => ['Authorization' => "Bearer {$this->accessToken}"],
-                'query'   => ['jql'=>$jql,'maxResults'=>0,'fields'=>'id']
+                'query'   => ['jql' => $jql, 'maxResults' => 0, 'fields' => 'id']
             ]);
             return $response['total'] ?? 0;
         } catch (ApiException $e) {
-            Log::error('Error counting Jira issues', ['jql'=>$jql,'error'=>$e->getMessage()]);
+            Log::error('Error counting Jira issues', ['jql' => $jql, 'error' => $e->getMessage()]);
             return -1;
         }
     }

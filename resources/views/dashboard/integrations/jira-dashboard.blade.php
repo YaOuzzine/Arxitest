@@ -342,27 +342,7 @@
         <script>
             document.addEventListener('DOMContentLoaded', function() {
                 // Initialize Lucide icons
-                lucide.createIcons({
-                    icons: {
-                        // Add any missing icons here
-                        'plug-off': '<circle cx="12" cy="12" r="3"></circle><path d="M2 8L8 2"></path><path d="M22 8L16 2"></path><path d="M16 22L22 16"></path><path d="M2 16L8 22"></path>',
-                        'chevron-right': '<polyline points="9 18 15 12 9 6"></polyline>',
-                        'mountain': '<path d="m8 3 4 8 5-5 5 15H2L8 3z"></path>',
-                        'file-question': '<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><path d="M10 10.3c.2-.4.5-.8.9-1a2.1 2.1 0 0 1 2.6.4c.3.4.5.8.5 1.3 0 1.3-2 2-2 2"></path><path d="M12 17h.01"></path>',
-                        'book-open': '<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>',
-                        'bug': '<path d="m8 2 1.88 1.88"></path><path d="M14.12 3.88 16 2"></path><path d="M9 7.13v-1a3.003 3.003 0 1 1 6 0v1"></path><path d="M12 20c-3.3 0-6-2.7-6-6v-3h12v3c0 3.3-2.7 6-6 6"></path><path d="M6 11V8c0-.9.1-1.7.3-2.5"></path><path d="M18 11V8c0-.9-.1-1.7-.3-2.5"></path><path d="M12 19v3"></path><path d="M12 13v4"></path><path d="M6 16h12"></path>',
-                        'check-square': '<polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>',
-                        'file-text': '<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><line x1="10" y1="9" x2="8" y2="9"></line>',
-                        'plus': '<line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line>',
-                        'check': '<polyline points="20 6 9 17 4 12"></polyline>',
-                        'download': '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line>',
-                        'folder-open': '<path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"></path>',
-                        'folder': '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"></path>',
-                        'move-right': '<path d="M18 8L22 12L18 16"></path><path d="M2 12H22"></path>',
-                        'x': '<line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>',
-                        'plug': '<path d="M12 22v-5"></path><path d="M9 7V2"></path><path d="M15 7V2"></path><path d="M6 13V8h12v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4Z"></path>'
-                    }
-                });
+
 
                 // Global variables
                 let currentProject = null;
@@ -529,7 +509,6 @@
                 });
 
                 // Functions
-                // Add this to the loadProject function in jira-dashboard.blade.php
                 function loadProject(projectKey) {
                     currentProject = projectKey;
                     selectedIssues.clear();
@@ -554,19 +533,14 @@
                                     // Project is being loaded in background
                                     const progress = data.data.progress;
 
-                                    // Add to progress tracker - THIS IS THE KEY CHANGE
+                                    // Add to progress tracker instead of using local progress UI
                                     if (window.progressTracker) {
-                                        window.progressTracker.addJob(progress.id, projectKey);
-                                        window.progressTracker.show();
+                                        window.progressTracker.addJob(progress.id, `Loading ${projectKey}`, 'jira');
                                     }
 
                                     // Set up polling to check when data is ready
                                     const checkInterval = setInterval(() => {
-                                        // Correctly construct the URL with the progress ID
-                                        const progressUrl =
-                                            `/dashboard/integrations/jira/import/progress/${jobId}`;
-
-                                        fetch(progressUrl, {
+                                        fetch(`{{ route('dashboard.integrations.jira.import.progress', ['progressId' => '__PROGRESS_ID__']) }}`.replace('__PROGRESS_ID__', progress.id), {
                                                 headers: {
                                                     'X-CSRF-TOKEN': '{{ csrf_token() }}',
                                                     'Accept': 'application/json'
@@ -576,12 +550,6 @@
                                             .then(progressData => {
                                                 if (progressData.success) {
                                                     const progressInfo = progressData.data;
-
-                                                    // Update progress tracker
-                                                    if (window.progressTracker) {
-                                                        window.progressTracker.updateJobProgress(
-                                                            progress.id, progressInfo);
-                                                    }
 
                                                     // If complete and successful, reload the data
                                                     if (progressInfo.is_complete && progressInfo
