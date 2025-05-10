@@ -65,13 +65,14 @@
                                 <span class="text-sm font-medium text-zinc-700 dark:text-zinc-300">Connected</span>
                             </div>
                             <div class="flex space-x-2">
-                                <a href="{{ route('integrations.jira.import.options') }}"
+                                <a href="{{ route('dashboard.integrations.jira.dashboard') }}"
                                     class="btn-secondary px-3 py-1.5 text-sm flex items-center space-x-1">
-                                    <i data-lucide="download" class="w-4 h-4"></i>
-                                    <span>Import</span>
+                                    <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+                                    <span>Jira Dashboard</span>
                                 </a>
-                                <form id="disconnect-jira-form" action="{{ route('integrations.jira.disconnect') }}"
-                                    method="POST" class="inline">
+                                <form id="disconnect-jira-form"
+                                    action="{{ route('dashboard.integrations.jira.disconnect') }}" method="POST"
+                                    class="inline">
                                     @csrf
                                     <button type="button" onclick="showDisconnectConfirm('jira')"
                                         class="text-sm text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors">

@@ -140,4 +140,5 @@ class JiraApiClient extends ApiClient
         $uri = "ex/jira/{$cloudId}/" . ltrim($path, '/');
         return $this->request($method, $uri, $options);
     }
+
 }

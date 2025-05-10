@@ -8,6 +8,7 @@ use App\Http\Controllers\GitHubIntegrationController;
 use App\Http\Controllers\IntegrationController;
 use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\JiraImportController;
+use App\Http\Controllers\JiraIntegrationController;
 use App\Http\Controllers\OAuthController;
 use App\Http\Controllers\PhoneAuthController;
 use App\Http\Controllers\ProfileController;
@@ -380,6 +381,16 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
     Route::post('/github/disconnect', [GitHubIntegrationController::class, 'disconnect'])
         ->name('github.disconnect');
 });
+
+Route::prefix('dashboard/integrations/jira')->name('dashboard.integrations.jira.')->middleware(['web', 'auth:web', 'require.team'])->group(function () {
+    Route::get('/dashboard', [JiraIntegrationController::class, 'dashboard'])->name('dashboard');
+    Route::get('/project-details', [JiraIntegrationController::class, 'getProjectDetails'])->name('project-details');
+    Route::post('/import-issues', [JiraIntegrationController::class, 'importIssues'])->name('import-issues');
+    Route::get('/redirect', [JiraIntegrationController::class, 'redirect'])->name('redirect');
+    Route::post('/disconnect', [JiraIntegrationController::class, 'disconnect'])->name('disconnect');
+});
+
+
 // DEV LOGS (REMOVE BEFORE DEPLOYMENT)
 
 Route::get('/view-logs', function () {

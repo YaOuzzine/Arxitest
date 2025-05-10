@@ -437,6 +437,364 @@
     </div>
 
     <script>
+        const style = document.createElement('style');
+        style.textContent = `
+    .directory-item {
+        position: relative;
+    }
+    .directory-item:after {
+        content: "📁";
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        opacity: 0.5;
+        font-size: 12px;
+    }
+`;
+        document.head.appendChild(style);
+        // Add these function declarations at the top of your script section, before the DOMContentLoaded event
+        // Make sure they appear BEFORE your previously defined window.removeFileFromContext function
+
+        // Global reference for sessionContextFiles
+        window.sessionContextFiles = [];
+
+        // Global function to show toast notifications
+        window.showToast = function(message, type = 'success') {
+            const successToast = document.getElementById('success-toast');
+            const toastMessage = document.getElementById('toast-message');
+
+            if (!successToast || !toastMessage) return;
+
+            toastMessage.textContent = message;
+            successToast.classList.remove('hidden', 'translate-y-2', 'opacity-0');
+
+            if (type === 'error') {
+                successToast.classList.remove('bg-emerald-100', 'dark:bg-emerald-900/70', 'border-emerald-200',
+                    'dark:border-emerald-800', 'text-emerald-800', 'dark:text-emerald-200');
+                successToast.classList.add('bg-red-100', 'dark:bg-red-900/70', 'border-red-200',
+                    'dark:border-red-800', 'text-red-800', 'dark:text-red-200');
+            } else {
+                successToast.classList.remove('bg-red-100', 'dark:bg-red-900/70', 'border-red-200',
+                    'dark:border-red-800', 'text-red-800', 'dark:text-red-200');
+                successToast.classList.add('bg-emerald-100', 'dark:bg-emerald-900/70', 'border-emerald-200',
+                    'dark:border-emerald-800', 'text-emerald-800', 'dark:text-emerald-200');
+            }
+
+            setTimeout(() => {
+                successToast.classList.add('translate-y-2', 'opacity-0');
+                setTimeout(() => {
+                    successToast.classList.add('hidden');
+                }, 300);
+            }, 3000);
+        };
+
+        // Global function to fetch session context
+        window.fetchSessionContext = async function() {
+            try {
+                const response = await fetch('/api/github/session-context');
+                const result = await response.json();
+
+                if (result.success) {
+                    window.sessionContextFiles = result.data.files || [];
+                    window.updateSessionContextUI(result.data);
+                } else {
+                    console.error('Failed to fetch session context:', result.message);
+                }
+            } catch (error) {
+                console.error('Error fetching session context:', error);
+            }
+        };
+
+        // Add this function too since it's used by fetchSessionContext
+        window.updateSessionContextUI = function(data) {
+            const filesContainer = document.getElementById('session-context-files');
+            const repoOwnerName = document.getElementById('context-repo-owner-name');
+            const addedTimeSpan = document.getElementById('context-added-time').querySelector('span');
+            const fileCountElem = document.getElementById('context-file-count');
+
+            if (!filesContainer || !repoOwnerName || !addedTimeSpan || !fileCountElem) return;
+
+            // Update repo info
+            if (data.repo && data.owner) {
+                repoOwnerName.textContent = `${data.owner}/${data.repo}`;
+            } else {
+                repoOwnerName.textContent = 'No repository set';
+            }
+
+            // Update time
+            if (data.added_at) {
+                const addedDate = new Date(data.added_at);
+                addedTimeSpan.textContent = addedDate.toLocaleString();
+            } else {
+                addedTimeSpan.textContent = 'Never';
+            }
+
+            // Update file count
+            const fileCount = data.files ? data.files.length : 0;
+            fileCountElem.textContent = `${fileCount} file${fileCount !== 1 ? 's' : ''} in context`;
+
+            // Update files list
+            filesContainer.innerHTML = '';
+
+            if (!data.files || data.files.length === 0) {
+                filesContainer.innerHTML = `
+        <div class="text-center py-8 text-zinc-500 dark:text-zinc-400">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-12 h-12 mx-auto mb-4 text-zinc-300 dark:text-zinc-600">
+                <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+                <polyline points="13 2 13 9 20 9"></polyline>
+            </svg>
+            <p class="text-sm">No files in context yet</p>
+            <p class="text-xs mt-2">Use the file browser to select and add files</p>
+        </div>
+    `;
+                return;
+            }
+
+            data.files.forEach(file => {
+                const fileDiv = document.createElement('div');
+                fileDiv.className =
+                    'p-3 rounded-lg bg-white dark:bg-zinc-700/30 border border-zinc-200 dark:border-zinc-700 flex items-start gap-2';
+
+                // Determine icon based on file type
+                const ext = file.path.split('.').pop().toLowerCase();
+                let iconColor = 'text-zinc-500';
+
+                if (['js', 'jsx', 'ts', 'tsx'].includes(ext)) {
+                    iconColor = 'text-yellow-500';
+                } else if (['py'].includes(ext)) {
+                    iconColor = 'text-blue-500';
+                } else if (['php'].includes(ext)) {
+                    iconColor = 'text-purple-500';
+                } else if (['json', 'yml', 'yaml'].includes(ext)) {
+                    iconColor = 'text-green-500';
+                } else if (['html', 'css'].includes(ext)) {
+                    iconColor = 'text-orange-500';
+                }
+
+                fileDiv.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 mt-0.5 ${iconColor}">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+        </svg>
+        <div class="flex-1 overflow-hidden">
+            <div class="text-sm font-medium text-zinc-800 dark:text-zinc-200 truncate" title="${file.path}">${file.name}</div>
+            <div class="text-xs text-zinc-500 dark:text-zinc-400 truncate" title="${file.path}">${file.path}</div>
+        </div>
+        <button class="text-zinc-400 hover:text-red-500 dark:text-zinc-500 dark:hover:text-red-400 p-1" onclick="removeFileFromContext('${file.path}')">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+        </button>
+    `;
+
+                filesContainer.appendChild(fileDiv);
+            });
+        };
+        window.removeFileFromContext = async function(filePath) {
+            try {
+                const response = await fetch('/api/github/remove-context-file', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')
+                            .getAttribute('content'),
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        filePath
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    // Refresh the context display
+                    fetchSessionContext();
+                    showToast('File removed from context');
+                } else {
+                    showToast('Error removing file from context', 'error');
+                }
+            } catch (error) {
+                console.error('Error removing file:', error);
+                showToast('Error removing file from context', 'error');
+            }
+        };
+
+        window.addFolderToContext = async function(owner, repo, folderPath, folderName) {
+            try {
+                // Show loading toast
+                showToast(`Processing folder: ${folderName}...`);
+
+                // Create and append loading indicator
+                const loadingIndicator = document.createElement('div');
+                loadingIndicator.id = 'folder-loading-indicator';
+                loadingIndicator.className =
+                    'fixed bottom-36 right-6 z-50 bg-blue-100 dark:bg-blue-900/70 border border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-200 px-4 py-3 rounded-lg shadow-md';
+                loadingIndicator.innerHTML = `
+            <div class="flex items-center">
+                <svg class="animate-spin -ml-1 mr-3 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Loading files...</span>
+            </div>
+        `;
+                document.body.appendChild(loadingIndicator);
+
+                // Call the folder contents API endpoint
+                const response = await fetch('/api/github/folder-contents', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute(
+                            'content'),
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        owner,
+                        repo,
+                        path: folderPath
+                    })
+                });
+
+                const result = await response.json();
+
+                if (!result.success || !result.data || !result.data.files || result.data.files.length === 0) {
+                    throw new Error('No files found in folder or error retrieving files');
+                }
+
+                // Filter to only include actual files (not directories)
+                const files = result.data.files.filter(file => file.type === 'file');
+
+                if (files.length === 0) {
+                    throw new Error('No files found in folder (only contains subdirectories)');
+                }
+
+                // Update loading indicator
+                loadingIndicator.innerHTML = `
+            <div class="flex items-center">
+                <svg class="animate-spin -ml-1 mr-3 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Fetching file contents (0/${files.length})...</span>
+            </div>
+        `;
+
+                // Fetch content for each file (with a limit of 50 files max)
+                const MAX_FILES = 50;
+                const filesToProcess = files.slice(0, MAX_FILES);
+                const fileContents = [];
+
+                // Process files in small batches to avoid overwhelming the browser
+                const BATCH_SIZE = 5;
+                for (let i = 0; i < filesToProcess.length; i += BATCH_SIZE) {
+                    const batch = filesToProcess.slice(i, i + BATCH_SIZE);
+                    const batchPromises = batch.map(async (file, index) => {
+                        try {
+                            const fileResponse = await fetch(
+                                `/api/github/file/${owner}/${repo}/${encodeURIComponent(file.path)}`
+                            );
+                            const fileResult = await fileResponse.json();
+
+                            if (fileResult.success && fileResult.data && fileResult.data.content) {
+                                fileContents.push({
+                                    path: file.path,
+                                    name: file.name,
+                                    content: fileResult.data.content
+                                });
+                            }
+
+                            // Update loading indicator
+                            const processedCount = i + index + 1;
+                            document.getElementById('folder-loading-indicator').innerHTML = `
+                        <div class="flex items-center">
+                            <svg class="animate-spin -ml-1 mr-3 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span>Fetching file contents (${processedCount}/${filesToProcess.length})...</span>
+                        </div>
+                    `;
+                        } catch (error) {
+                            console.error(`Error fetching file ${file.path}:`, error);
+                        }
+                    });
+
+                    await Promise.all(batchPromises);
+                }
+
+                // Remove loading indicator
+                if (document.getElementById('folder-loading-indicator')) {
+                    document.body.removeChild(document.getElementById('folder-loading-indicator'));
+                }
+
+                if (fileContents.length === 0) {
+                    throw new Error('Failed to retrieve content for any files in the folder');
+                }
+
+                // Now save the files to context
+                await fetch('/api/github/save-context', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute(
+                            'content'),
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        files: fileContents,
+                        repo: repo,
+                        owner: owner
+                    })
+                });
+
+                // Update session context if the panel is visible
+                if (window.sessionContextPanelVisible) {
+                    window.fetchSessionContext();
+                }
+
+                showToast(`Added ${fileContents.length} files from folder "${folderName}" to context`);
+                return true;
+            } catch (error) {
+                console.error('Error adding folder to context:', error);
+                showToast(`Error: ${error.message || 'Failed to add folder to context'}`, 'error');
+
+                // Clean up loading indicator if it exists
+                if (document.getElementById('folder-loading-indicator')) {
+                    document.body.removeChild(document.getElementById('folder-loading-indicator'));
+                }
+                return false;
+            }
+        };
+
+        window.fetchFolderContents = async function(owner, repo, path) {
+            try {
+                const response = await fetch('/api/github/folder-contents', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')
+                            .getAttribute('content'),
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        owner,
+                        repo,
+                        path
+                    })
+                });
+
+                const result = await response.json();
+                return result.success ? result.data.files : [];
+            } catch (error) {
+                console.error('Error fetching folder contents:', error);
+                showToast('Error fetching folder contents', 'error');
+                return [];
+            }
+        };
         document.addEventListener('DOMContentLoaded', function() {
             // DOM Element References
             const bubble = document.getElementById('github-bubble-toggle');
@@ -905,17 +1263,44 @@
                 }
             }
 
+            async function fetchAllFilesInFolder(owner, repo, path) {
+                try {
+                    const response = await fetch('/api/github/folder-contents', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')
+                                .getAttribute('content'),
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            owner,
+                            repo,
+                            path
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Server responded with ${response.status}`);
+                    }
+
+                    const result = await response.json();
+
+                    // Filter to only include files, not subdirectories
+                    if (result.success && result.data && result.data.files) {
+                        return result.data.files.filter(file => file.type === 'file');
+                    }
+
+                    return [];
+                } catch (error) {
+                    console.error(`Error fetching contents for folder ${path}:`, error);
+                    return [];
+                }
+            }
+
             // Add selected files to context
             addSelectedBtn.addEventListener('click', async function() {
                 if (selectedFiles.length === 0) return;
-
-                // Filter out directories
-                const fileOnlyPaths = selectedFiles.filter(file => file.type === 'file');
-
-                if (fileOnlyPaths.length === 0) {
-                    showToast('Please select at least one file (directories cannot be added)');
-                    return;
-                }
 
                 // Show loading
                 addSelectedBtn.disabled = true;
@@ -923,22 +1308,133 @@
                     '<svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Adding...';
 
                 try {
-                    // Fetch content for each file
+                    // Separate files and directories
+                    const files = selectedFiles.filter(file => file.type === 'file');
+                    const directories = selectedFiles.filter(file => file.type === 'dir');
+
+                    // Create a loading status element
+                    const loadingStatus = document.createElement('div');
+                    loadingStatus.id = 'github-loading-status';
+                    loadingStatus.className =
+                        'fixed bottom-5 right-6 z-50 bg-blue-100 dark:bg-blue-900/70 border border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-200 px-4 py-3 rounded-lg shadow-md';
+                    loadingStatus.innerHTML = `
+            <div class="flex items-center">
+                <svg class="animate-spin h-5 w-5 mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span id="loading-status-text">Processing files...</span>
+            </div>
+            <div class="mt-1 text-xs">
+                <span id="processing-count">0</span> / <span id="total-count">0</span> files processed
+            </div>
+        `;
+
+                    // Add loading status to the document
+                    document.body.appendChild(loadingStatus);
+
+                    // Get references to status elements
+                    const loadingStatusText = document.getElementById('loading-status-text');
+                    const processingCountEl = document.getElementById('processing-count');
+                    const totalCountEl = document.getElementById('total-count');
+
+                    // Initialize counters
+                    let processingCount = 0;
+                    let totalFiles = files.length;
+                    totalCountEl.textContent = totalFiles.toString();
+
+                    // Process individual files
                     const fileContents = [];
-
-                    for (const file of fileOnlyPaths) {
-                        const encodedPath = encodeURIComponent(file.path);
-                        const response = await fetch(
-                            `/api/github/file/${currentOwner}/${currentRepo}/${encodedPath}`);
-                        const result = await response.json();
-
-                        if (result.success) {
-                            fileContents.push({
-                                path: file.path,
-                                name: file.name,
-                                content: result.data.content
-                            });
+                    for (const file of files) {
+                        // Update loading status text safely
+                        if (loadingStatusText) {
+                            loadingStatusText.textContent = `Processing file: ${file.name}`;
                         }
+
+                        const encodedPath = encodeURIComponent(file.path);
+                        try {
+                            const response = await fetch(
+                                `/api/github/file/${currentOwner}/${currentRepo}/${encodedPath}`);
+                            const result = await response.json();
+
+                            if (result.success) {
+                                fileContents.push({
+                                    path: file.path,
+                                    name: file.name,
+                                    content: result.data.content
+                                });
+                            }
+                        } catch (error) {
+                            console.error(`Error fetching file ${file.path}:`, error);
+                        }
+
+                        // Increment counter and update UI safely
+                        processingCount++;
+                        if (processingCountEl) {
+                            processingCountEl.textContent = processingCount.toString();
+                        }
+                    }
+
+                    // Process directories
+                    let folderFilesCount = 0;
+                    for (const dir of directories) {
+                        // Update status text safely
+                        if (loadingStatusText) {
+                            loadingStatusText.textContent = `Processing folder: ${dir.name}...`;
+                        }
+
+                        // Fetch files from directory
+                        const folderFiles = await fetchAllFilesInFolder(currentOwner, currentRepo, dir
+                            .path);
+                        folderFilesCount += folderFiles.length;
+
+                        // Update total count safely
+                        if (totalCountEl) {
+                            totalCountEl.textContent = (totalFiles + folderFilesCount).toString();
+                        }
+
+                        // Process each file from the folder
+                        for (const file of folderFiles) {
+                            // Update status text safely
+                            if (loadingStatusText) {
+                                loadingStatusText.textContent = `Processing file: ${file.name}`;
+                            }
+
+                            const encodedPath = encodeURIComponent(file.path);
+                            try {
+                                const response = await fetch(
+                                    `/api/github/file/${currentOwner}/${currentRepo}/${encodedPath}`
+                                );
+                                const result = await response.json();
+
+                                if (result.success) {
+                                    fileContents.push({
+                                        path: file.path,
+                                        name: file.name,
+                                        content: result.data.content
+                                    });
+                                }
+                            } catch (error) {
+                                console.error(`Error fetching file ${file.path}:`, error);
+                            }
+
+                            // Increment counter and update UI safely
+                            processingCount++;
+                            if (processingCountEl) {
+                                processingCountEl.textContent = processingCount.toString();
+                            }
+                        }
+                    }
+
+                    // Remove loading status
+                    const statusElement = document.getElementById('github-loading-status');
+                    if (statusElement) {
+                        document.body.removeChild(statusElement);
+                    }
+
+                    if (fileContents.length === 0) {
+                        showToast('No files were found to add to context');
+                        return;
                     }
 
                     // Store in localStorage (or use your preferred method)
@@ -948,6 +1444,7 @@
                         owner: currentOwner
                     }));
 
+                    // Save to server
                     await fetch('/api/github/save-context', {
                         method: 'POST',
                         headers: {
@@ -970,9 +1467,20 @@
                     toggleSelectionMode(false);
                     hideBrowser();
 
+                    // Refresh context display if visible
+                    if (sessionContextPanelVisible) {
+                        fetchSessionContext();
+                    }
+
                 } catch (error) {
                     console.error('Error adding files to context:', error);
                     showToast('Error adding files to context', 'error');
+
+                    // Make sure to clean up loading status if there was an error
+                    const statusElement = document.getElementById('github-loading-status');
+                    if (statusElement && document.body.contains(statusElement)) {
+                        document.body.removeChild(statusElement);
+                    }
                 } finally {
                     addSelectedBtn.disabled = false;
                     addSelectedBtn.innerHTML =
@@ -1062,21 +1570,51 @@
             });
 
             // Use file as context
-            useFileBtn.addEventListener('click', function() {
-                localStorage.setItem('github-context', JSON.stringify({
-                    files: [{
-                        path: currentPath,
-                        name: fileName.textContent,
-                        content: currentFileContent
-                    }],
-                    repo: currentRepo,
-                    owner: currentOwner
-                }));
+            useFileBtn.addEventListener('click', async function() {
+                try {
+                    // Call API to save to session
+                    await fetch('/api/github/save-context', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')
+                                .getAttribute('content'),
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            files: [{
+                                path: currentPath,
+                                name: fileName.textContent,
+                                content: currentFileContent
+                            }],
+                            repo: currentRepo,
+                            owner: currentOwner
+                        })
+                    });
 
-                showToast(`File "${currentPath}" added to context`);
-                hideBrowser();
+                    // Update localStorage for backward compatibility
+                    localStorage.setItem('github-context', JSON.stringify({
+                        files: [{
+                            path: currentPath,
+                            name: fileName.textContent,
+                            content: currentFileContent
+                        }],
+                        repo: currentRepo,
+                        owner: currentOwner
+                    }));
+
+                    showToast(`File "${currentPath}" added to context`);
+                    hideBrowser();
+
+                    // Refresh context if panel is visible
+                    if (sessionContextPanelVisible) {
+                        fetchSessionContext();
+                    }
+                } catch (error) {
+                    console.error('Error adding file to context:', error);
+                    showToast('Error adding file to context', 'error');
+                }
             });
-
             // Toast function
             function showToast(message, type = 'success') {
                 toastMessage.textContent = message;
@@ -1205,21 +1743,62 @@
                                     // Choose icon based on file type
                                     let icon = '';
                                     if (item.type === 'dir') {
-                                        div.innerHTML = `
-        <div class="w-5 h-5 mr-3 flex items-center justify-center">
-            ${selectionMode ?
-                `<button class="folder-select w-5 h-5 rounded-md flex items-center justify-center text-zinc-400 bg-zinc-100 dark:bg-zinc-700 dark:text-zinc-500 hover:bg-indigo-100 hover:text-indigo-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3 h-3">
-                            <polyline points="9 11 12 14 22 4"></polyline>
-                            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
-                        </svg>
-                    </button>`
-                : ''
-            }
-        </div>
-        ${icon}
-        <span class="text-zinc-700 dark:text-zinc-300 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">${item.name}</span>
-    `;
+                                        // Add a context menu handler for directories
+                                        div.addEventListener('contextmenu', function(e) {
+                                            e.preventDefault();
+
+                                            // Create the context menu
+                                            const menu = document.createElement('div');
+                                            menu.className =
+                                                'absolute bg-white dark:bg-zinc-800 shadow-lg border border-zinc-200 dark:border-zinc-700 rounded-lg z-50 overflow-hidden';
+                                            menu.style.top = `${e.pageY}px`;
+                                            menu.style.left = `${e.pageX}px`;
+
+                                            // Add menu items
+                                            menu.innerHTML = `
+            <div class="p-1">
+                <button class="add-folder-btn w-full text-left px-3 py-2 text-sm hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-zinc-700 dark:text-zinc-200 rounded flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 mr-2 text-indigo-500">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                        <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                    </svg>
+                    Add folder contents to context
+                </button>
+            </div>
+        `;
+
+                                            document.body.appendChild(menu);
+
+                                            // Add click handler
+                                            menu.querySelector('.add-folder-btn')
+                                                .addEventListener('click', function() {
+                                                    document.body.removeChild(menu);
+                                                    window.addFolderToContext(currentOwner,
+                                                        currentRepo, item.path, item
+                                                        .name);
+                                                });
+
+                                            // Remove menu when clicking outside
+                                            setTimeout(() => {
+                                                const clickHandler = function() {
+                                                    if (document.body.contains(
+                                                            menu)) {
+                                                        document.body.removeChild(
+                                                            menu);
+                                                        document
+                                                            .removeEventListener(
+                                                                'click',
+                                                                clickHandler);
+                                                    }
+                                                };
+                                                document.addEventListener('click',
+                                                    clickHandler);
+                                            }, 0);
+                                        });
+
+                                        // Add visual indicator that this is a directory with special options
+                                        div.title = "Right-click to add all files in folder to context";
+                                        div.classList.add('directory-item');
                                     } else {
                                         // Determine file icon based on extension
                                         const ext = item.name.split('.').pop().toLowerCase();
@@ -1373,6 +1952,125 @@
                     });
             }
 
+            window.handleFolderSelection = async function(folderPath, folderName) {
+                showToast(`Processing folder: ${folderName}...`);
+
+                // Show a loading indicator
+                const loadingToast = document.createElement('div');
+                loadingToast.className =
+                    'fixed bottom-36 right-6 z-50 bg-blue-100 dark:bg-blue-900/70 border border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-200 px-4 py-3 rounded-lg shadow-md flex items-center';
+                loadingToast.innerHTML = `
+            <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-blue-600 dark:text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span>Loading files from folder...</span>
+        `;
+                document.body.appendChild(loadingToast);
+
+                try {
+                    // Fetch all files in this folder recursively
+                    const files = await fetchFolderContents(currentOwner, currentRepo, folderPath);
+
+                    if (files.length === 0) {
+                        showToast('No files found in folder', 'info');
+                        document.body.removeChild(loadingToast);
+                        return;
+                    }
+
+                    // Process each file (only process actual files, not directories)
+                    const fileContents = [];
+                    let processedCount = 0;
+
+                    // Show progress updates
+                    const updateProgress = () => {
+                        loadingToast.innerHTML = `
+                    <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-blue-600 dark:text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Processing files: ${processedCount}/${files.length}</span>
+                `;
+                    };
+
+                    // Process files in batches to avoid overwhelming the browser
+                    const BATCH_SIZE = 5;
+
+                    for (let i = 0; i < files.length; i += BATCH_SIZE) {
+                        const batch = files.slice(i, i + BATCH_SIZE);
+                        const batchPromises = batch.map(async file => {
+                            if (file.type === 'file') {
+                                try {
+                                    const response = await fetch(
+                                        `/api/github/file/${currentOwner}/${currentRepo}/${encodeURIComponent(file.path)}`
+                                    );
+                                    const result = await response.json();
+
+                                    if (result.success) {
+                                        fileContents.push({
+                                            path: file.path,
+                                            name: file.name,
+                                            content: result.data.content
+                                        });
+                                    }
+                                } catch (error) {
+                                    console.error(`Error fetching file ${file.path}:`, error);
+                                }
+                            }
+                            processedCount++;
+                            updateProgress();
+                        });
+
+                        await Promise.all(batchPromises);
+                    }
+
+                    if (fileContents.length === 0) {
+                        showToast('No valid files found in folder', 'info');
+                        document.body.removeChild(loadingToast);
+                        return;
+                    }
+
+                    // Save to session
+                    await fetch('/api/github/save-context', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')
+                                .getAttribute('content'),
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            files: fileContents,
+                            repo: currentRepo,
+                            owner: currentOwner
+                        })
+                    });
+
+                    // Update localStorage for backward compatibility
+                    localStorage.setItem('github-context', JSON.stringify({
+                        files: fileContents,
+                        repo: currentRepo,
+                        owner: currentOwner
+                    }));
+
+                    // Refresh context if panel is visible
+                    if (sessionContextPanelVisible) {
+                        fetchSessionContext();
+                    }
+
+                    document.body.removeChild(loadingToast);
+                    showToast(`${fileContents.length} files added from folder "${folderName}"`, 'success');
+                    hideBrowser();
+
+                } catch (error) {
+                    console.error('Error processing folder:', error);
+                    showToast('Error processing folder', 'error');
+                    if (document.body.contains(loadingToast)) {
+                        document.body.removeChild(loadingToast);
+                    }
+                }
+            };
+
             // Update breadcrumb
             function updateBreadcrumb(path) {
                 if (!path) {
@@ -1463,7 +2161,7 @@
             });
             // Add these variables to your state section
             let sessionContextPanelVisible = false;
-            let sessionContextFiles = [];
+
             let folderSelectionEnabled = false;
             let selectedFolders = [];
 
@@ -1607,35 +2305,6 @@
                 });
             }
 
-            async function removeFileFromContext(filePath) {
-                try {
-                    const response = await fetch('/api/github/remove-context-file', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')
-                                .getAttribute('content'),
-                            'Accept': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            filePath
-                        })
-                    });
-
-                    const result = await response.json();
-
-                    if (result.success) {
-                        // Refresh the context display
-                        fetchSessionContext();
-                        showToast('File removed from context');
-                    } else {
-                        showToast('Error removing file from context', 'error');
-                    }
-                } catch (error) {
-                    console.error('Error removing file:', error);
-                    showToast('Error removing file from context', 'error');
-                }
-            }
 
             async function clearSessionContext() {
                 if (!confirm('Are you sure you want to clear all files from the context?')) {

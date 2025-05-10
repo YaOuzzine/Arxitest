@@ -35,9 +35,8 @@ class JiraService
         } else {
             $this->initFromTeamId($contextOrId);
         }
-        Log::info('Loading credentials');
+
         $this->loadCredentials();
-        Log::info('Credentials Loaded');
     }
 
     private function initFromProject(Project $project): void
@@ -153,6 +152,64 @@ class JiraService
     }
 
     /**
+     * Get detailed project information including statistics
+     *
+     * @param string $projectKey
+     * @return array
+     * @throws Exception
+     */
+    public function getProjectDetails(string $projectKey): array
+    {
+        $this->ensureValidToken();
+
+        // Get project info
+        $projectInfo = $this->client->api(
+            $this->cloudId,
+            'get',
+            "/rest/api/3/project/{$projectKey}",
+            [
+                'headers' => ['Authorization' => "Bearer {$this->accessToken}"]
+            ]
+        );
+
+        // Get issue types
+        $issueTypes = $this->client->api(
+            $this->cloudId,
+            'get',
+            "/rest/api/3/issuetype",
+            [
+                'headers' => ['Authorization' => "Bearer {$this->accessToken}"]
+            ]
+        );
+
+        // Get project stats
+        $counts = [
+            'epics' => $this->getFilteredIssuesCount([
+                'projectKey' => $projectKey,
+                'issueTypes' => ['Epic']
+            ]),
+            'stories' => $this->getFilteredIssuesCount([
+                'projectKey' => $projectKey,
+                'issueTypes' => ['Story']
+            ]),
+            'bugs' => $this->getFilteredIssuesCount([
+                'projectKey' => $projectKey,
+                'issueTypes' => ['Bug']
+            ]),
+            'tasks' => $this->getFilteredIssuesCount([
+                'projectKey' => $projectKey,
+                'issueTypes' => ['Task']
+            ])
+        ];
+
+        return [
+            'info' => $projectInfo,
+            'issueTypes' => $issueTypes,
+            'counts' => $counts
+        ];
+    }
+
+    /**
      * Fetch issues by JQL, with pagination.
      *
      * @param  string  $jql
@@ -191,35 +248,50 @@ class JiraService
     }
 
     /**
-     * Fetch available issue types.
+     * Get issues by type with optional filters
      *
+     * @param string $projectKey
+     * @param string $issueType
+     * @param array $filters Additional JQL filters
      * @return array
-     * @throws Exception
      */
-    public function getIssueTypes(): array
+    public function getIssuesByType(string $projectKey, string $issueType, array $filters = []): array
     {
-        $this->ensureValidToken();
+        $jqlParts = [
+            "project = \"{$projectKey}\"",
+            "issuetype = \"{$issueType}\""
+        ];
 
-        return $this->client
-            ->api($this->cloudId, 'get', '/rest/api/3/issuetype', [
-                'headers' => ['Authorization' => "Bearer {$this->accessToken}"]
-            ]);
-    }
+        foreach ($filters as $key => $value) {
+            if ($key === 'statuses' && is_array($value)) {
+                $escaped = implode('","', array_map(fn($s) => str_replace('"', '\"', $s), $value));
+                $jqlParts[] = "status IN (\"{$escaped}\")";
+            }
+            else if ($key === 'labels' && is_array($value)) {
+                $labels = array_map(fn($l) => sprintf('labels = "%s"', str_replace('"', '\"', $l)), $value);
+                $jqlParts[] = '(' . implode(' OR ', $labels) . ')';
+            }
+            else if ($key === 'customJql' && !empty($value)) {
+                $jqlParts[] = "({$value})";
+            }
+        }
 
-    /**
-     * Fetch available fields.
-     *
-     * @return array
-     * @throws Exception
-     */
-    public function getFields(): array
-    {
-        $this->ensureValidToken();
+        $jql = implode(' AND ', $jqlParts) . ' ORDER BY created DESC';
+        $fields = [
+            'summary',
+            'description',
+            'issuetype',
+            'parent',
+            'status',
+            'created',
+            'updated',
+            'labels',
+            'priority',
+            'assignee',
+            'components'
+        ];
 
-        return $this->client
-            ->api($this->cloudId, 'get', '/rest/api/3/field', [
-                'headers' => ['Authorization' => "Bearer {$this->accessToken}"]
-            ]);
+        return $this->getIssuesWithJql($jql, $fields);
     }
 
     /**
@@ -232,7 +304,7 @@ class JiraService
     {
         $this->ensureValidToken();
 
-        // Build JQL same as in getIssuesWithJql…
+        // Build JQL
         $jqlParts = [];
         if (!empty($options['projectKey'])) {
             $jqlParts[] = sprintf('project = "%s"', str_replace('"','\"',$options['projectKey']));
@@ -268,6 +340,31 @@ class JiraService
         } catch (ApiException $e) {
             Log::error('Error counting Jira issues', ['jql'=>$jql,'error'=>$e->getMessage()]);
             return -1;
+        }
+    }
+
+    /**
+     * Find an issue by key
+     *
+     * @param string $issueKey
+     * @return array|null
+     */
+    public function getIssueByKey(string $issueKey): ?array
+    {
+        $this->ensureValidToken();
+
+        try {
+            return $this->client->api(
+                $this->cloudId,
+                'get',
+                "/rest/api/3/issue/{$issueKey}",
+                [
+                    'headers' => ['Authorization' => "Bearer {$this->accessToken}"]
+                ]
+            );
+        } catch (ApiException $e) {
+            Log::error('Error fetching Jira issue', ['key' => $issueKey, 'error' => $e->getMessage()]);
+            return null;
         }
     }
 }
