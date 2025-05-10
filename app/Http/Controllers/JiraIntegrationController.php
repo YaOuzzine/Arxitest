@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\LoadJiraProjectJob;
 use App\Models\Integration;
 use App\Models\OAuthState;
 use App\Models\Project;
@@ -17,6 +18,7 @@ use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use App\Traits\JsonResponse;
+use Illuminate\Support\Facades\Cache;
 
 class JiraIntegrationController extends Controller
 {
@@ -70,47 +72,49 @@ class JiraIntegrationController extends Controller
 
         $team = $this->getCurrentTeam($request);
         $currentTeamId = $team->id;
+        $projectKey = $request->input('key');
 
-        try {
-            $jiraService = new JiraService($currentTeamId);
-            $projectKey = $request->input('key');
-
-            // Get project details
-            $projects = $jiraService->getProjects();
-            $project = collect($projects)->firstWhere('key', $projectKey);
-
-            if (!$project) {
-                return $this->errorResponse("Project not found: {$projectKey}", 404);
-            }
-
-            // Get epics
-            $epics = $jiraService->getIssuesWithJql(
-                "project = \"{$projectKey}\" AND issuetype = Epic ORDER BY created DESC",
-                ['summary', 'description', 'status']
-            );
-
-            // Get stories and tasks
-            $stories = $jiraService->getIssuesWithJql(
-                "project = \"{$projectKey}\" AND issuetype in (Story, Task) AND \"Epic Link\" is not EMPTY ORDER BY created DESC",
-                ['summary', 'description', 'status', 'parent', 'labels']
-            );
-
-            // Get unassigned issues (not linked to epics)
-            $unassigned = $jiraService->getIssuesWithJql(
-                "project = \"{$projectKey}\" AND issuetype in (Story, Task, Bug) AND \"Epic Link\" is EMPTY ORDER BY created DESC",
-                ['summary', 'description', 'status', 'issuetype', 'labels']
-            );
-
-            return $this->successResponse([
-                'project' => $project,
-                'epics' => $epics,
-                'stories' => $stories,
-                'unassigned' => $unassigned
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Error getting Jira project details: ' . $e->getMessage());
-            return $this->errorResponse('Failed to get project details: ' . $e->getMessage(), 500);
+        // Check if we already have cached results
+        $cacheKey = "jira_project_{$currentTeamId}_{$projectKey}";
+        if (Cache::has($cacheKey)) {
+            return $this->successResponse(Cache::get($cacheKey));
         }
+
+        // Check if there's an active import job
+        $progressId = $request->input('progress_id');
+        if ($progressId && Cache::has("progress_{$progressId}")) {
+            return $this->successResponse([
+                'loading' => true,
+                'progress' => Cache::get("progress_{$progressId}")
+            ]);
+        }
+
+        // Start background job for loading
+        $job = new LoadJiraProjectJob($currentTeamId, $projectKey, Auth::id());
+        $progressId = $job->getProgressId();
+        dispatch($job);
+
+        // Return the progress ID so the frontend can track progress
+        return $this->successResponse([
+            'loading' => true,
+            'progress' => [
+                'id' => $progressId,
+                'percent' => 0,
+                'message' => 'Job started, loading project data...'
+            ]
+        ]);
+    }
+
+    // Add new endpoint to check progress
+    public function checkImportProgress(Request $request, $progressId)
+    {
+        $progress = Cache::get("progress_{$progressId}");
+
+        if (!$progress) {
+            return $this->errorResponse('Progress not found', 404);
+        }
+
+        return $this->successResponse($progress);
     }
 
     /**
@@ -258,24 +262,24 @@ class JiraIntegrationController extends Controller
                     'steps' => $this->generateTestSteps([], $issue['fields']['summary'], $issueType),
                     'expected_results' => $this->generateExpectedResults([], $issue['fields']['summary'], $issueType),
                     'priority' => $this->mapJiraPriorityToArxitest(
-        $issue['fields']['priority']['name'] ?? 'Medium'
-    ),
-    'status' => 'draft',
-    'tags' => array_merge(
-        ['jira-import', $issue['key'], strtolower($issueType)],
-        $issue['fields']['labels'] ?? []
-    )
-];
+                        $issue['fields']['priority']['name'] ?? 'Medium'
+                    ),
+                    'status' => 'draft',
+                    'tags' => array_merge(
+                        ['jira-import', $issue['key'], strtolower($issueType)],
+                        $issue['fields']['labels'] ?? []
+                    )
+                ];
 
-$testCase = \App\Models\TestCase::firstOrCreate(
-    [
-        'story_id' => $story->id,
-        'title' => "Verify: " . substr($issue['fields']['summary'], 0, 90)
-    ],
-    $testCaseData
-);
+                $testCase = \App\Models\TestCase::firstOrCreate(
+                    [
+                        'story_id' => $story->id,
+                        'title' => "Verify: " . substr($issue['fields']['summary'], 0, 90)
+                    ],
+                    $testCaseData
+                );
 
-$testCaseCount++;
+                $testCaseCount++;
             }
         }
 

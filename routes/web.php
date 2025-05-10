@@ -388,6 +388,7 @@ Route::prefix('dashboard/integrations/jira')->name('dashboard.integrations.jira.
     Route::post('/import-issues', [JiraIntegrationController::class, 'importIssues'])->name('import-issues');
     Route::get('/redirect', [JiraIntegrationController::class, 'redirect'])->name('redirect');
     Route::post('/disconnect', [JiraIntegrationController::class, 'disconnect'])->name('disconnect');
+    Route::get('/import-progress/{progressId}', [JiraIntegrationController::class, 'checkImportProgress'])->name('import.progress');
 });
 
 

@@ -44,5 +44,10 @@ class AppServiceProvider extends ServiceProvider
         });
 
         View::composer('layouts.dashboard', DashboardLayoutComposer::class);
+        if (auth()->check()) {
+            \Illuminate\Support\Facades\View::composer('*', function ($view) {
+                $view->with('includeProgressTracker', true);
+            });
+        }
     }
 }
