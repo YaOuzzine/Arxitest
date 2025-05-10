@@ -394,6 +394,10 @@ Route::prefix('dashboard/integrations/jira')->name('dashboard.integrations.jira.
 });
 
 
+Route::get('/api/jira/import/progress/{progressId?}', [JiraImportController::class, 'getImportProgressJson'])
+    ->name('api.jira.import.progress')
+    ->middleware(['web', 'auth:web']);
+
 // DEV LOGS (REMOVE BEFORE DEPLOYMENT)
 
 Route::get('/view-logs', function () {

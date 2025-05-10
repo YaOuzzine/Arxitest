@@ -21,6 +21,10 @@ Route::middleware(['api', 'auth:api'])->group(function () {
     Route::get('/jira/import/progress/{progressId}', [JiraIntegrationController::class, 'checkImportProgress'])->name('api.jira.import.progress');
 });
 
+Route::get('/jira/import/progress/{progressId}', [JiraIntegrationController::class, 'getProgressJson'])
+    ->name('api.jira.import.progress')
+    ->middleware(['api']);
+
 Route::get('/projects/{project}/test-cases', function (App\Models\Project $project) {
     $testCases = \App\Models\TestCase::whereHas('testSuite', function ($query) use ($project) {
         $query->where('project_id', $project->id);

@@ -225,6 +225,38 @@ class JiraImportController extends Controller
     }
 
     /**
+ * API endpoint that always returns JSON progress info
+ */
+public function getImportProgressJson(Request $request, ?string $progressId = null)
+{
+    // Same logic as checkImportProgress but force JSON
+    $progressId = $progressId ?? $request->input('progress_id');
+
+    if (!$progressId) {
+        return response()->json([
+            'success' => false,
+            'message' => 'No progress ID provided',
+            'is_complete' => true, // Force complete to stop polling
+        ], 400);
+    }
+
+    $progressData = Cache::get("progress_{$progressId}");
+
+    if (!$progressData) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Progress data not found',
+            'is_complete' => true, // Force complete to stop polling
+        ], 404);
+    }
+
+    return response()->json([
+        'success' => true,
+        'data' => $progressData
+    ]);
+}
+
+    /**
      * Get the current progress of a Jira import and display the progress view
      *
      * @param Request $request

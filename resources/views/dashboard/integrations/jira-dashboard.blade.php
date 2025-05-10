@@ -508,7 +508,7 @@
                     resetImportUI();
                 });
 
-                // Functions
+                // Update the loadProject function in jira-dashboard.blade.php
                 function loadProject(projectKey) {
                     currentProject = projectKey;
                     selectedIssues.clear();
@@ -526,27 +526,60 @@
                                 'Accept': 'application/json'
                             }
                         })
-                        .then(response => response.json())
+                        .then(response => {
+                            if (!response.ok) {
+                                throw new Error(`Server returned status: ${response.status}`);
+                            }
+
+                            // Check content type to avoid parsing HTML
+                            const contentType = response.headers.get('content-type');
+                            if (!contentType || !contentType.includes('application/json')) {
+                                throw new Error('Response is not JSON');
+                            }
+
+                            return response.json();
+                        })
                         .then(data => {
                             if (data.success) {
                                 if (data.data.loading) {
                                     // Project is being loaded in background
                                     const progress = data.data.progress;
 
-                                    // Add to progress tracker instead of using local progress UI
+                                    // Add to progress tracker
                                     if (window.progressTracker) {
-                                        window.progressTracker.addJob(progress.id, `Loading ${projectKey}`, 'jira');
+                                        window.progressTracker.addJob(progress.id, projectKey);
+                                        window.progressTracker.show();
                                     }
 
                                     // Set up polling to check when data is ready
                                     const checkInterval = setInterval(() => {
-                                        fetch(`{{ route('dashboard.integrations.jira.import.progress', ['progressId' => '__PROGRESS_ID__']) }}`.replace('__PROGRESS_ID__', progress.id), {
+                                        // Correctly construct the URL with the progress ID
+                                        const progressUrl =
+                                            `/dashboard/integrations/jira/import/progress/${progress.id}`;
+
+                                        fetch(progressUrl, {
                                                 headers: {
                                                     'X-CSRF-TOKEN': '{{ csrf_token() }}',
                                                     'Accept': 'application/json'
                                                 }
                                             })
-                                            .then(response => response.json())
+                                            .then(response => {
+                                                if (!response.ok) {
+                                                    throw new Error(
+                                                        `Server returned status: ${response.status}`
+                                                    );
+                                                }
+
+                                                // Check content type to avoid parsing HTML
+                                                const contentType = response.headers.get(
+                                                    'content-type');
+                                                if (!contentType || !contentType.includes(
+                                                        'application/json')) {
+                                                    throw new Error('Response is not JSON');
+                                                }
+
+                                                return response.json();
+                                            })
                                             .then(progressData => {
                                                 if (progressData.success) {
                                                     const progressInfo = progressData.data;
@@ -571,8 +604,9 @@
                                             })
                                             .catch(error => {
                                                 console.error('Error checking progress:', error);
+                                                // Don't clear interval on first error to keep trying
                                             });
-                                    }, 2000);
+                                    }, 3000);
                                 } else {
                                     // Data is already available
                                     projectData = data.data;
@@ -735,17 +769,34 @@
                     }
                 }
 
+                // Updated toggleIssueSelection function
                 function toggleIssueSelection(issueKey, itemElement) {
                     // Create a safety check to prevent null reference errors
                     if (!itemElement) {
-                        console.error('Item element is null when trying to toggle selection for key:', issueKey);
+                        console.warn('Item element is null when trying to toggle selection for key:', issueKey);
                         return;
                     }
 
                     // Find the icon element first
                     const iconElement = itemElement.querySelector('.select-issue-btn i');
                     if (!iconElement) {
-                        console.error('Icon element not found in item:', issueKey);
+                        console.warn('Icon element not found in item:', issueKey);
+
+                        // Try to auto-fix the element by recreating the button
+                        const selectBtn = itemElement.querySelector('.select-issue-btn');
+                        if (selectBtn) {
+                            selectBtn.innerHTML =
+                                '<i data-lucide="plus" class="w-3 h-3 text-zinc-500 dark:text-zinc-400"></i>';
+
+                            // Reinitialize the icon
+                            lucide.createIcons({
+                                scope: selectBtn
+                            });
+
+                            // Now try again with the fixed element
+                            toggleIssueSelection(issueKey, itemElement);
+                            return;
+                        }
                         return;
                     }
 
@@ -759,10 +810,14 @@
                         iconElement.setAttribute('data-lucide', 'check');
                     }
 
-                    // Refresh Lucide icons
-                    lucide.createIcons({
-                        scope: itemElement
-                    });
+                    // Refresh Lucide icons with error handling
+                    try {
+                        lucide.createIcons({
+                            scope: itemElement
+                        });
+                    } catch (error) {
+                        console.error('Error refreshing icons:', error);
+                    }
 
                     // Update selected issues UI
                     updateSelectedUI();
@@ -1008,12 +1063,12 @@
                     const maxChecks = 300; // Prevent infinite polling
 
                     const checkProgress = () => {
-                        fetch(`{{ route('integrations.jira.import.progress') }}?job_id=${jobId}`, {
-                                headers: {
-                                    'Accept': 'application/json',
-                                    'X-Requested-With': 'XMLHttpRequest'
-                                }
-                            })
+                        const progressUrl = `/api/jira/import/progress/${progress.id}`;
+                        fetch(progressUrl, {
+            headers: {
+                'Accept': 'application/json'
+            }
+        })
                             .then(response => {
                                 if (!response.ok) {
                                     throw new Error('Progress check failed');

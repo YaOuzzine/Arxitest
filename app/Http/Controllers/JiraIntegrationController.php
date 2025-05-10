@@ -58,13 +58,71 @@ class JiraIntegrationController extends Controller
     }
 
     /**
+     * API-specific endpoint for checking progress - always returns JSON
+     *
+     * @param string $progressId
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getProgressJson(string $progressId)
+    {
+        try {
+            // Log the request for debugging (can remove later)
+            Log::info('API progress check', [
+                'progressId' => $progressId
+            ]);
+
+            // Get progress data from cache
+            $progressData = Cache::get("progress_{$progressId}");
+
+            if (!$progressData) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Progress data not found',
+                    'data' => [
+                        'is_complete' => true, // Force complete to stop polling
+                        'is_success' => false,
+                        'message' => 'Progress tracking information has expired or job not found'
+                    ]
+                ]);
+            }
+
+            // Calculate elapsed time
+            if (isset($progressData['started_at'])) {
+                $startTime = $progressData['started_at'];
+                $endTime = $progressData['completed_at'] ?? now()->timestamp;
+                $progressData['elapsed_seconds'] = $endTime - $startTime;
+                $progressData['elapsed_time'] = $this->formatElapsedTime($progressData['elapsed_seconds']);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $progressData
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error in progress API endpoint', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Internal server error: ' . $e->getMessage(),
+                'data' => [
+                    'is_complete' => true, // Force complete to stop polling
+                    'is_success' => false,
+                    'message' => 'Server error tracking progress'
+                ]
+            ]);
+        }
+    }
+
+    /**
      * Get Jira project details including epics, stories, and issues
      */
     public function getProjectDetails(Request $request)
     {
         $validator = Validator::make($request->all(), [
             'key' => 'required|string',
-            'force_refresh' => 'nullable|boolean', // Add this line
         ]);
 
         if ($validator->fails()) {
@@ -74,37 +132,27 @@ class JiraIntegrationController extends Controller
         $team = $this->getCurrentTeam($request);
         $currentTeamId = $team->id;
         $projectKey = $request->input('key');
-        $forceRefresh = $request->input('force_refresh', false); // Add this line
 
+        // Check if we already have cached results
         $cacheKey = "jira_project_{$currentTeamId}_{$projectKey}";
-        if (!$forceRefresh && Cache::has($cacheKey)) {
+        if (Cache::has($cacheKey)) {
             return $this->successResponse(Cache::get($cacheKey));
         }
 
         // Check if there's an active import job
         $progressId = $request->input('progress_id');
         if ($progressId && Cache::has("progress_{$progressId}")) {
-            $progress = Cache::get("progress_{$progressId}");
-            Log::info('Returning existing progress', [
-                'progress_id' => $progressId,
-                'percent' => $progress['percent'] ?? 0
-            ]);
-
             return $this->successResponse([
                 'loading' => true,
-                'progress' => $progress
+                'progress' => Cache::get("progress_{$progressId}")
             ]);
         }
 
-        // Start a new import job
+        // Start background job for loading
         $job = new LoadJiraProjectJob($currentTeamId, $projectKey, Auth::id());
         $progressId = $job->getProgressId();
 
-        Log::info('Starting new JIRA import job', [
-            'project_key' => $projectKey,
-            'progress_id' => $progressId
-        ]);
-
+        // Dispatch the job
         dispatch($job);
 
         // Return the progress ID so the frontend can track progress
@@ -113,40 +161,92 @@ class JiraIntegrationController extends Controller
             'progress' => [
                 'id' => $progressId,
                 'percent' => 0,
-                'message' => 'Starting JIRA project import...'
+                'message' => 'Job started, loading project data...',
+                'is_complete' => false,
+                'project_key' => $projectKey,
             ]
         ]);
     }
 
     /**
-     * Check progress of an import job
+     * Check progress of a Jira import
+     *
+     * @param Request $request
+     * @param string|null $progressId
+     * @return \Illuminate\Http\JsonResponse
      */
-    public function checkImportProgress(Request $request, $progressId)
+    public function checkImportProgress(Request $request, ?string $progressId = null)
     {
-        Log::info('Progress check', [
-            'progress_id' => $progressId,
-            'found' => Cache::has("progress_{$progressId}")
+        // Get progress ID from request if not provided in URL
+        $progressId = $progressId ?? $request->input('progress_id');
+
+        // Log the request for debugging
+        Log::info('Import progress request received', [
+            'project_id' => $progressId,
+            'is_ajax' => $request->ajax(),
+            'wants_json' => $request->wantsJson(),
+            'accept' => $request->header('Accept')
         ]);
 
-        $progress = Cache::get("progress_{$progressId}");
-
-        if (!$progress) {
-            // If no progress, initialize with zero progress
-            $progress = [
-                'percent' => 0,
-                'message' => 'Initializing job...',
-                'is_complete' => false,
-                'is_success' => true,
-                'updated_at' => now()->timestamp
-            ];
-            Cache::put("progress_{$progressId}", $progress, now()->addHour());
-
-            Log::warning('Progress not found, creating initial progress', [
-                'progress_id' => $progressId
-            ]);
+        if (!$progressId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No progress ID provided'
+            ], 400);
         }
 
-        return $this->successResponse($progress);
+        // Get progress data from cache
+        $progressData = Cache::get("progress_{$progressId}");
+
+        if (!$progressData) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Progress data not found. The job may have expired or not started.',
+                'is_complete' => true, // Mark as complete to stop polling
+                'is_success' => false
+            ], 404);
+        }
+
+        // Add derived fields like elapsed_time for UI
+        if (isset($progressData['started_at'])) {
+            $startTimestamp = $progressData['started_at'];
+            $endTimestamp = $progressData['completed_at'] ?? now()->timestamp;
+            $elapsedSeconds = $endTimestamp - $startTimestamp;
+
+            $progressData['elapsed_seconds'] = $elapsedSeconds;
+            $progressData['elapsed_time'] = $this->formatElapsedTime($elapsedSeconds);
+        }
+
+        // Ensure content type is application/json
+        return response()->json([
+            'success' => true,
+            'data' => $progressData
+        ])->header('Content-Type', 'application/json');
+    }
+
+    /**
+     * Format elapsed seconds into a human-readable string
+     *
+     * @param int $seconds
+     * @return string
+     */
+    private function formatElapsedTime(int $seconds): string
+    {
+        if ($seconds < 60) {
+            return "{$seconds} seconds";
+        }
+
+        $minutes = floor($seconds / 60);
+        $remainingSeconds = $seconds % 60;
+
+        if ($minutes < 60) {
+            return "{$minutes}m {$remainingSeconds}s";
+        }
+
+        $hours = floor($minutes / 60);
+        $remainingMinutes = $minutes % 60;
+
+        return "{$hours}h {$remainingMinutes}m {$remainingSeconds}s";
     }
 
     /**
