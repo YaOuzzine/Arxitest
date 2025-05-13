@@ -7,6 +7,7 @@ use App\Models\Story;
 use App\Models\TestCase;
 use App\Models\SyncMapping;
 use Carbon\Carbon;
+use App\Models\ProjectIntegration;
 use Illuminate\Support\Facades\Log;
 
 class JiraSyncService
@@ -136,42 +137,81 @@ class JiraSyncService
                         ->where('external_id', $issue['key'])
                         ->first();
 
-                    if ($mapping) {
-                        // Update existing entity
-                        $entityClass = $mapping->arxitest_type;
-                        $entity = $entityClass::find($mapping->arxitest_id);
+                    // Get issue details we need
+                    $issueKey = $issue['key'];
+                    $issueType = $issue['fields']['issuetype']['name'] ?? 'Unknown';
+                    $summary = $issue['fields']['summary'] ?? 'Untitled';
+                    $description = $this->extractPlainTextFromAdf($issue['fields']['description'] ?? []);
 
-                        if ($entity) {
-                            if ($entity instanceof Story) {
-                                $this->updateStoryFromJira($entity, $issue);
-                            } elseif ($entity instanceof TestCase) {
-                                // Similar for test case
+                    // For stories, bugs, tasks
+                    if (in_array($issueType, ['Story', 'Bug', 'Task'])) {
+                        try {
+                            // Use updateOrCreate instead of just create
+                            $story = Story::updateOrCreate(
+                                [
+                                    'source' => 'jira',
+                                    'external_id' => $issueKey,
+                                    'project_id' => $this->project->id
+                                ],
+                                [
+                                    'title' => $summary,
+                                    'description' => $description,
+                                    'metadata' => [
+                                        'jira_id' => $issue['id'],
+                                        'jira_key' => $issueKey,
+                                        'jira_issue_type' => $issueType,
+                                        'jira_status' => $issue['fields']['status']['name'] ?? null,
+                                        'jira_labels' => $issue['fields']['labels'] ?? [],
+                                        'jira_import_timestamp' => now()->toIso8601String()
+                                    ]
+                                ]
+                            );
+
+                            // Update or create mapping
+                            if (!$mapping) {
+                                SyncMapping::create([
+                                    'arxitest_type' => Story::class,
+                                    'arxitest_id' => $story->id,
+                                    'external_system' => 'jira',
+                                    'external_id' => $issueKey,
+                                    'last_sync' => now(),
+                                    'metadata' => ['created_by' => 'pull_sync']
+                                ]);
+                                $result['created']++;
+                            } else {
+                                $mapping->update(['last_sync' => now()]);
+                                $result['updated']++;
                             }
 
-                            $mapping->update(['last_sync' => now()]);
-                            $result['updated']++;
-                        } else {
-                            // Entity no longer exists
-                            $mapping->delete();
-                            // Create it as new
-                            $this->createEntityFromJira($issue);
-                            $result['created']++;
+                            $result['success']++;
+                            $result['details'][] = [
+                                'entity' => 'story',
+                                'id' => $story->id,
+                                'jira_key' => $issueKey,
+                                'status' => 'success'
+                            ];
+                        } catch (\Exception $e) {
+                            Log::error("Error syncing issue {$issueKey}: " . $e->getMessage());
+                            $result['failed']++;
+                            $result['details'][] = [
+                                'jira_key' => $issueKey,
+                                'error' => $e->getMessage(),
+                                'status' => 'error'
+                            ];
                         }
                     } else {
-                        // Create new entity
-                        $this->createEntityFromJira($issue);
-                        $result['created']++;
+                        // Skip other issue types
+                        $result['skipped']++;
+                        $result['details'][] = [
+                            'jira_key' => $issueKey,
+                            'type' => $issueType,
+                            'status' => 'skipped'
+                        ];
                     }
-
-                    $result['success']++;
                 } catch (\Exception $e) {
-                    Log::error("Error syncing issue {$issue['key']}: " . $e->getMessage());
+                    // Log individual issue errors but continue with others
+                    Log::error("Error processing issue: " . $e->getMessage());
                     $result['failed']++;
-                    $result['details'][] = [
-                        'jira_key' => $issue['key'],
-                        'error' => $e->getMessage(),
-                        'status' => 'error'
-                    ];
                 }
             }
         } catch (\Exception $e) {
@@ -213,10 +253,18 @@ class JiraSyncService
      */
     protected function convertStoryToJiraIssue(Story $story): array
     {
+        $jiraProjectKey = $this->getJiraProjectKey();
+
+        // Log the project key for debugging
+        Log::info("Using Jira project key for push", [
+            'project_key' => $jiraProjectKey,
+            'story_id' => $story->id
+        ]);
+
         return [
             'fields' => [
                 'project' => [
-                    'key' => $this->getJiraProjectKey()
+                    'key' => $jiraProjectKey
                 ],
                 'summary' => $story->title,
                 'description' => [
@@ -237,7 +285,6 @@ class JiraSyncService
                 'issuetype' => [
                     'name' => 'Story'
                 ],
-                // Add other fields as needed
                 'labels' => ['arxitest-sync']
             ]
         ];
@@ -299,9 +346,25 @@ class JiraSyncService
      */
     protected function getJiraProjectKey(): string
     {
-        // Get from project settings
-        return $this->project->settings['jira_project_key'] ??
+        // First try from project settings
+        $key = $this->project->settings['jira_project_key'] ?? null;
+
+        // If not found, try from integration config
+        if (!$key) {
+            $integration = ProjectIntegration::where('project_id', $this->project->id)
+                ->whereHas('integration', fn($q) => $q->where('type', 'jira'))
+                ->first();
+
+            if ($integration) {
+                $key = $integration->project_specific_config['jira_project_key'] ?? null;
+            }
+        }
+
+        if (!$key) {
             throw new \Exception("Jira project key not configured");
+        }
+
+        return $key;
     }
 
     /**

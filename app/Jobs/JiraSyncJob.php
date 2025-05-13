@@ -56,8 +56,19 @@ class JiraSyncJob implements ShouldQueue
     public function handle(): void
     {
         try {
+            Log::info('Starting Jira sync job', [
+                'project_id' => $this->projectId,
+                'direction' => $this->direction,
+                'entity_types' => $this->entityTypes,
+                'progress_id' => $this->progressId
+            ]);
             $project = Project::findOrFail($this->projectId);
             $jiraProjectKey = $project->settings['jira_project_key'] ?? null;
+
+            Log::info('Jira project key from settings', [
+                'project_id' => $this->projectId,
+                'jira_project_key' => $jiraProjectKey
+            ]);
 
             if (!$jiraProjectKey) {
                 throw new \Exception("Jira project key not configured for project {$this->projectId}");
@@ -68,15 +79,25 @@ class JiraSyncJob implements ShouldQueue
 
             // Create sync service
             $syncService = new JiraSyncService($project);
-
+            Log::info('Jira sync: Created sync service', ['progress_id' => $this->progressId]);
             // Update progress to 20%
             $this->updateProgress(20, 'Preparing entities');
 
             // Process based on direction
             if ($this->direction === 'pull' || $this->direction === 'both') {
+                Log::info('Jira sync: Starting pull', [
+                    'project_key' => $jiraProjectKey,
+                    'progress_id' => $this->progressId
+                ]);
                 $this->updateProgress(30, 'Pulling changes from Jira');
 
                 $pullResults = $syncService->pullFromJira($jiraProjectKey, $this->options);
+
+                Log::info('Jira sync: Pull completed', [
+                    'success' => $pullResults['success'],
+                    'failed' => $pullResults['failed'],
+                    'progress_id' => $this->progressId
+                ]);
 
                 $this->updateProgress(50, "Pulled {$pullResults['success']} items from Jira");
 
@@ -96,7 +117,7 @@ class JiraSyncJob implements ShouldQueue
                 if (in_array('story', $this->entityTypes)) {
                     // Get stories
                     $stories = Story::where('project_id', $this->projectId)
-                        ->when(!empty($this->options['since']), function($query) {
+                        ->when(!empty($this->options['since']), function ($query) {
                             $query->where('updated_at', '>=', $this->options['since']);
                         })
                         ->get();
@@ -106,13 +127,13 @@ class JiraSyncJob implements ShouldQueue
 
                 if (in_array('test_case', $this->entityTypes)) {
                     // Get test cases
-                    $testCases = TestCase::whereHas('testSuite', function($query) {
+                    $testCases = TestCase::whereHas('testSuite', function ($query) {
                         $query->where('project_id', $this->projectId);
                     })
-                    ->when(!empty($this->options['since']), function($query) {
-                        $query->where('updated_at', '>=', $this->options['since']);
-                    })
-                    ->get();
+                        ->when(!empty($this->options['since']), function ($query) {
+                            $query->where('updated_at', '>=', $this->options['since']);
+                        })
+                        ->get();
 
                     $entitiesToPush = array_merge($entitiesToPush, $testCases->all());
                 }
@@ -142,9 +163,13 @@ class JiraSyncJob implements ShouldQueue
 
             // Set progress to complete
             $this->setProgressCompleted(true);
-
+            Log::info('Jira sync job completed successfully', ['progress_id' => $this->progressId]);
         } catch (\Exception $e) {
-            Log::error("Jira sync job failed: " . $e->getMessage());
+            Log::error("Jira sync job failed", [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'progress_id' => $this->progressId
+            ]);
 
             // Update progress with error
             $this->setProgressCompleted(false, $e->getMessage());
@@ -183,7 +208,12 @@ class JiraSyncJob implements ShouldQueue
 
         Cache::put("jira_sync_progress_{$this->progressId}", $progress, now()->addHours(24));
 
-        Log::info("Jira sync progress: {$percent}% - {$message}");
+        Log::info("Jira sync progress", [
+            'percent' => $percent,
+            'message' => $message,
+            'project_id' => $this->projectId,
+            'progress_id' => $this->progressId
+        ]);
     }
 
     /**

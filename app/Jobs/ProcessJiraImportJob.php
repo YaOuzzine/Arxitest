@@ -307,7 +307,6 @@ class ProcessJiraImportJob implements ShouldQueue
                 'testScriptCount' => $testScriptCount,
                 'batchId' => $importBatchId
             ]);
-
         } catch (\Exception $e) {
             Log::error('Jira import job failed', [
                 'project_id' => $this->projectId,
@@ -319,6 +318,8 @@ class ProcessJiraImportJob implements ShouldQueue
             $this->setImportCompleted(false, null, $e->getMessage());
         }
     }
+
+
 
     /**
      * Update progress in cache

@@ -394,8 +394,11 @@ Route::prefix('dashboard/integrations/jira')->name('dashboard.integrations.jira.
     Route::get('/redirect', [JiraIntegrationController::class, 'redirect'])->name('redirect');
     Route::post('/disconnect', [JiraIntegrationController::class, 'disconnect'])->name('disconnect');
     Route::get('/import-progress/{progressId}', [JiraIntegrationController::class, 'checkImportProgress'])->name('import.progress');
-    Route::post('/dashboard/integrations/jira/load-project-data', [JiraIntegrationController::class, 'loadProjectData'])
+    Route::post('/configure', [JiraIntegrationController::class, 'configure'])->name('configure');
+    Route::post('/start-sync', [JiraIntegrationController::class, 'startSync'])->name('start-sync');
+    Route::post('/load-project-data', [JiraIntegrationController::class, 'loadProjectData'])
         ->name('load-project-data');
+    Route::get('/sync-status/{progressId}', [JiraIntegrationController::class, 'syncStatus'])->name('sync-status');
 });
 
 

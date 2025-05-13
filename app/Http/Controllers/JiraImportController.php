@@ -66,169 +66,169 @@ class JiraImportController extends Controller
      * @return \Illuminate\Http\JsonResponse|\Illuminate\Http\RedirectResponse
      */
     public function importProject(Request $request)
-{
-    Log::info('Jira import request received', [
-        'is_ajax' => $request->ajax(),
-        'wants_json' => $request->wantsJson(),
-        'accept' => $request->header('Accept'),
-        'data' => $request->all()
-    ]);
-
-    // Fix the validator to handle checkboxes correctly
-    $validator = Validator::make($request->all(), [
-        'jira_project_key'       => 'required|string|max:100',
-        'jira_project_name'      => 'required|string|max:255',
-        'create_new_project'     => 'required|in:0,1',
-        'arxitest_project_id' => $request->input('create_new_project') == '0'
-            ? 'required|uuid|exists:projects,id'
-            : 'nullable',
-        'new_project_name'       => 'required_if:create_new_project,1|string|max:255',
-        // Handle checkboxes properly - they only exist when checked
-        'import_epics'           => 'sometimes',
-        'import_stories'         => 'sometimes',
-        'generate_test_scripts'  => 'sometimes',
-        'jql_filter'             => 'nullable|string|max:1000',
-        'max_issues'             => 'nullable|integer|min:0',
-    ]);
-
-    if ($validator->fails()) {
-        Log::error('Validation failed', [
-            'errors' => $validator->errors()->toArray(),
+    {
+        Log::info('Jira import request received', [
+            'is_ajax' => $request->ajax(),
+            'wants_json' => $request->wantsJson(),
+            'accept' => $request->header('Accept'),
             'data' => $request->all()
         ]);
 
-        // Always return JSON for AJAX requests
-        return response()->json([
-            'success' => false,
-            'message' => $validator->errors()->first(),
-            'errors' => $validator->errors()->toArray()
-        ], 422);
-    }
+        // Fix the validator to handle checkboxes correctly
+        $validator = Validator::make($request->all(), [
+            'jira_project_key'       => 'required|string|max:100',
+            'jira_project_name'      => 'required|string|max:255',
+            'create_new_project'     => 'required|in:0,1',
+            'arxitest_project_id' => $request->input('create_new_project') == '0'
+                ? 'required|uuid|exists:projects,id'
+                : 'nullable',
+            'new_project_name'       => 'required_if:create_new_project,1|string|max:255',
+            // Handle checkboxes properly - they only exist when checked
+            'import_epics'           => 'sometimes',
+            'import_stories'         => 'sometimes',
+            'generate_test_scripts'  => 'sometimes',
+            'jql_filter'             => 'nullable|string|max:1000',
+            'max_issues'             => 'nullable|integer|min:0',
+        ]);
 
-    // Get validated data
-    $validated = $validator->validated();
-    Log::info('Validation successful', $validated);
-
-    $teamId = session('current_team');
-    if (!$teamId) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Team selection required.'
-        ], 400);
-    }
-
-    try {
-        // Create new project or use existing one
-        if ($request->input('create_new_project') == '1') {
-            $name = $validated['new_project_name'];
-            $project = Project::create([
-                'name'        => $name,
-                'description' => "Imported from Jira: " . $validated['jira_project_name'],
-                'team_id'     => $teamId,
-                'settings'    => [
-                    'jira_import' => [
-                        'source' => $validated['jira_project_key'],
-                        'date' => now()->toDateTimeString()
-                    ]
-                ],
+        if ($validator->fails()) {
+            Log::error('Validation failed', [
+                'errors' => $validator->errors()->toArray(),
+                'data' => $request->all()
             ]);
-            Log::info('Created new project for Jira import', [
-                'project_id' => $project->id,
-                'jira_key' => $validated['jira_project_key']
-            ]);
-        } else {
-            $project = Project::findOrFail($validated['arxitest_project_id']);
-            if ($project->team_id !== $teamId) {
-                throw new \Exception('No permission for that project.');
+
+            // Always return JSON for AJAX requests
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+                'errors' => $validator->errors()->toArray()
+            ], 422);
+        }
+
+        // Get validated data
+        $validated = $validator->validated();
+        Log::info('Validation successful', $validated);
+
+        $teamId = session('current_team');
+        if (!$teamId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Team selection required.'
+            ], 400);
+        }
+
+        try {
+            // Create new project or use existing one
+            if ($request->input('create_new_project') == '1') {
+                $name = $validated['new_project_name'];
+                $project = Project::create([
+                    'name'        => $name,
+                    'description' => "Imported from Jira: " . $validated['jira_project_name'],
+                    'team_id'     => $teamId,
+                    'settings'    => [
+                        'jira_import' => [
+                            'source' => $validated['jira_project_key'],
+                            'date' => now()->toDateTimeString()
+                        ]
+                    ],
+                ]);
+                Log::info('Created new project for Jira import', [
+                    'project_id' => $project->id,
+                    'jira_key' => $validated['jira_project_key']
+                ]);
+            } else {
+                $project = Project::findOrFail($validated['arxitest_project_id']);
+                if ($project->team_id !== $teamId) {
+                    throw new \Exception('No permission for that project.');
+                }
             }
-        }
 
-        // Initialize progress tracking
-        $this->initializeImportProgress($project->id);
+            // Initialize progress tracking
+            $this->initializeImportProgress($project->id);
 
-        // Get Jira service for the team
-        $jiraService = new JiraService($teamId);
+            // Get Jira service for the team
+            $jiraService = new JiraService($teamId);
 
-        // Build JQL query
-        $jqlParts = ['project = "' . str_replace('"', '\"', $validated['jira_project_key']) . '"'];
-        $types = [];
+            // Build JQL query
+            $jqlParts = ['project = "' . str_replace('"', '\"', $validated['jira_project_key']) . '"'];
+            $types = [];
 
-        // Correctly check for checkbox values
-        if ($request->has('import_epics')) $types[] = 'Epic';
-        if ($request->has('import_stories')) $types = array_merge($types, ['Story', 'Task', 'Bug']);
+            // Correctly check for checkbox values
+            if ($request->has('import_epics')) $types[] = 'Epic';
+            if ($request->has('import_stories')) $types = array_merge($types, ['Story', 'Task', 'Bug']);
 
-        if ($types) {
-            $jqlParts[] = 'issueType IN ("' . implode('","', $types) . '")';
-        }
+            if ($types) {
+                $jqlParts[] = 'issueType IN ("' . implode('","', $types) . '")';
+            }
 
-        if (!empty($validated['jql_filter'])) {
-            $jqlParts[] = '(' . $validated['jql_filter'] . ')';
-        }
+            if (!empty($validated['jql_filter'])) {
+                $jqlParts[] = '(' . $validated['jql_filter'] . ')';
+            }
 
-        $jql = implode(' AND ', $jqlParts) . ' ORDER BY created DESC';
+            $jql = implode(' AND ', $jqlParts) . ' ORDER BY created DESC';
 
-        // Define fields to retrieve
-        $fields = [
-            'summary',
-            'description',
-            'issuetype',
-            'parent',
-            'status',
-            'created',
-            'updated',
-            'labels',
-            'priority',
-            'assignee',
-            'components',
-            'customfield_10005' // Common field for acceptance criteria
-        ];
+            // Define fields to retrieve
+            $fields = [
+                'summary',
+                'description',
+                'issuetype',
+                'parent',
+                'status',
+                'created',
+                'updated',
+                'labels',
+                'priority',
+                'assignee',
+                'components',
+                'customfield_10005' // Common field for acceptance criteria
+            ];
 
-        // Fetch issues from Jira
-        $issues = $jiraService->getIssuesWithJql($jql, $fields, $validated['max_issues'] ?? 50);
+            // Fetch issues from Jira
+            $issues = $jiraService->getIssuesWithJql($jql, $fields, $validated['max_issues'] ?? 50);
 
-        // Queue the actual import process as a job to prevent timeout
-        Log::info('Attempting to dispatch job', [
-            'project_id' => $project->id,
-            'issues_count' => count($issues)
-        ]);
-
-        dispatch(new ProcessJiraImportJob(
-            $project->id,
-            $issues,
-            [
-                'importEpics' => $request->has('import_epics'),
-                'importStories' => $request->has('import_stories'),
-                'generateTestScripts' => $request->has('generate_test_scripts'),
-                'userId' => Auth::id(),
-            ]
-        ));
-
-        Log::info('Job dispatched successfully');
-
-        // Always return JSON
-        return response()->json([
-            'success' => true,
-            'data' => [
+            // Queue the actual import process as a job to prevent timeout
+            Log::info('Attempting to dispatch job', [
                 'project_id' => $project->id,
-                'message' => 'Jira import initiated. Check progress for updates.'
-            ]
-        ]);
-    } catch (\Exception $e) {
-        Log::error('Jira import failed', [
-            'error' => $e->getMessage(),
-            'trace' => $e->getTraceAsString()
-        ]);
+                'issues_count' => count($issues)
+            ]);
 
-        if (isset($project)) {
-            $this->setImportCompleted($project->id, false, null, $e->getMessage());
+            dispatch(new ProcessJiraImportJob(
+                $project->id,
+                $issues,
+                [
+                    'importEpics' => $request->has('import_epics'),
+                    'importStories' => $request->has('import_stories'),
+                    'generateTestScripts' => $request->has('generate_test_scripts'),
+                    'userId' => Auth::id(),
+                ]
+            ));
+
+            Log::info('Job dispatched successfully');
+
+            // Always return JSON
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'project_id' => $project->id,
+                    'message' => 'Jira import initiated. Check progress for updates.'
+                ]
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Jira import failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            if (isset($project)) {
+                $this->setImportCompleted($project->id, false, null, $e->getMessage());
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Import failed: ' . $e->getMessage()
+            ], 500);
         }
-
-        return response()->json([
-            'success' => false,
-            'message' => 'Import failed: ' . $e->getMessage()
-        ], 500);
     }
-}
 
     /**
      * API endpoint that always returns JSON progress info
@@ -976,6 +976,12 @@ PROMPT;
      */
     public function importCategorizedIssues(Request $request)
     {
+        Log::info('Jira categorized import request received', [
+            'is_ajax' => $request->ajax(),
+            'wants_json' => $request->wantsJson(),
+            'accept' => $request->header('Accept'),
+            'data' => $request->all()
+        ]);
         // Validate request data
         $validator = Validator::make($request->all(), [
             'jira_project_key' => 'required|string',
@@ -1029,8 +1035,11 @@ PROMPT;
             // Queue the import job with the categorization data
             dispatch(new ProcessJiraImportJob(
                 $project->id,
-                $request->input('jira_project_key'),
-                $issueCategories->toArray()
+                $request->input('issues'),
+                [
+                    'jira_project_key' => $request->input('jira_project_key'),
+                    'categorized' => true
+                ]
             ));
 
             return $this->successResponse([
