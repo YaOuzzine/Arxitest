@@ -912,11 +912,18 @@
                     }
                 });
 
+                const jiraProjectSelect = document.getElementById('import-jira-project');
+                const selectedOption = jiraProjectSelect.options[jiraProjectSelect.selectedIndex];
+                if (selectedOption && selectedOption.value) {
+                    // Extract the name part from "Project Name (KEY)"
+                    data.jira_project_name = selectedOption.textContent.split(' (')[0];
+                }
+
                 // Show progress tracker
                 showProgressTracker();
 
                 try {
-                    const response = await fetch('/integrations/jira/import-project', {
+                    const response = await fetch('/dashboard/integrations/jira/import-project', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -1288,7 +1295,7 @@
 
             const checkProgress = async () => {
                 try {
-                    const response = await fetch(`/api/jira/import/progress?project_id=${projectId}&check_progress=1`, {
+                    const response = await fetch(`/dashboard/integrations/jira/import/progress/${projectId}?check_progress=1`, {
                         headers: {
                             'Accept': 'application/json'
                         }

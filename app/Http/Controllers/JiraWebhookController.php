@@ -121,7 +121,7 @@ class JiraWebhookController extends Controller
                     ];
 
                     if ($entity instanceof \App\Models\Story) {
-                        $syncService->updateStoryFromJira($entity, $issue);
+                        $syncService->updateStoryFromJiraWebhook($entity, $issue);
                     } elseif ($entity instanceof \App\Models\TestCase) {
                         // Similar for test cases
                     }
@@ -156,7 +156,7 @@ class JiraWebhookController extends Controller
                         ];
 
                         // Create new entity
-                        $syncService->createEntityFromJira($issue);
+                        $syncService->createEntityFromJiraWebhook($issue);
 
                         Log::info("Created entity from webhook for project: {$project->id}");
                     }

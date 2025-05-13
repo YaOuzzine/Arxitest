@@ -186,6 +186,29 @@ class JiraSyncService
     }
 
     /**
+     * Update a story from Jira issue data - public wrapper for webhook use
+     *
+     * @param Story $story The story to update
+     * @param array $issue The Jira issue data
+     * @return void
+     */
+    public function updateStoryFromJiraWebhook(Story $story, array $issue): void
+    {
+        $this->updateStoryFromJira($story, $issue);
+    }
+
+    /**
+     * Create a new entity from Jira issue - public wrapper for webhook use
+     *
+     * @param array $issue The Jira issue data
+     * @return void
+     */
+    public function createEntityFromJiraWebhook(array $issue): void
+    {
+        $this->createEntityFromJira($issue);
+    }
+
+    /**
      * Convert a Story to Jira issue structure
      */
     protected function convertStoryToJiraIssue(Story $story): array
@@ -278,7 +301,7 @@ class JiraSyncService
     {
         // Get from project settings
         return $this->project->settings['jira_project_key'] ??
-               throw new \Exception("Jira project key not configured");
+            throw new \Exception("Jira project key not configured");
     }
 
     /**

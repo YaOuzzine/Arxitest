@@ -249,7 +249,7 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
             ->name('import.progress');
         Route::post('/import-project', [JiraImportController::class, 'importProject'])
             ->name('import.project');
-        Route::post('/integrations/jira/import-categorized', [JiraImportController::class, 'importCategorizedIssues'])
+        Route::post('/import-categorized', [JiraImportController::class, 'importCategorizedIssues'])
             ->name('import.categorized');
     });
 });

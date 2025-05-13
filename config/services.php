@@ -81,5 +81,9 @@ return [
         'auth_token' => env('TWILIO_AUTH_TOKEN'),
         'phone_number' => env('TWILIO_PHONE_NUMBER'),
     ],
+    'jira' => [
+        'webhook_secret' => env('JIRA_WEBHOOK_SECRET'),
+
+    ],
 
 ];

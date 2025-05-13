@@ -23,6 +23,7 @@ class ProcessJiraImportJob implements ShouldQueue
     protected $projectId;
     protected $issues;
     protected $options;
+    protected $userId;
 
     /**
      * Create a new job instance.
@@ -36,6 +37,7 @@ class ProcessJiraImportJob implements ShouldQueue
         $this->projectId = $projectId;
         $this->issues = $issues;
         $this->options = $options;
+        $this->userId = $options['userId'] ?? null;
     }
 
     /**
@@ -598,7 +600,7 @@ class ProcessJiraImportJob implements ShouldQueue
             // Create test script record
             $testScript = new \App\Models\TestScript();
             $testScript->test_case_id = $testCase->id;
-            $testScript->creator_id = auth()->id() ?? 1; // System user ID or admin
+            $testScript->creator_id = $this->userId; // System user ID or admin
             $testScript->name = "{$testCase->title} - {$framework} Script";
             $testScript->framework_type = $framework;
             $testScript->script_content = $scriptContent['content'] ?? '';
