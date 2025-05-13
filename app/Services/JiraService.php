@@ -410,4 +410,170 @@ class JiraService
             return null;
         }
     }
+
+    /**
+     * Create or update an issue in Jira
+     *
+     * @param array $issueData
+     * @param string|null $existingKey For updates
+     * @return array Issue data from Jira
+     */
+    public function createOrUpdateIssue(array $issueData, ?string $existingKey = null): array
+    {
+        $this->ensureValidToken();
+
+        if ($existingKey) {
+            // Update existing issue
+            return $this->client->api(
+                $this->cloudId,
+                'put',
+                "/rest/api/3/issue/{$existingKey}",
+                [
+                    'headers' => ['Authorization' => "Bearer {$this->accessToken}"],
+                    'json' => $issueData
+                ]
+            );
+        } else {
+            // Create new issue
+            return $this->client->api(
+                $this->cloudId,
+                'post',
+                "/rest/api/3/issue",
+                [
+                    'headers' => ['Authorization' => "Bearer {$this->accessToken}"],
+                    'json' => $issueData
+                ]
+            );
+        }
+    }
+
+    /**
+     * Add a comment to a Jira issue
+     *
+     * @param string $issueKey
+     * @param string $comment
+     * @return array
+     */
+    public function addComment(string $issueKey, string $comment): array
+    {
+        $this->ensureValidToken();
+
+        return $this->client->api(
+            $this->cloudId,
+            'post',
+            "/rest/api/3/issue/{$issueKey}/comment",
+            [
+                'headers' => ['Authorization' => "Bearer {$this->accessToken}"],
+                'json' => [
+                    'body' => [
+                        'type' => 'doc',
+                        'version' => 1,
+                        'content' => [
+                            [
+                                'type' => 'paragraph',
+                                'content' => [
+                                    [
+                                        'type' => 'text',
+                                        'text' => $comment
+                                    ]
+                                ]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
+        );
+    }
+
+    /**
+     * Get issue comments
+     *
+     * @param string $issueKey
+     * @return array
+     */
+    public function getComments(string $issueKey): array
+    {
+        $this->ensureValidToken();
+
+        return $this->client->api(
+            $this->cloudId,
+            'get',
+            "/rest/api/3/issue/{$issueKey}/comment",
+            [
+                'headers' => ['Authorization' => "Bearer {$this->accessToken}"]
+            ]
+        );
+    }
+
+    /**
+     * Update issue status
+     *
+     * @param string $issueKey
+     * @param string $transitionId
+     * @return array
+     */
+    public function updateStatus(string $issueKey, string $transitionId): array
+    {
+        $this->ensureValidToken();
+
+        return $this->client->api(
+            $this->cloudId,
+            'post',
+            "/rest/api/3/issue/{$issueKey}/transitions",
+            [
+                'headers' => ['Authorization' => "Bearer {$this->accessToken}"],
+                'json' => [
+                    'transition' => [
+                        'id' => $transitionId
+                    ]
+                ]
+            ]
+        );
+    }
+
+    /**
+     * Get available transitions for an issue
+     *
+     * @param string $issueKey
+     * @return array
+     */
+    public function getTransitions(string $issueKey): array
+    {
+        $this->ensureValidToken();
+
+        return $this->client->api(
+            $this->cloudId,
+            'get',
+            "/rest/api/3/issue/{$issueKey}/transitions",
+            [
+                'headers' => ['Authorization' => "Bearer {$this->accessToken}"]
+            ]
+        );
+    }
+
+    /**
+     * Get field metadata for creating issues
+     *
+     * @param string $projectKey
+     * @param string $issueType
+     * @return array
+     */
+    public function getCreateMeta(string $projectKey, string $issueType): array
+    {
+        $this->ensureValidToken();
+
+        return $this->client->api(
+            $this->cloudId,
+            'get',
+            "/rest/api/3/issue/createmeta",
+            [
+                'headers' => ['Authorization' => "Bearer {$this->accessToken}"],
+                'query' => [
+                    'projectKeys' => $projectKey,
+                    'issuetypeNames' => $issueType,
+                    'expand' => 'projects.issuetypes.fields'
+                ]
+            ]
+        );
+    }
 }

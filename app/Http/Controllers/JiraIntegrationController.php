@@ -2,23 +2,23 @@
 
 namespace App\Http\Controllers;
 
-use App\Jobs\LoadJiraProjectJob;
+use App\Jobs\JiraSyncJob;
 use App\Models\Integration;
 use App\Models\OAuthState;
 use App\Models\Project;
 use App\Models\ProjectIntegration;
-use App\Models\Epic;
 use App\Models\Story;
 use App\Models\Team;
 use App\Services\JiraApiClient;
 use App\Services\JiraService;
+use App\Services\JiraSyncService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
-use App\Traits\JsonResponse;
 use Illuminate\Support\Facades\Cache;
+use App\Traits\JsonResponse;
 
 class JiraIntegrationController extends Controller
 {
@@ -41,12 +41,32 @@ class JiraIntegrationController extends Controller
 
         $jiraConnected = false;
         $jiraProjects = [];
+        $projectIntegration = null;
+        $lastSync = null;
+        $syncHistory = [];
 
         try {
             if ($this->isJiraConnectedForTeam($currentTeamId)) {
                 $jiraConnected = true;
+
+                // Get the integration
+                $projectIntegration = ProjectIntegration::whereHas('project', fn($q) => $q->where('team_id', $currentTeamId))
+                    ->whereHas('integration', fn($q) => $q->where('type', Integration::TYPE_JIRA))
+                    ->where('is_active', true)
+                    ->first();
+
+                // Get Jira service and projects
                 $jiraService = new JiraService($currentTeamId);
                 $jiraProjects = $jiraService->getProjects();
+
+                // Get sync history
+                $syncHistoryData = $projectIntegration->project_specific_config['sync_history'] ?? [];
+                $syncHistory = array_slice($syncHistoryData, 0, 10); // Last 10 syncs
+
+                // Find last sync
+                if (!empty($syncHistory)) {
+                    $lastSync = $syncHistory[0];
+                }
             }
         } catch (\Exception $e) {
             Log::error('Error getting Jira projects: ' . $e->getMessage());
@@ -54,75 +74,30 @@ class JiraIntegrationController extends Controller
 
         $existingProjects = $team->projects()->get(['id', 'name']);
 
-        return view('dashboard.integrations.jira-dashboard', compact('jiraConnected', 'jiraProjects', 'existingProjects', 'team'));
+        return view('dashboard.integrations.jira-dashboard', compact(
+            'jiraConnected',
+            'jiraProjects',
+            'existingProjects',
+            'team',
+            'projectIntegration',
+            'lastSync',
+            'syncHistory'
+        ));
     }
 
     /**
-     * API-specific endpoint for checking progress - always returns JSON
-     *
-     * @param string $progressId
-     * @return \Illuminate\Http\JsonResponse
+     * Configure Jira settings for a project
      */
-    public function getProgressJson(string $progressId)
-    {
-        try {
-            // Log the request for debugging (can remove later)
-            Log::info('API progress check', [
-                'progressId' => $progressId
-            ]);
-
-            // Get progress data from cache
-            $progressData = Cache::get("progress_{$progressId}");
-
-            if (!$progressData) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Progress data not found',
-                    'data' => [
-                        'is_complete' => true, // Force complete to stop polling
-                        'is_success' => false,
-                        'message' => 'Progress tracking information has expired or job not found'
-                    ]
-                ]);
-            }
-
-            // Calculate elapsed time
-            if (isset($progressData['started_at'])) {
-                $startTime = $progressData['started_at'];
-                $endTime = $progressData['completed_at'] ?? now()->timestamp;
-                $progressData['elapsed_seconds'] = $endTime - $startTime;
-                $progressData['elapsed_time'] = $this->formatElapsedTime($progressData['elapsed_seconds']);
-            }
-
-            return response()->json([
-                'success' => true,
-                'data' => $progressData
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Error in progress API endpoint', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Internal server error: ' . $e->getMessage(),
-                'data' => [
-                    'is_complete' => true, // Force complete to stop polling
-                    'is_success' => false,
-                    'message' => 'Server error tracking progress'
-                ]
-            ]);
-        }
-    }
-
-    /**
-     * Get Jira project details including epics, stories, and issues
-     */
-    public function getProjectDetails(Request $request)
+    public function configure(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'key' => 'required|string',
+            'project_id' => 'required|exists:projects,id',
+            'jira_project_key' => 'required|string',
+            'sync_settings' => 'array',
+            'sync_settings.auto_sync' => 'boolean',
+            'sync_settings.sync_interval' => 'integer|min:15',
+            'sync_settings.sync_test_cases' => 'boolean',
+            'sync_settings.sync_comments' => 'boolean',
         ]);
 
         if ($validator->fails()) {
@@ -131,104 +106,239 @@ class JiraIntegrationController extends Controller
 
         $team = $this->getCurrentTeam($request);
         $currentTeamId = $team->id;
-        $projectKey = $request->input('key');
 
-        // Check if we already have cached results
-        $cacheKey = "jira_project_{$currentTeamId}_{$projectKey}";
-        if (Cache::has($cacheKey)) {
-            return $this->successResponse(Cache::get($cacheKey));
-        }
+        try {
+            // Find the project
+            $project = Project::findOrFail($request->input('project_id'));
 
-        // Check if there's an active import job
-        $progressId = $request->input('progress_id');
-        if ($progressId && Cache::has("progress_{$progressId}")) {
+            // Ensure it belongs to the current team
+            if ($project->team_id !== $currentTeamId) {
+                return $this->errorResponse('Project does not belong to your team', 403);
+            }
+
+            // Update project settings
+            $settings = $project->settings ?? [];
+            $settings['jira_project_key'] = $request->input('jira_project_key');
+            $settings['jira_sync_settings'] = $request->input('sync_settings');
+
+            $project->settings = $settings;
+            $project->save();
+
+            // Update the integration settings
+            $integration = Integration::where('type', Integration::TYPE_JIRA)->first();
+
+            if ($integration) {
+                $projectIntegration = ProjectIntegration::where('project_id', $project->id)
+                    ->where('integration_id', $integration->id)
+                    ->first();
+
+                if (!$projectIntegration) {
+                    // Find an integration from another project in the team
+                    $teamIntegration = ProjectIntegration::whereHas('project', fn($q) => $q->where('team_id', $currentTeamId))
+                        ->where('integration_id', $integration->id)
+                        ->where('is_active', true)
+                        ->first();
+
+                    if ($teamIntegration) {
+                        // Create a new integration for this project with the same credentials
+                        $projectIntegration = ProjectIntegration::create([
+                            'project_id' => $project->id,
+                            'integration_id' => $integration->id,
+                            'encrypted_credentials' => $teamIntegration->encrypted_credentials,
+                            'is_active' => true,
+                            'project_specific_config' => [
+                                'jira_project_key' => $request->input('jira_project_key'),
+                                'sync_settings' => $request->input('sync_settings'),
+                                'sync_history' => []
+                            ]
+                        ]);
+                    }
+                } else {
+                    // Update existing
+                    $config = $projectIntegration->project_specific_config;
+                    $config['jira_project_key'] = $request->input('jira_project_key');
+                    $config['sync_settings'] = $request->input('sync_settings');
+
+                    $projectIntegration->project_specific_config = $config;
+                    $projectIntegration->save();
+                }
+            }
+
             return $this->successResponse([
-                'loading' => true,
-                'progress' => Cache::get("progress_{$progressId}")
-            ]);
+                'project_id' => $project->id,
+                'jira_project_key' => $request->input('jira_project_key'),
+                'sync_settings' => $request->input('sync_settings')
+            ], 'Jira integration configured successfully');
+
+        } catch (\Exception $e) {
+            Log::error('Error configuring Jira integration: ' . $e->getMessage());
+            return $this->errorResponse('Failed to configure Jira integration: ' . $e->getMessage(), 500);
         }
-
-        // Start background job for loading
-        $job = new LoadJiraProjectJob($currentTeamId, $projectKey, Auth::id());
-        $progressId = $job->getProgressId();
-
-        // Dispatch the job
-        dispatch($job);
-
-        // Return the progress ID so the frontend can track progress
-        return $this->successResponse([
-            'loading' => true,
-            'progress' => [
-                'id' => $progressId,
-                'percent' => 0,
-                'message' => 'Job started, loading project data...',
-                'is_complete' => false,
-                'project_key' => $projectKey,
-            ]
-        ]);
     }
 
     /**
-     * Check progress of a Jira import
-     *
-     * @param Request $request
-     * @param string|null $progressId
-     * @return \Illuminate\Http\JsonResponse
+     * Start a sync job
      */
-    public function checkImportProgress(Request $request, ?string $progressId = null)
+    public function startSync(Request $request)
     {
-        // Get progress ID from request if not provided in URL
-        $progressId = $progressId ?? $request->input('progress_id');
-
-        // Log the request for debugging
-        Log::info('Import progress request received', [
-            'project_id' => $progressId,
-            'is_ajax' => $request->ajax(),
-            'wants_json' => $request->wantsJson(),
-            'accept' => $request->header('Accept')
+        $validator = Validator::make($request->all(), [
+            'project_id' => 'required|exists:projects,id',
+            'direction' => 'required|in:pull,push,both',
+            'entity_types' => 'required|array',
+            'entity_types.*' => 'required|in:story,test_case,test_suite',
+            'sync_options' => 'array'
         ]);
 
-        if (!$progressId) {
-            return response()->json([
-                'success' => false,
-                'message' => 'No progress ID provided'
-            ], 400);
+        if ($validator->fails()) {
+            return $this->validationErrorResponse($validator);
         }
 
-        // Get progress data from cache
-        $progressData = Cache::get("progress_{$progressId}");
+        $team = $this->getCurrentTeam($request);
+        $currentTeamId = $team->id;
+
+        try {
+            $project = Project::findOrFail($request->input('project_id'));
+
+            // Ensure it belongs to the current team
+            if ($project->team_id !== $currentTeamId) {
+                return $this->errorResponse('Project does not belong to your team', 403);
+            }
+
+            // Get the Jira project key
+            $jiraProjectKey = $project->settings['jira_project_key'] ?? null;
+
+            if (!$jiraProjectKey) {
+                return $this->errorResponse('Jira project key not configured for this project', 400);
+            }
+
+            // Create and dispatch the sync job
+            $syncJob = new JiraSyncJob(
+                $project->id,
+                $request->input('direction'),
+                $request->input('entity_types'),
+                $request->input('sync_options', [])
+            );
+
+            $progressId = $syncJob->getProgressId();
+
+            dispatch($syncJob);
+
+            return $this->successResponse([
+                'progress_id' => $progressId,
+                'project_id' => $project->id,
+                'direction' => $request->input('direction'),
+                'entity_types' => $request->input('entity_types')
+            ], 'Jira sync job started');
+
+        } catch (\Exception $e) {
+            Log::error('Error starting Jira sync: ' . $e->getMessage());
+            return $this->errorResponse('Failed to start Jira sync: ' . $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * Get the current sync status
+     */
+    public function syncStatus(Request $request, string $progressId)
+    {
+        $progressData = Cache::get("jira_sync_progress_{$progressId}");
 
         if (!$progressData) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Progress data not found. The job may have expired or not started.',
-                'is_complete' => true, // Mark as complete to stop polling
-                'is_success' => false
-            ], 404);
+            return $this->errorResponse('Sync progress not found', 404);
         }
 
-        // Add derived fields like elapsed_time for UI
+        // Add additional info
         if (isset($progressData['started_at'])) {
-            $startTimestamp = $progressData['started_at'];
-            $endTimestamp = $progressData['completed_at'] ?? now()->timestamp;
-            $elapsedSeconds = $endTimestamp - $startTimestamp;
-
-            $progressData['elapsed_seconds'] = $elapsedSeconds;
-            $progressData['elapsed_time'] = $this->formatElapsedTime($elapsedSeconds);
+            $startTime = $progressData['started_at'];
+            $endTime = $progressData['completed_at'] ?? now()->timestamp;
+            $progressData['elapsed_seconds'] = $endTime - $startTime;
+            $progressData['elapsed_time'] = $this->formatElapsedTime($progressData['elapsed_seconds']);
         }
 
-        // Ensure content type is application/json
-        return response()->json([
-            'success' => true,
-            'data' => $progressData
-        ])->header('Content-Type', 'application/json');
+        return $this->successResponse($progressData);
     }
+
+    /**
+     * Get categorization options for Jira issues
+     */
+    public function getCategorizationOptions(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'project_id' => 'required|exists:projects,id',
+            'jira_project_key' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->validationErrorResponse($validator);
+        }
+
+        $team = $this->getCurrentTeam($request);
+        $currentTeamId = $team->id;
+
+        try {
+            $project = Project::findOrFail($request->input('project_id'));
+
+            // Ensure it belongs to the current team
+            if ($project->team_id !== $currentTeamId) {
+                return $this->errorResponse('Project does not belong to your team', 403);
+            }
+
+            // Get jira service
+            $jiraService = new JiraService($currentTeamId);
+
+            // Get issue types
+            $createMeta = $jiraService->getCreateMeta(
+                $request->input('jira_project_key'),
+                ''  // Empty to get all issue types
+            );
+
+            // Extract info
+            $issueTypes = [];
+            $fields = [];
+
+            if (isset($createMeta['projects'][0]['issuetypes'])) {
+                foreach ($createMeta['projects'][0]['issuetypes'] as $issueType) {
+                    $issueTypes[] = [
+                        'id' => $issueType['id'],
+                        'name' => $issueType['name'],
+                        'description' => $issueType['description'],
+                        'icon' => $issueType['iconUrl']
+                    ];
+
+                    // Get common fields
+                    if (empty($fields) && isset($issueType['fields'])) {
+                        foreach ($issueType['fields'] as $fieldId => $field) {
+                            $fields[] = [
+                                'id' => $fieldId,
+                                'name' => $field['name'],
+                                'required' => $field['required'] ?? false,
+                                'type' => $field['schema']['type'] ?? 'string'
+                            ];
+                        }
+                    }
+                }
+            }
+
+            // Get statuses
+            $statuses = [];
+
+            // Return the data
+            return $this->successResponse([
+                'issue_types' => $issueTypes,
+                'fields' => $fields,
+                'statuses' => $statuses
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error getting categorization options: ' . $e->getMessage());
+            return $this->errorResponse('Failed to get categorization options: ' . $e->getMessage(), 500);
+        }
+    }
+
+    // Keep existing methods like redirect(), callback(), disconnect(), etc.
 
     /**
      * Format elapsed seconds into a human-readable string
-     *
-     * @param int $seconds
-     * @return string
      */
     private function formatElapsedTime(int $seconds): string
     {
@@ -250,478 +360,6 @@ class JiraIntegrationController extends Controller
     }
 
     /**
-     * Directly load project data synchronously (no job)
-     */
-    public function loadProjectData(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'key' => 'required|string',
-            'progress_id' => 'required|string'
-        ]);
-
-        if ($validator->fails()) {
-            return $this->validationErrorResponse($validator);
-        }
-
-        $projectKey = $request->input('key');
-        $progressId = $request->input('progress_id');
-        $team = $this->getCurrentTeam($request);
-        $teamId = $team->id;
-
-        Log::info('Direct project loading started', [
-            'project_key' => $projectKey,
-            'progress_id' => $progressId
-        ]);
-
-        try {
-            // Initialize progress
-            Cache::put("progress_{$progressId}", [
-                'percent' => 5,
-                'message' => 'Starting Jira project data import',
-                'is_complete' => false,
-                'is_success' => true,
-                'project_key' => $projectKey,
-                'updated_at' => now()->timestamp
-            ], now()->addHour());
-
-            // Create service
-            $jiraService = new JiraService($teamId);
-
-            // Get project info - 15%
-            Cache::put("progress_{$progressId}", [
-                'percent' => 15,
-                'message' => 'Fetching project information',
-                'is_complete' => false,
-                'is_success' => true,
-                'project_key' => $projectKey,
-                'updated_at' => now()->timestamp
-            ], now()->addHour());
-
-            $projects = $jiraService->getProjects();
-            $project = collect($projects)->firstWhere('key', $projectKey);
-
-            if (!$project) {
-                throw new \Exception("Project not found: {$projectKey}");
-            }
-
-            // Prepare placeholder data - 30%
-            Cache::put("progress_{$progressId}", [
-                'percent' => 30,
-                'message' => 'Preparing project structure',
-                'is_complete' => false,
-                'is_success' => true,
-                'project_key' => $projectKey,
-                'updated_at' => now()->timestamp
-            ], now()->addHour());
-
-            // For testing, create placeholder data
-            $epics = [];
-            $stories = [];
-            $unassigned = [];
-
-            for ($i = 1; $i <= 10; $i++) {
-                $epics[] = [
-                    'id' => "epic-{$i}",
-                    'key' => "EPIC-{$i}",
-                    'fields' => [
-                        'summary' => "Epic {$i}",
-                        'description' => "Description for Epic {$i}",
-                        'issuetype' => ['name' => 'Epic'],
-                        'status' => ['name' => 'Open']
-                    ]
-                ];
-            }
-
-            for ($i = 1; $i <= 20; $i++) {
-                $stories[] = [
-                    'id' => "story-{$i}",
-                    'key' => "STORY-{$i}",
-                    'fields' => [
-                        'summary' => "Story {$i}",
-                        'description' => "Description for Story {$i}",
-                        'issuetype' => ['name' => 'Story'],
-                        'status' => ['name' => 'To Do']
-                    ]
-                ];
-            }
-
-            for ($i = 1; $i <= 15; $i++) {
-                $unassigned[] = [
-                    'id' => "issue-{$i}",
-                    'key' => "ISSUE-{$i}",
-                    'fields' => [
-                        'summary' => "Unassigned Issue {$i}",
-                        'description' => "Description for Unassigned Issue {$i}",
-                        'issuetype' => ['name' => rand(0, 1) ? 'Bug' : 'Task'],
-                        'status' => ['name' => 'Open']
-                    ]
-                ];
-            }
-
-            // Cache results - 90%
-            Cache::put("progress_{$progressId}", [
-                'percent' => 90,
-                'message' => 'Finalizing data',
-                'is_complete' => false,
-                'is_success' => true,
-                'project_key' => $projectKey,
-                'updated_at' => now()->timestamp
-            ], now()->addHour());
-
-            $result = [
-                'project' => $project,
-                'epics' => $epics,
-                'stories' => $stories,
-                'unassigned' => $unassigned,
-                'metadata' => [
-                    'total_issues' => count($epics) + count($stories) + count($unassigned),
-                    'epic_count' => count($epics),
-                    'story_count' => count($stories),
-                    'unassigned_count' => count($unassigned),
-                    'fetched_at' => now()->toIso8601String(),
-                ]
-            ];
-
-            // Cache the project data
-            Cache::put("jira_project_{$teamId}_{$projectKey}", $result, now()->addHours(1));
-
-            // Set progress complete - 100%
-            Cache::put("progress_{$progressId}", [
-                'percent' => 100,
-                'message' => 'Import complete',
-                'is_complete' => true,
-                'is_success' => true,
-                'project_key' => $projectKey,
-                'stats' => [
-                    'total_issues' => count($epics) + count($stories) + count($unassigned),
-                    'epics' => count($epics),
-                    'stories' => count($stories),
-                    'unassigned' => count($unassigned)
-                ],
-                'updated_at' => now()->timestamp
-            ], now()->addHour());
-
-            Log::info('Direct project loading complete', [
-                'project_key' => $projectKey,
-                'progress_id' => $progressId,
-                'total_issues' => count($epics) + count($stories) + count($unassigned)
-            ]);
-
-            return $this->successResponse(['status' => 'complete']);
-        } catch (\Exception $e) {
-            Log::error('Direct project loading failed', [
-                'project_key' => $projectKey,
-                'progress_id' => $progressId,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-
-            // Update progress with error
-            Cache::put("progress_{$progressId}", [
-                'percent' => 100,
-                'message' => 'Error: ' . $e->getMessage(),
-                'is_complete' => true,
-                'is_success' => false,
-                'project_key' => $projectKey,
-                'updated_at' => now()->timestamp
-            ], now()->addHour());
-
-            return $this->errorResponse('Error loading project: ' . $e->getMessage(), 500);
-        }
-    }
-
-    /**
-     * Import issues from Jira to a project
-     */
-    public function importIssues(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'project_key' => 'required|string',
-            'create_new_project' => 'required|boolean',
-            'arxitest_project_id' => 'required_if:create_new_project,false|uuid|exists:projects,id',
-            'new_project_name' => 'required_if:create_new_project,true|string|max:255',
-            'issues' => 'required|array',
-            'issues.*' => 'required|string'
-        ]);
-
-        if ($validator->fails()) {
-            return $this->validationErrorResponse($validator);
-        }
-
-        $team = $this->getCurrentTeam($request);
-        $currentTeamId = $team->id;
-
-        try {
-            $jiraService = new JiraService($currentTeamId);
-            $projectKey = $request->input('project_key');
-            $issueKeys = $request->input('issues');
-            $createNewProject = $request->input('create_new_project');
-
-            // Create or get project
-            if ($createNewProject) {
-                $project = Project::create([
-                    'name' => $request->input('new_project_name'),
-                    'description' => "Imported from Jira project: {$projectKey}",
-                    'team_id' => $currentTeamId,
-                    'settings' => [
-                        'jira_import' => [
-                            'source' => $projectKey,
-                            'date' => now()->toDateTimeString()
-                        ]
-                    ],
-                ]);
-            } else {
-                $project = Project::findOrFail($request->input('arxitest_project_id'));
-                if ($project->team_id !== $currentTeamId) {
-                    return $this->errorResponse('You do not have access to this project.', 403);
-                }
-            }
-
-            // Collect all issues to import
-            $jql = 'key in (' . implode(',', $issueKeys) . ')';
-            $fields = ['summary', 'description', 'issuetype', 'parent', 'status', 'created', 'updated', 'labels', 'priority', 'components'];
-            $issues = $jiraService->getIssuesWithJql($jql, $fields);
-
-            // Process the issues
-            $results = $this->processJiraImport($issues, $project);
-
-            return $this->successResponse([
-                'project_id' => $project->id,
-                'imported' => [
-                    'epics' => $results['epicCount'],
-                    'stories' => $results['storyCount'],
-                    'test_cases' => $results['testCaseCount']
-                ],
-                'redirect' => route('dashboard.projects.show', $project->id)
-            ], 'Import completed successfully');
-        } catch (\Exception $e) {
-            Log::error('Error importing Jira issues: ' . $e->getMessage());
-            return $this->errorResponse('Failed to import issues: ' . $e->getMessage(), 500);
-        }
-    }
-
-    /**
-     * Process import of Jira issues
-     */
-    private function processJiraImport(array $issues, Project $project): array
-    {
-        $epicCount = 0;
-        $storyCount = 0;
-        $testCaseCount = 0;
-        $epicMap = [];
-        $batchId = uniqid('import_');
-
-        // First pass: Create epics
-        foreach ($issues as $issue) {
-            if ($issue['fields']['issuetype']['name'] === 'Epic') {
-                $epicData = [
-                    'project_id' => $project->id,
-                    'name' => $issue['fields']['summary'],
-                    'external_id' => $issue['key'],
-                    'status' => $issue['fields']['status']['name'],
-                ];
-
-                $epic = Epic::updateOrCreate(
-                    ['external_id' => $issue['key'], 'project_id' => $project->id],
-                    $epicData
-                );
-
-                $epicMap[$issue['id']] = $epic->id;
-                $epicCount++;
-            }
-        }
-
-        // Second pass: Create stories and test cases
-        foreach ($issues as $issue) {
-            $issueType = $issue['fields']['issuetype']['name'];
-
-            if (in_array($issueType, ['Story', 'Task', 'Bug'])) {
-                // Create or update story
-                $storyData = [
-                    'project_id' => $project->id,
-                    'title' => $issue['fields']['summary'],
-                    'description' => $this->extractPlainTextFromAdf($issue['fields']['description'] ?? []),
-                    'metadata' => [
-                        'jira_id' => $issue['id'],
-                        'jira_key' => $issue['key'],
-                        'jira_issue_type' => $issueType,
-                        'jira_status' => $issue['fields']['status']['name'],
-                        'jira_labels' => $issue['fields']['labels'] ?? [],
-                        'import_batch_id' => $batchId,
-                        'import_timestamp' => now()->toIso8601String()
-                    ],
-                    'source' => 'jira',
-                    'external_id' => $issue['key']
-                ];
-
-                // Associate with epic if available
-                $epicLink = $issue['fields']['parent']['id'] ?? null;
-                if ($epicLink && isset($epicMap[$epicLink])) {
-                    $storyData['epic_id'] = $epicMap[$epicLink];
-                }
-
-                $story = Story::updateOrCreate(
-                    ['external_id' => $issue['key'], 'source' => 'jira'],
-                    $storyData
-                );
-
-                $storyCount++;
-
-                // Create test case
-                $testCaseData = [
-                    'title' => "Verify: " . substr($issue['fields']['summary'], 0, 90),
-                    'description' => $this->extractPlainTextFromAdf($issue['fields']['description'] ?? []),
-                    'story_id' => $story->id,
-                    'steps' => $this->generateTestSteps([], $issue['fields']['summary'], $issueType),
-                    'expected_results' => $this->generateExpectedResults([], $issue['fields']['summary'], $issueType),
-                    'priority' => $this->mapJiraPriorityToArxitest(
-                        $issue['fields']['priority']['name'] ?? 'Medium'
-                    ),
-                    'status' => 'draft',
-                    'tags' => array_merge(
-                        ['jira-import', $issue['key'], strtolower($issueType)],
-                        $issue['fields']['labels'] ?? []
-                    )
-                ];
-
-                $testCase = \App\Models\TestCase::firstOrCreate(
-                    [
-                        'story_id' => $story->id,
-                        'title' => "Verify: " . substr($issue['fields']['summary'], 0, 90)
-                    ],
-                    $testCaseData
-                );
-
-                $testCaseCount++;
-            }
-        }
-
-        return [
-            'epicCount' => $epicCount,
-            'storyCount' => $storyCount,
-            'testCaseCount' => $testCaseCount,
-            'batchId' => $batchId
-        ];
-    }
-
-    /**
-     * Map Jira priority to Arxitest priority.
-     */
-    private function mapJiraPriorityToArxitest(string $jiraPriority): string
-    {
-        // Map common Jira priorities to Arxitest priorities
-        $mapping = [
-            'Highest' => 'high',
-            'High' => 'high',
-            'Medium' => 'medium',
-            'Low' => 'low',
-            'Lowest' => 'low',
-            'Critical' => 'high',
-            'Major' => 'high',
-            'Minor' => 'medium',
-            'Trivial' => 'low',
-            'Blocker' => 'high'
-        ];
-
-        return $mapping[trim($jiraPriority)] ?? 'medium';
-    }
-
-    /**
-     * Extract plain text from Jira's Atlassian Document Format.
-     */
-    private function extractPlainTextFromAdf(array $doc): string
-    {
-        $text = '';
-        if (empty($doc)) return $text;
-
-        array_walk_recursive($doc, function ($value, $key) use (&$text) {
-            // Whenever we see a "text" key, grab its value
-            if ($key === 'text') {
-                $text .= $value;
-            }
-        });
-        return $text;
-    }
-
-    /**
-     * Generate test steps from available information and issue type.
-     */
-    private function generateTestSteps(array $criteria, string $storyTitle, string $issueType = 'Story'): array
-    {
-        // If we have acceptance criteria, generate more specific steps
-        if (!empty($criteria)) {
-            $steps = ['Navigate to relevant feature'];
-
-            foreach ($criteria as $criterion) {
-                // Convert AC to test step format
-                // Remove prefixes like "Given", "When", "Then"
-                $step = preg_replace('/^(given|when|then)\s+/i', '', $criterion);
-
-                // Convert to action-oriented language
-                $step = preg_replace('/user should be able to/i', 'Verify user can', $step);
-                $step = preg_replace('/system should/i', 'Verify system', $step);
-
-                $steps[] = ucfirst($step);
-            }
-
-            return $steps;
-        }
-
-        // If no criteria, create type-specific default steps
-        switch (strtolower($issueType)) {
-            case 'bug':
-                return [
-                    'Navigate to affected feature',
-                    'Reproduce the issue described in: ' . $storyTitle,
-                    'Verify issue has been fixed'
-                ];
-            case 'task':
-                return [
-                    'Navigate to relevant feature',
-                    'Verify completion of task: ' . $storyTitle
-                ];
-            case 'story':
-            default:
-                return [
-                    'Navigate to relevant feature',
-                    'Perform actions described in: ' . $storyTitle,
-                    'Verify functionality works as expected'
-                ];
-        }
-    }
-
-    /**
-     * Generate expected results based on available information and issue type.
-     */
-    private function generateExpectedResults(array $criteria, string $storyTitle, string $issueType = 'Story'): string
-    {
-        if (!empty($criteria)) {
-            // Convert criteria to verification statements
-            $results = array_map(function ($criterion) {
-                // Remove prefixes and convert to verification language
-                $result = preg_replace('/^(given|when|then)\s+/i', '', $criterion);
-                $result = preg_replace('/user should be able to/i', 'User can', $result);
-                $result = preg_replace('/system should/i', 'System', $result);
-
-                return "- " . ucfirst($result);
-            }, $criteria);
-
-            return "All acceptance criteria are met:\n" . implode("\n", $results);
-        }
-
-        // Type-specific fallback results
-        switch (strtolower($issueType)) {
-            case 'bug':
-                return "The issue described in \"$storyTitle\" is resolved and can no longer be reproduced.";
-            case 'task':
-                return "The task \"$storyTitle\" is completed successfully.";
-            case 'story':
-            default:
-                return "Feature works as described in story \"$storyTitle\".";
-        }
-    }
-
-    /**
      * Check if Jira is connected for a team
      */
     private function isJiraConnectedForTeam(string $teamId): bool
@@ -730,146 +368,5 @@ class JiraIntegrationController extends Controller
             ->whereHas('integration', fn($q) => $q->where('type', Integration::TYPE_JIRA))
             ->where('is_active', true)
             ->exists();
-    }
-
-    /**
-     * Redirect to Jira authorization page
-     */
-    public function redirect(Request $request)
-    {
-        $userId = Auth::id();
-        $team = $this->getCurrentTeam($request);
-        $currentTeamId = $team->id;
-
-        $state = OAuthState::generateState($userId, $currentTeamId);
-
-        $query = http_build_query([
-            'audience'     => 'api.atlassian.com',
-            'client_id'    => $this->jiraClient->getClientId(),
-            'scope'        => 'read:jira-user read:jira-work write:jira-work offline_access',
-            'redirect_uri' => $this->jiraClient->getRedirectUri(),
-            'state'        => $state,
-            'response_type' => 'code',
-            'prompt'       => 'consent',
-        ]);
-
-        return redirect($this->jiraClient->getBaseUri() . '/authorize?' . $query);
-    }
-
-    /**
-     * Handle the callback from Jira authorization
-     */
-    public function callback(Request $request)
-    {
-        $stateParam = $request->state;
-        if (empty($stateParam)) {
-            return redirect()->route('dashboard.integrations.index')->with('error', 'Invalid OAuth callback: missing state.');
-        }
-
-        $oauthState = OAuthState::where('state_token', $stateParam)
-            ->where('expires_at', '>', now())
-            ->first();
-
-        if (!$oauthState) {
-            return redirect()->route('dashboard.integrations.index')->with('error', 'OAuth state verification failed.');
-        }
-
-        $userId = $oauthState->user_id;
-        $teamId = $oauthState->project_id;
-        $oauthState->delete();
-
-        try {
-            // Exchange the code for an access token
-            $tokenData = $this->jiraClient->exchangeCode($request->code);
-            $resources = $this->jiraClient->getResources($tokenData['access_token']);
-            $site = $resources[0];
-
-            // Create or update the integration record
-            $integration = Integration::firstOrCreate(
-                ['type' => Integration::TYPE_JIRA],
-                [
-                    'name' => 'Jira',
-                    'base_url' => $site['url'],
-                    'is_active' => true
-                ]
-            );
-
-            // Find a project to store the integration with
-            $team = Team::find($teamId);
-            $project = $team->projects()->first() ?? Project::create([
-                'name' => $team->name . ' – Jira Credentials',
-                'description' => 'Holds Jira OAuth tokens for the team.',
-                'team_id' => $team->id,
-                'settings' => ['is_placeholder' => true],
-            ]);
-
-            // Store encrypted credentials
-            $credentials = [
-                'access_token' => $tokenData['access_token'],
-                'refresh_token' => $tokenData['refresh_token'],
-                'expires_at' => now()->addSeconds($tokenData['expires_in'])->timestamp,
-                'cloud_id' => $site['id'],
-                'site_url' => $site['url'],
-                'created_at' => now()->timestamp,
-            ];
-
-            $encrypted = Crypt::encryptString(json_encode($credentials));
-
-            // Update or create project integration
-            ProjectIntegration::updateOrCreate(
-                [
-                    'project_id' => $project->id,
-                    'integration_id' => $integration->id
-                ],
-                [
-                    'encrypted_credentials' => $encrypted,
-                    'is_active' => true,
-                    'project_specific_config' => [
-                        'cloud_id' => $site['id'],
-                        'site_url' => $site['url'],
-                    ],
-                ]
-            );
-
-            // Important - This block ensures the user is logged in when returning from OAuth
-            if (!Auth::check()) {
-                Auth::loginUsingId($userId, true);
-                session(['current_team' => $teamId]);
-                session()->save();
-            }
-
-            return redirect()->route('dashboard.integrations.jira.dashboard')
-                ->with('success', 'Jira connected successfully! You can now browse and import issues.');
-        } catch (\Exception $e) {
-            Log::error('Jira OAuth error', ['error' => $e->getMessage()]);
-            return redirect()->route('dashboard.integrations.index')
-                ->with('error', 'Jira authorization failed: ' . $e->getMessage());
-        }
-    }
-
-    /**
-     * Disconnect Jira integration
-     */
-    public function disconnect(Request $request)
-    {
-        $currentTeamId = session('current_team');
-        if (! $currentTeamId) {
-            return redirect()->route('dashboard.select-team')->with('error', 'Team context is missing.');
-        }
-
-        $jiraIntegration = Integration::where('type', Integration::TYPE_JIRA)->first();
-        if (! $jiraIntegration) {
-            return redirect()->route('dashboard.integrations.index')->with('info', 'No Jira integration config found.');
-        }
-
-        $deleted = ProjectIntegration::whereHas('project', fn($q) => $q->where('team_id', $currentTeamId))
-            ->where('integration_id', $jiraIntegration->id)
-            ->delete();
-
-        if ($deleted) {
-            return redirect()->route('dashboard.integrations.index')->with('success', 'Jira disconnected successfully.');
-        }
-
-        return redirect()->route('dashboard.integrations.index')->with('info', 'No active Jira connections to disconnect.');
     }
 }
