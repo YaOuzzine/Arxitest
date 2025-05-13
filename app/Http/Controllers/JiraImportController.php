@@ -961,4 +961,87 @@ PROMPT;
 
         return $project;
     }
+
+    /**
+ * Import pre-categorized Jira issues
+ *
+ * @param Request $request
+ * @return \Illuminate\Http\JsonResponse
+ */
+public function importCategorizedIssues(Request $request)
+{
+    // Validate request data
+    $validator = Validator::make($request->all(), [
+        'jira_project_key' => 'required|string',
+        'create_new_project' => 'required|in:0,1',
+        'arxitest_project_id' => 'required_if:create_new_project,0|uuid|exists:projects,id',
+        'new_project_name' => 'required_if:create_new_project,1|string|max:255',
+        'issues' => 'required|array',
+        'issues.*.id' => 'required|string',
+        'issues.*.import_as' => 'required|in:test_suite,story,test_case,skip',
+    ]);
+
+    if ($validator->fails()) {
+        return $this->errorResponse($validator->errors()->first(), 422);
+    }
+
+    $teamId = session('current_team');
+    if (!$teamId) {
+        return $this->errorResponse('Team selection required.', 400);
+    }
+
+    try {
+        // Create new project or use existing one
+        if ($request->input('create_new_project') == '1') {
+            $name = $request->input('new_project_name');
+            $project = Project::create([
+                'name'        => $name,
+                'description' => "Imported from Jira: " . $request->input('jira_project_key'),
+                'team_id'     => $teamId,
+                'settings'    => [
+                    'jira_project_key' => $request->input('jira_project_key'),
+                    'jira_import' => [
+                        'source' => $request->input('jira_project_key'),
+                        'date' => now()->toDateTimeString()
+                    ]
+                ],
+            ]);
+        } else {
+            $project = Project::findOrFail($request->input('arxitest_project_id'));
+            if ($project->team_id !== $teamId) {
+                throw new \Exception('No permission for that project.');
+            }
+        }
+
+        // Initialize progress tracking
+        $this->initializeImportProgress($project->id);
+
+        // Process the categorized issues
+        $jiraService = new JiraService($teamId);
+        $issueCategories = collect($request->input('issues'))->groupBy('import_as');
+
+        // Queue the import job with the categorization data
+        dispatch(new ProcessJiraImportJob(
+            $project->id,
+            $request->input('jira_project_key'),
+            $issueCategories->toArray()
+        ));
+
+        return $this->successResponse([
+            'project_id' => $project->id,
+            'message' => 'Categorized Jira import initiated. Check progress for updates.'
+        ]);
+    } catch (\Exception $e) {
+        Log::error('Categorized Jira import failed', [
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
+
+        if (isset($project)) {
+            $this->setImportCompleted($project->id, false, null, $e->getMessage());
+        }
+
+        return $this->errorResponse($e->getMessage(), 500);
+    }
+}
 }

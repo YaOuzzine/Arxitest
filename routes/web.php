@@ -249,8 +249,13 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
             ->name('import.progress');
         Route::post('/import-project', [JiraImportController::class, 'importProject'])
             ->name('import.project');
+        Route::post('/integrations/jira/import-categorized', [JiraImportController::class, 'importCategorizedIssues'])
+            ->name('import.categorized');
     });
 });
+Route::post('/dashboard/integrations/jira/categorization-options', [JiraIntegrationController::class, 'getCategorizationOptions'])
+    ->name('dashboard.integrations.jira.categorization-options')
+    ->middleware(['web', 'auth:web', 'require.team']);
 
 Route::middleware(['web'])->group(function () {
     // OAuth callback - NO auth required
@@ -390,13 +395,10 @@ Route::prefix('dashboard/integrations/jira')->name('dashboard.integrations.jira.
     Route::post('/disconnect', [JiraIntegrationController::class, 'disconnect'])->name('disconnect');
     Route::get('/import-progress/{progressId}', [JiraIntegrationController::class, 'checkImportProgress'])->name('import.progress');
     Route::post('/dashboard/integrations/jira/load-project-data', [JiraIntegrationController::class, 'loadProjectData'])
-    ->name('load-project-data');
+        ->name('load-project-data');
 });
 
 
-Route::get('/api/jira/import/progress/{progressId?}', [JiraImportController::class, 'getImportProgressJson'])
-    ->name('api.jira.import.progress')
-    ->middleware(['web', 'auth:web']);
 
 // DEV LOGS (REMOVE BEFORE DEPLOYMENT)
 

@@ -169,7 +169,6 @@ class JiraIntegrationController extends Controller
                 'jira_project_key' => $request->input('jira_project_key'),
                 'sync_settings' => $request->input('sync_settings')
             ], 'Jira integration configured successfully');
-
         } catch (\Exception $e) {
             Log::error('Error configuring Jira integration: ' . $e->getMessage());
             return $this->errorResponse('Failed to configure Jira integration: ' . $e->getMessage(), 500);
@@ -229,7 +228,6 @@ class JiraIntegrationController extends Controller
                 'direction' => $request->input('direction'),
                 'entity_types' => $request->input('entity_types')
             ], 'Jira sync job started');
-
         } catch (\Exception $e) {
             Log::error('Error starting Jira sync: ' . $e->getMessage());
             return $this->errorResponse('Failed to start Jira sync: ' . $e->getMessage(), 500);
@@ -264,7 +262,7 @@ class JiraIntegrationController extends Controller
     public function getCategorizationOptions(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'project_id' => 'required|exists:projects,id',
+            'project_id' => 'nullable|exists:projects,id',
             'jira_project_key' => 'required|string',
         ]);
 
@@ -276,59 +274,39 @@ class JiraIntegrationController extends Controller
         $currentTeamId = $team->id;
 
         try {
-            $project = Project::findOrFail($request->input('project_id'));
-
-            // Ensure it belongs to the current team
-            if ($project->team_id !== $currentTeamId) {
-                return $this->errorResponse('Project does not belong to your team', 403);
-            }
-
-            // Get jira service
-            $jiraService = new JiraService($currentTeamId);
-
-            // Get issue types
-            $createMeta = $jiraService->getCreateMeta(
-                $request->input('jira_project_key'),
-                ''  // Empty to get all issue types
-            );
-
-            // Extract info
-            $issueTypes = [];
-            $fields = [];
-
-            if (isset($createMeta['projects'][0]['issuetypes'])) {
-                foreach ($createMeta['projects'][0]['issuetypes'] as $issueType) {
-                    $issueTypes[] = [
-                        'id' => $issueType['id'],
-                        'name' => $issueType['name'],
-                        'description' => $issueType['description'],
-                        'icon' => $issueType['iconUrl']
-                    ];
-
-                    // Get common fields
-                    if (empty($fields) && isset($issueType['fields'])) {
-                        foreach ($issueType['fields'] as $fieldId => $field) {
-                            $fields[] = [
-                                'id' => $fieldId,
-                                'name' => $field['name'],
-                                'required' => $field['required'] ?? false,
-                                'type' => $field['schema']['type'] ?? 'string'
-                            ];
-                        }
-                    }
+            // Ensure project belongs to team if provided
+            if ($request->filled('project_id')) {
+                $project = Project::findOrFail($request->input('project_id'));
+                if ($project->team_id !== $currentTeamId) {
+                    return $this->errorResponse('Project does not belong to your team', 403);
                 }
             }
 
-            // Get statuses
-            $statuses = [];
+            // Get Jira service
+            $jiraService = new JiraService($currentTeamId);
 
-            // Return the data
+            // Get issue types for the project
+            $jqlQuery = "project = \"" . $request->input('jira_project_key') . "\" ORDER BY created DESC";
+            $issues = $jiraService->getIssuesWithJql($jqlQuery, ['id', 'key', 'summary', 'issuetype'], 100);
+
+            // Group issues by type for preview
+            $issuesByType = collect($issues)->groupBy(function ($issue) {
+                return $issue['fields']['issuetype']['name'] ?? 'Unknown';
+            })->map(function ($typeIssues, $typeName) {
+                $sampleIssue = $typeIssues->first();
+                return [
+                    'name' => $typeName,
+                    'id' => $sampleIssue['fields']['issuetype']['id'] ?? '',
+                    'description' => $sampleIssue['fields']['summary'] ?? '',
+                    'issue_count' => $typeIssues->count(),
+                    'sample_keys' => $typeIssues->take(3)->pluck('key')->toArray()
+                ];
+            })->values();
+
             return $this->successResponse([
-                'issue_types' => $issueTypes,
-                'fields' => $fields,
-                'statuses' => $statuses
+                'issue_types' => $issuesByType,
+                'jira_project_key' => $request->input('jira_project_key')
             ]);
-
         } catch (\Exception $e) {
             Log::error('Error getting categorization options: ' . $e->getMessage());
             return $this->errorResponse('Failed to get categorization options: ' . $e->getMessage(), 500);
