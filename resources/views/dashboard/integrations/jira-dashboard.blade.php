@@ -896,60 +896,124 @@
 
         // Import form submission
         const importForm = document.getElementById('jira-import-form');
-        if (importForm) {
-            importForm.addEventListener('submit', async function(e) {
-                e.preventDefault();
+if (importForm) {
+    importForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        console.log('Form submitted, preparing data...');
 
-                const formData = new FormData(importForm);
-                const data = {};
+        const formData = new FormData(importForm);
+        const data = {};
+        formData.forEach((value, key) => {
+            data[key] = value;
+        });
 
-                formData.forEach((value, key) => {
-                    if (key === 'import_epics' || key === 'import_stories' || key === 'generate_test_scripts') {
-                        // These are checkboxes - they'll only be present if checked
-                        data[key] = 'on';
-                    } else {
-                        data[key] = value;
-                    }
-                });
+        console.log('Sending import request with data:', data);
 
-                const jiraProjectSelect = document.getElementById('import-jira-project');
-                const selectedOption = jiraProjectSelect.options[jiraProjectSelect.selectedIndex];
-                if (selectedOption && selectedOption.value) {
-                    // Extract the name part from "Project Name (KEY)"
-                    data.jira_project_name = selectedOption.textContent.split(' (')[0];
+        // Show progress tracker or loading indicator
+        showProgressTracker();
+
+        try {
+            const response = await fetch('/dashboard/integrations/jira/import-project', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                    'Accept': 'application/json' // This is important! Ensures server knows we want JSON
+                },
+                body: JSON.stringify(data)
+            });
+
+            console.log('Response status:', response.status);
+
+            // Check if response is OK before trying to parse JSON
+            if (!response.ok) {
+                const text = await response.text();
+                console.error('Error response text:', text);
+                throw new Error(`Server responded with status: ${response.status}`);
+            }
+
+            const result = await response.json();
+            console.log('Received response:', result);
+
+            if (result.success) {
+                // Start polling for progress updates
+                if (result.data && result.data.project_id) {
+                    console.log('Starting progress polling for project:', result.data.project_id);
+                    pollImportProgress(result.data.project_id);
                 }
+            } else {
+                hideProgressTracker();
+                showToast(result.message || 'Failed to start import', 'error');
+            }
+        } catch (error) {
+            console.error('Import request failed:', error);
+            hideProgressTracker();
+            showToast('An error occurred while starting import: ' + error.message, 'error');
+        }
+    });
+}
 
-                // Show progress tracker
-                showProgressTracker();
+// Add this function to handle import progress polling
+function pollImportProgress(projectId) {
+    console.log('Starting to poll progress for project:', projectId);
 
-                try {
-                    const response = await fetch('/dashboard/integrations/jira/import-project', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                        },
-                        body: JSON.stringify(data)
-                    });
-
-                    const result = await response.json();
-
-                    if (result.success) {
-                        // Start polling for progress updates
-                        if (result.data && result.data.project_id) {
-                            pollImportProgress(result.data.project_id);
-                        }
-                    } else {
-                        hideProgressTracker();
-                        showToast(result.message || 'Failed to start import', 'error');
-                    }
-                } catch (error) {
-                    hideProgressTracker();
-                    showToast('An error occurred while starting import', 'error');
-                    console.error('Error:', error);
+    const checkProgress = async () => {
+        try {
+            console.log('Checking import progress...');
+            const response = await fetch(`/integrations/jira/import/progress/${projectId}?check_progress=1`, {
+                headers: {
+                    'Accept': 'application/json'
                 }
             });
+
+            if (!response.ok) {
+                console.error('Progress check failed:', response.status);
+                const errorText = await response.text();
+                console.error('Error details:', errorText);
+                setTimeout(checkProgress, 5000); // Try again in 5 seconds
+                return;
+            }
+
+            const data = await response.json();
+            console.log('Progress data:', data);
+
+            if (data.success && data.data.progress) {
+                const progress = data.data.progress;
+
+                // Update progress tracker
+                updateProgressTracker(
+                    progress.percent || calculateProgressPercentage(progress),
+                    progress.message || 'Processing...',
+                    progress.completed,
+                    progress.success
+                );
+
+                if (!progress.completed) {
+                    // Continue polling
+                    setTimeout(checkProgress, 2000);
+                } else {
+                    // If completed successfully, update UI
+                    console.log('Import completed!', progress.success ? 'Success' : 'Failed');
+                    if (progress.success) {
+                        showToast('Import completed successfully', 'success');
+                    } else {
+                        showToast(progress.error || 'Import failed', 'error');
+                    }
+                }
+            } else {
+                console.warn('Invalid progress data received:', data);
+                setTimeout(checkProgress, 3000);
+            }
+        } catch (error) {
+            console.error('Error polling progress:', error);
+            // Even on error, keep polling
+            setTimeout(checkProgress, 5000);
         }
+    };
+
+    // Start polling
+    checkProgress();
+}
 
         // Sync form submission
         const syncForm = document.getElementById('jira-sync-form');
