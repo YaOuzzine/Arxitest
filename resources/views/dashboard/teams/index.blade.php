@@ -34,7 +34,7 @@
                                     'label' => Str::plural('project', $team->projects_count),
                                 ],
                             ]" :badge="$team->id === $currentTeamId" badgeLabel="Current" :viewRoute="route('teams.show', $team->id)"
-                            :editRoute="route('teams.edit', $team->id)" :deleteId="$team->id" :deleteName="$team->name" :switchAction="'window.location.href=\'' . route('dashboard.select-team') . '?team_id=' . $team->id . '\''" :footer="'Updated ' . $team->updated_at->diffForHumans()">
+                            :editRoute="route('teams.edit', $team->id)" :switchAction="'window.location.href=\'' . route('dashboard.select-team') . '?team_id=' . $team->id . '\''" :footer="'Updated ' . $team->updated_at->diffForHumans()">
                         </x-entity-card>
                     @endforeach
                 </div>
@@ -55,13 +55,6 @@
                 </div>
             @endif
         </div>
-
-
-        <!-- Delete confirmation modal -->
-        <x-modals.delete-confirmation id="delete-team-modal" title="Delete Team"
-            message="Are you sure you want to delete this team?" itemName="deleteTeamName"
-            dangerText="This will permanently delete the team and remove all access for team members. This action cannot be undone."
-            confirmText="Delete Team" cancelText="Cancel" />
     </div>
 @endsection
 
@@ -69,20 +62,11 @@
     <script>
         document.addEventListener('alpine:init', () => {
             Alpine.data('teamsManager', () => ({
-                showDeleteModal: false,
-                deleteTeamId: null,
-                deleteTeamName: '',
-                isDeleting: false,
-                requireConfirmation: true,
-                deleteConfirmed: false,
                 searchTerm: '',
 
                 init() {
                     console.log('Teams Manager initialized');
 
-                    this.$root.addEventListener('open-delete-modal', (event) => {
-                        this.openDeleteModal(event.detail.id, event.detail.name);
-                    });
                     // Initialize search functionality
                     const searchInput = document.getElementById('search-projects');
                     if (searchInput) {
@@ -111,77 +95,6 @@
                             card.classList.add('hidden');
                         }
                     });
-                },
-
-                openDeleteModal(id, name) {
-                    console.log("Opening delete modal for team:", id, name);
-                    this.deleteTeamId = id;
-                    this.deleteTeamName = name;
-                    this.deleteConfirmed = false;
-                    this.showDeleteModal = true;
-                },
-
-                closeDeleteModal() {
-                    if (!this.isDeleting) {
-                        this.showDeleteModal = false;
-                        setTimeout(() => {
-                            this.deleteTeamId = null;
-                            this.deleteTeamName = '';
-                            this.deleteConfirmed = false;
-                        }, 300);
-                    }
-                },
-
-                async confirmDelete() {
-                    console.log('Confirm delete clicked for team:', this.deleteTeamId);
-                    if (!this.deleteTeamId) return;
-                    this.isDeleting = true;
-
-                    try {
-                        const response = await fetch(`/teams/${this.deleteTeamId}`, {
-                            method: 'DELETE',
-                            headers: {
-                                'X-CSRF-TOKEN': document.querySelector(
-                                    'meta[name="csrf-token"]').content,
-                                'Accept': 'application/json'
-                            }
-                        });
-
-                        const result = await response.json();
-                        console.log('Delete response status:', response.status);
-                        if (response.ok) {
-                            // Show success notification using the window event
-                            window.dispatchEvent(new CustomEvent('notify', {
-                                detail: {
-                                    type: 'success',
-                                    message: `Team "${this.deleteTeamName}" was deleted successfully`
-                                }
-                            }));
-
-                            // Redirect if there's a redirect URL in the response
-                            if (result.redirect) {
-                                window.location.href = result.redirect;
-                            } else {
-                                // Otherwise reload the page
-                                window.location.reload();
-                            }
-                        } else {
-                            throw new Error(result.message || 'Failed to delete team');
-                        }
-                    } catch (error) {
-                        console.error('Error deleting team:', error);
-
-                        // Show error notification
-                        window.dispatchEvent(new CustomEvent('notify', {
-                            detail: {
-                                type: 'error',
-                                message: 'Failed to delete team. Please try again.'
-                            }
-                        }));
-                    } finally {
-                        this.isDeleting = false;
-                        this.closeDeleteModal();
-                    }
                 }
             }));
         });

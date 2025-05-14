@@ -122,7 +122,6 @@
 
     {{-- Vite JS & Alpine --}}
     @vite(['resources/js/app.js'])
-    @vite(['resources/js/components/ProgressTracker.js'])
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script> {{-- Keep CDN for simplicity here --}}
 
     {{-- Lucide Icons --}}
@@ -222,6 +221,19 @@
                         </ul>
                     </div>
                 </nav>
+
+                @if (isset($pendingInvitationsCount) && $pendingInvitationsCount > 0)
+                    <a href="{{ route('dashboard.select-team') }}"
+                        class="relative group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 hover:bg-zinc-100 dark:hover:text-white dark:hover:bg-zinc-700/50">
+                        <i data-lucide="mail"
+                            class="ml-3 mr-3 flex-shrink-0 w-5 h-5 text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-600 dark:group-hover:text-zinc-300"></i>
+                        <span class="flex-1">Invitations</span>
+                        <span
+                            class="bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                            {{ $pendingInvitationsCount }}
+                        </span>
+                    </a>
+                @endif
 
                 {{-- Team Edition / Container Usage (Dynamic) --}}
                 <div class="mt-auto px-4 pb-4 pt-2 animate-pop-in" style="--delay: 0.5s;">
@@ -397,8 +409,10 @@
                                             <li>
                                                 <a :href="notification.url || '#'"
                                                     class="block px-4 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-700/50 transition-colors"
-                                                    :class="{ 'bg-indigo-50 dark:bg-indigo-900/20 font-medium': !notification
-                                                            .read }">
+                                                    :class="{
+                                                        'bg-indigo-50 dark:bg-indigo-900/20 font-medium': !notification
+                                                            .read
+                                                    }">
                                                     <p class="text-sm font-medium text-zinc-900 dark:text-white"
                                                         x-text="notification.title"></p>
                                                     <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5"

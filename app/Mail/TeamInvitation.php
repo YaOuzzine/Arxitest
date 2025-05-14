@@ -1,5 +1,7 @@
 <?php
 
+// app/Mail/TeamInvitation.php
+
 namespace App\Mail;
 
 use App\Models\Team;
@@ -17,16 +19,24 @@ class TeamInvitation extends Mailable
     public $inviterName;
     public $token;
     public $role;
+    public $registrationLink;
+    public $isRegistered;
 
     /**
      * Create a new message instance.
      */
-    public function __construct(Team $team, string $inviterName, string $token, string $role)
+    public function __construct(Team $team, string $inviterName, string $token, string $role, bool $isRegistered = false)
     {
         $this->team = $team;
         $this->inviterName = $inviterName;
         $this->token = $token;
         $this->role = $role;
+        $this->isRegistered = $isRegistered;
+
+        // Create registration link with invitation token
+        $this->registrationLink = $isRegistered
+            ? route('invitations.accept', $token)
+            : route('register') . '?invitation=' . $token;
     }
 
     /**

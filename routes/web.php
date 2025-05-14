@@ -105,6 +105,23 @@ Route::middleware(['guest', 'throttle:5,1'])->group(function () {
 
 // Add this to your routes/web.php file
 
+// Guest routes for invitation acceptance
+Route::get('invitations/accept/{token}', [InvitationController::class, 'accept'])
+    ->name('invitations.accept');
+
+// Authenticated routes for invitation handling
+Route::middleware(['web', 'auth:web'])->group(function () {
+    // Complete the invitation process after login/registration
+    Route::get('invitations/complete', [InvitationController::class, 'complete'])
+        ->name('invitations.complete');
+
+    Route::post('invitations/accept-directly/{token}', [InvitationController::class, 'acceptDirectly'])
+        ->name('invitations.accept-directly');
+
+    Route::delete('invitations/reject/{id}', [InvitationController::class, 'reject'])
+        ->name('invitations.reject');
+});
+
 Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
     // --- DASHBOARD HOME ---
     Route::get('/dashboard', [DashboardController::class, 'showDashboard'])->name('dashboard');

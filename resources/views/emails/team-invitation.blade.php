@@ -1,88 +1,72 @@
+<!-- resources/views/emails/team-invitation.blade.php -->
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Invitation to {{ $team->name }} on Arxitest</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Team Invitation</title>
     <style>
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            line-height: 1.5;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
             color: #333;
-            padding: 20px;
             max-width: 600px;
             margin: 0 auto;
-        }
-        .logo {
-            max-width: 150px;
-            margin-bottom: 20px;
-        }
-        .card {
-            border-radius: 8px;
-            background-color: #fff;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            padding: 25px;
-            margin-bottom: 20px;
+            padding: 20px;
         }
         .header {
-            font-weight: bold;
-            font-size: 24px;
-            margin-bottom: 16px;
-            color: #333;
+            background: linear-gradient(to right, #4F46E5, #7C3AED);
+            color: white;
+            padding: 20px;
+            border-radius: 8px 8px 0 0;
         }
         .content {
-            margin-bottom: 24px;
-            color: #555;
+            background-color: #f9fafb;
+            padding: 20px;
+            border-radius: 0 0 8px 8px;
+            border: 1px solid #e5e7eb;
+            border-top: none;
         }
         .button {
             display: inline-block;
-            background-color: #4F46E5;
+            background: linear-gradient(to right, #4F46E5, #7C3AED);
             color: white;
             text-decoration: none;
-            padding: 12px 20px;
+            padding: 12px 24px;
             border-radius: 6px;
-            font-weight: 500;
-            margin-bottom: 16px;
-        }
-        .button:hover {
-            background-color: #4338CA;
+            font-weight: 600;
+            margin: 20px 0;
         }
         .footer {
+            margin-top: 30px;
             font-size: 12px;
-            color: #888;
-            margin-top: 40px;
-            padding-top: 16px;
-            border-top: 1px solid #eee;
+            color: #6b7280;
+            text-align: center;
         }
     </style>
 </head>
 <body>
-    <div style="text-align: center;">
-        <img src="{{ asset('images/logo.png') }}" alt="Arxitest Logo" class="logo">
+    <div class="header">
+        <h1>You've been invited!</h1>
     </div>
+    <div class="content">
+        <p>Hello,</p>
+        <p><strong>{{ $inviterName }}</strong> has invited you to join <strong>{{ $team->name }}</strong> on Arxitest as a <strong>{{ ucfirst($role) }}</strong>.</p>
 
-    <div class="card">
-        <div class="header">You've been invited to join {{ $team->name }}</div>
+        @if($isRegistered)
+            <p>Since you already have an Arxitest account, you can accept this invitation directly.</p>
+            <a href="{{ $registrationLink }}" class="button">Accept Invitation</a>
+        @else
+            <p>To join this team, you'll need to create an Arxitest account first. Arxitest is a collaborative testing platform that helps teams create, manage, and run automated tests.</p>
+            <a href="{{ $registrationLink }}" class="button">Create Account & Join Team</a>
+            <p>After creating your account, you'll automatically see this invitation and can accept or decline it.</p>
+        @endif
 
-        <div class="content">
-            <p>Hello,</p>
-            <p>{{ $inviterName }} has invited you to join their team on Arxitest - the intelligent test automation platform that streamlines your software testing lifecycle.</p>
-            <p>You've been invited as a <strong>{{ ucfirst($role) }}</strong> on the team.</p>
-        </div>
-
-        <div style="text-align: center; margin: 30px 0;">
-            <a href="{{ route('invitations.accept', $token) }}" class="button">Accept Invitation</a>
-        </div>
-
-        <div class="content">
-            <p>If you don't have an Arxitest account yet, you'll be able to create one after accepting the invitation.</p>
-            <p>This invitation will expire in 7 days.</p>
-        </div>
+        <p>This invitation will expire in 7 days.</p>
     </div>
-
     <div class="footer">
-        <p>© {{ date('Y') }} Arxitest. All rights reserved.</p>
-        <p>If you didn't expect this invitation, you can safely ignore this email.</p>
+        <p>If you didn't expect this invitation, you can simply ignore this email.</p>
+        <p>&copy; {{ date('Y') }} Arxitest. All rights reserved.</p>
     </div>
 </body>
 </html>

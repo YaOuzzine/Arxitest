@@ -521,74 +521,10 @@
         </div>
 
         <!-- Delete Team Confirmation Modal -->
-        <div x-show="showDeleteTeamModal" class="fixed inset-0 z-50 overflow-y-auto" x-cloak>
-            <div class="flex items-center justify-center min-h-screen px-4 text-center">
-                <div class="fixed inset-0 transition-opacity" @click="showDeleteTeamModal = false">
-                    <div class="absolute inset-0 bg-zinc-900 opacity-75 dark:opacity-90"></div>
-                </div>
-
-                <div class="inline-block align-bottom bg-white dark:bg-zinc-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full"
-                    x-transition:enter="transition ease-out duration-300"
-                    x-transition:enter-start="opacity-0 transform scale-95"
-                    x-transition:enter-end="opacity-100 transform scale-100"
-                    x-transition:leave="transition ease-in duration-200"
-                    x-transition:leave-start="opacity-100 transform scale-100"
-                    x-transition:leave-end="opacity-0 transform scale-95">
-                    <div class="bg-white dark:bg-zinc-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                        <div class="sm:flex sm:items-start">
-                            <div
-                                class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 dark:bg-red-900/30 sm:mx-0 sm:h-10 sm:w-10">
-                                <i data-lucide="alert-triangle" class="h-6 w-6 text-red-600 dark:text-red-400"></i>
-                            </div>
-                            <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                                <h3 class="text-lg leading-6 font-medium text-zinc-900 dark:text-white">
-                                    Delete Team
-                                </h3>
-                                <div class="mt-2">
-                                    <p class="text-sm text-zinc-500 dark:text-zinc-400">
-                                        Are you absolutely sure you want to delete this team? All of the team's data
-                                        including projects, test suites, and scripts will be permanently removed. This
-                                        action cannot be undone.
-                                    </p>
-                                </div>
-                                <div class="mt-4">
-                                    <div class="flex items-center">
-                                        <input id="confirm-delete" name="confirm-delete" type="checkbox"
-                                            x-model="deleteConfirmed"
-                                            class="h-4 w-4 text-red-600 focus:ring-red-500 border-zinc-300 dark:border-zinc-600 rounded">
-                                        <label for="confirm-delete"
-                                            class="ml-2 block text-sm text-zinc-900 dark:text-zinc-100">
-                                            I understand that this action is irreversible
-                                        </label>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="bg-zinc-50 dark:bg-zinc-700/30 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                        <button @click="deleteTeam" type="button"
-                            class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                            :disabled="!deleteConfirmed || deleteTeamLoading">
-                            <template x-if="deleteTeamLoading">
-                                <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg"
-                                    fill="none" viewBox="0 0 24 24">
-                                    <circle class="opacity-25" cx="12" cy="12" r="10"
-                                        stroke="currentColor" stroke-width="4"></circle>
-                                    <path class="opacity-75" fill="currentColor"
-                                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
-                                    </path>
-                                </svg>
-                            </template>
-                            <span x-text="deleteTeamLoading ? 'Deleting...' : 'Delete Team'"></span>
-                        </button>
-                        <button @click="showDeleteTeamModal = false" type="button"
-                            class="mt-3 w-full inline-flex justify-center rounded-md border border-zinc-300 dark:border-zinc-600 shadow-sm px-4 py-2 bg-white dark:bg-zinc-800 text-base font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-zinc-500 dark:focus:ring-offset-zinc-800 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
-                            Cancel
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <x-modals.delete-confirmation id="delete-team-modal" title="Delete Team"
+            message="Are you sure you want to delete this team?" itemName="deleteTeamName"
+            dangerText="This will permanently delete the team and all its projects, test suites, and data. This action cannot be undone."
+            confirmText="Delete Team" cancelText="Cancel" />
 
         <!-- Notifications (for team actions) -->
         <div x-show="notification.show" x-transition:enter="transition ease-out duration-300"
@@ -663,6 +599,11 @@
                 teamId: '{{ $team->id }}',
                 canManageMembers: {{ Auth::user()->can('update', $team) ? 'true' : 'false' }},
                 currentUserId: '{{ Auth::id() }}',
+
+                deleteTeamName: '{{ addslashes($team->name) }}',
+                showDeleteModal: false,
+                isDeleting: false,
+                requireConfirmation: true,
 
                 // Mock data for UI demo (replace with API data in prod)
                 members: [
@@ -743,8 +684,47 @@
                     this.showRemoveMemberModal = true;
                 },
                 confirmDeleteTeam() {
-                    this.deleteConfirmed = false;
-                    this.showDeleteTeamModal = true;
+                    this.deleteTeamName = '{{ addslashes($team->name) }}';
+                    this.showDeleteModal = true; // Must use showDeleteModal, not showDeleteTeamModal
+                },
+                closeDeleteModal() {
+                    if (!this.isDeleting) {
+                        this.showDeleteModal = false;
+                        setTimeout(() => {
+                            this.deleteConfirmed = false;
+                        }, 300);
+                    }
+                },
+
+                async confirmDelete() {
+                    if (this.requireConfirmation && !this.deleteConfirmed) return;
+
+                    this.isDeleting = true;
+                    try {
+                        const response = await fetch(`/teams/${this.teamId}`, {
+                            method: 'DELETE',
+                            headers: {
+                                'X-CSRF-TOKEN': document.querySelector(
+                                    'meta[name="csrf-token"]').getAttribute('content'),
+                                'Accept': 'application/json'
+                            }
+                        });
+
+                        if (response.ok) {
+                            const data = await response.json();
+                            window.location.href = data.redirect ||
+                                '{{ route('dashboard.select-team') }}';
+                        } else {
+                            const errorData = await response.json();
+                            throw new Error(errorData.message || 'Failed to delete team');
+                        }
+                    } catch (error) {
+                        this.showNotification('error', 'Error', error.message ||
+                            'An error occurred while deleting the team');
+                        this.showDeleteModal = false;
+                    } finally {
+                        this.isDeleting = false;
+                    }
                 },
 
                 // API Methods
@@ -810,7 +790,8 @@
                 },
 
                 isValidEmail(email) {
-                    const re = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
+                    const re =
+                        /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
                     return re.test(String(email).toLowerCase());
                 },
 
@@ -838,7 +819,7 @@
                             this.showEditRoleModal = false;
                             this.showNotification('success', 'Role Updated',
                                 `${this.selectedMember.name}'s role has been updated to ${this.selectedMemberRole}.`
-                                );
+                            );
                         } else {
                             throw new Error(data.message || 'Failed to update role');
                         }
@@ -863,7 +844,7 @@
                             });
                         if (response.ok) {
                             this.members = this.members.filter(m => m.id !== this.selectedMember
-                            .id);
+                                .id);
                             this.showRemoveMemberModal = false;
                             this.showNotification('success', 'Member Removed',
                                 `${this.selectedMember.name} has been removed from the team.`);

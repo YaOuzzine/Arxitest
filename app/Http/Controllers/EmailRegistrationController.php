@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Mail\EmailVerification;
+use App\Mail\TeamInvitation;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -129,11 +130,20 @@ class EmailRegistrationController extends Controller
 
         Auth::login($user);
 
-        // Check if this registration was initiated from an invitation
-        if (session('invitation_token')) {
+        // Check for pending invitations for this email
+        $pendingInvitations = TeamInvitation::where('email', $user->email)
+            ->where('expires_at', '>', now())
+            ->get();
+
+        if ($pendingInvitations->count() > 0) {
+            // Store first invitation token in session
+            if ($pendingInvitations->first()) {
+                session(['invitation_token' => $pendingInvitations->first()->token]);
+            }
+
             return redirect()->route('invitations.complete');
         }
 
-        return redirect()->route('dashboard');
+        return redirect('/dashboard');
     }
 }

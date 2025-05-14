@@ -172,6 +172,7 @@ class TeamController extends Controller
 
             // Check if user already exists
             $existingUser = User::where('email', $email)->first();
+            $isRegistered = $existingUser !== null;
 
             if ($existingUser) {
                 // Check if user is already a member
@@ -179,6 +180,22 @@ class TeamController extends Controller
                     $team->users()->attach($existingUser->id, [
                         'team_role' => $role
                     ]);
+
+                    // Create a notification for existing user
+                    // This notification will show up in their dashboard
+                    $notification = new \App\Models\Notification();
+                    $notification->actor_id = $user->id;
+                    $notification->type = 'team_invitation';
+                    $notification->data = [
+                        'team_id' => $team->id,
+                        'team_name' => $team->name,
+                        'role' => $role,
+                    ];
+                    $notification->save();
+
+                    // Link notification to user
+                    $existingUser->notifications()->attach($notification->id);
+
                     $processed++;
                 }
             } else {
@@ -211,7 +228,7 @@ class TeamController extends Controller
 
                 // Send invitation email
                 Mail::to($email)->send(
-                    new TeamInvitationMail($team, $user->name, $token, $role)
+                    new TeamInvitationMail($team, $user->name, $token, $role, $isRegistered)
                 );
 
                 $processed++;
@@ -334,18 +351,57 @@ class TeamController extends Controller
      * @param string $id
      * @return \Illuminate\Http\JsonResponse
      */
-    public function destroy(Request $request, Team $team)
+    public function destroy(Request $request, $id) // Changed to explicit $id parameter
     {
-        // $this->authorize('delete', $team);
-        $this->teams->delete($team);
+        try {
+            $team = Team::findOrFail($id);
+            // $this->authorize('delete', $team);
 
-        if ($request->expectsJson()) {
-            return $this->successResponse([
-                'redirect' => route('dashboard.select-team'),
-            ], 'Team deleted successfully');
+            Log::info('Deleting team', ['team_id' => $id, 'team_name' => $team->name]);
+
+            $this->teams->delete($team);
+
+            Log::info('Team deleted successfully');
+
+            if ($request->expectsJson()) {
+                return $this->successResponse([
+                    'redirect' => route('dashboard.select-team'),
+                ], 'Team deleted successfully');
+            }
+
+            return redirect()->route('dashboard.select-team')
+                ->with('success', 'Team deleted successfully');
+        } catch (\Exception $e) {
+            Log::error('Failed to delete team', [
+                'team_id' => $id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            if ($request->expectsJson()) {
+                return $this->errorResponse($e->getMessage(), 500);
+            }
+
+            return redirect()->back()->with('error', 'Failed to delete team: ' . $e->getMessage());
         }
+    }
 
-        return redirect()->route('dashboard.select-team')
-            ->with('success', 'Team deleted successfully');
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::deleting(function (Team $team) {
+            // Detach all relationships
+            $team->users()->detach();
+
+            // Handle projects if needed - add cascade deletion or make them null
+            // For example:
+            $team->projects()->delete(); // This will delete all projects belonging to this team
+
+            // Delete all related subscriptions
+            $team->subscriptions()->delete();
+
+            return true;
+        });
     }
 }

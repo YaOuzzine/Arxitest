@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\TeamInvitation;
 use App\Models\PhoneVerification;
 use App\Models\User;
 use App\Services\SmsService;
@@ -66,7 +67,8 @@ class PhoneAuthController extends Controller
         return redirect()->route('auth.phone.verification')->with('status', 'Verification code sent to your phone.');
     }
 
-    public function resendCode(Request $request){
+    public function resendCode(Request $request)
+    {
         $request->validate([
             'phone_number' => ['required', 'string', 'regex:/^\+[1-9]\d{1,14}$/'], // E.164 format
         ]);
@@ -192,7 +194,7 @@ class PhoneAuthController extends Controller
      */
     public function completeRegistration(Request $request)
     {
-        $verifiedPhone = session('verified_phone');
+        $verifiedPhone = $request->session()->get('verified_phone');
         if (!$verifiedPhone) {
             return redirect()->route('auth.phone')->withErrors(['phone_number' => 'Please verify your phone number first.']);
         }
@@ -216,7 +218,23 @@ class PhoneAuthController extends Controller
         Auth::login($user);
 
         // Clear session data
-        session()->forget(['verified_phone', 'phone_number']);
+        $request->session()->forget(['verified_phone', 'phone_number']);
+
+        // Check for pending invitations if email was provided
+        if ($request->email) {
+            $pendingInvitations = TeamInvitation::where('email', $user->email)
+                ->where('expires_at', '>', now())
+                ->get();
+
+            if ($pendingInvitations->count() > 0) {
+                // Store first invitation token in session
+                if ($pendingInvitations->first()) {
+                    session(['invitation_token' => $pendingInvitations->first()->token]);
+                }
+
+                return redirect()->route('invitations.complete');
+            }
+        }
 
         return redirect('/dashboard');
     }

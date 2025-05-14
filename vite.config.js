@@ -14,7 +14,6 @@ export default defineConfig({
                 'resources/js/auth/password-strength.js',
                 'resources/js/auth/phone-verification.js',
                 'resources/js/dashboard/dashboard-background.js',
-                'resources/js/components/ProgressTracker.js',
                 'resources/js/test-case-create.js'],
 
             refresh: true,

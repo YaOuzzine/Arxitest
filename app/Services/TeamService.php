@@ -82,13 +82,46 @@ class TeamService
      */
     public function delete(Team $team): void
     {
-        if (session('current_team') == $team->id) {
-            session()->forget('current_team');
+        try {
+            Log::info('Delete team - starting', ['team_id' => $team->id]);
+
+            if (session('current_team') == $team->id) {
+                session()->forget('current_team');
+                Log::info('Removed team from session');
+            }
+
+            if ($team->logo_path) {
+                Storage::disk('public')->delete($team->logo_path);
+                Log::info('Deleted team logo', ['logo_path' => $team->logo_path]);
+            }
+
+            // Delete related records first if needed
+            Log::info('Checking for related records');
+
+            // Get counts of related records for debugging
+            $projectCount = $team->projects()->count();
+            $userCount = $team->users()->count();
+
+            Log::info('Related record counts', [
+                'projects' => $projectCount,
+                'users' => $userCount
+            ]);
+
+            // Detach users from the team first
+            $team->users()->detach();
+            Log::info('Detached all users from team');
+
+            // Now delete the team
+            $result = $team->delete();
+            Log::info('Team delete result', ['success' => $result]);
+        } catch (\Exception $e) {
+            Log::error('Error in TeamService::delete', [
+                'team_id' => $team->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw $e; // Re-throw to controller
         }
-        if ($team->logo_path) {
-            Storage::disk('public')->delete($team->logo_path);
-        }
-        $team->delete();
     }
 
     /**
