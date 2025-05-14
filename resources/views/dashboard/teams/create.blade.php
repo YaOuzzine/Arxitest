@@ -5,7 +5,7 @@
 @section('breadcrumbs')
     <li class="flex items-center">
         <i data-lucide="chevron-right" class="w-4 h-4 text-zinc-400 mx-1"></i>
-        <a href="{{ route('dashboard.select-team') }}" class="text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300">
+        <a href="{{ route('dashboard.teams.index') }}" class="text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300">
             Teams
         </a>
     </li>
@@ -101,7 +101,7 @@
                             class="w-full px-4 py-2.5 rounded-lg border border-zinc-300/80 dark:border-zinc-600/50 bg-white/50 dark:bg-zinc-800/50 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400/80 focus:ring-2 focus:ring-zinc-500 focus:border-transparent transition-all duration-200 shadow-sm peer"
                             placeholder="name@example.com"
                         >
-                        <div class="absolute inset-y-0 right-3 flex items-center pr-3 pointer-events-none">
+                        <div class="absolute right-3 flex items-center pr-3 pointer-events-none">
                             <i data-lucide="at-sign" class="h-4 w-4 text-zinc-400/80"></i>
                         </div>
                     </div>

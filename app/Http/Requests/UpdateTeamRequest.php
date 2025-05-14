@@ -11,18 +11,21 @@ class UpdateTeamRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return false;
+        // Current user must be an owner or admin of the team
+        $team = $this->route('team');
+        return $this->user()->can('update', $team);
     }
 
     /**
      * Get the validation rules that apply to the request.
-     *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
         return [
-            //
+            'name' => 'required|string|max:100',
+            'description' => 'nullable|string|max:500',
+            'logo' => 'nullable|image|max:2048', // 2MB max
+            'remove_logo' => 'nullable|boolean',
         ];
     }
 }

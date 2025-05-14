@@ -35,7 +35,6 @@
     projectDescription: {{ json_encode(old('description', $project->description ?? '')) }},
     // Safely access settings with defaults
     defaultFramework: {{ json_encode(old('default_framework', $project->settings['default_framework'] ?? 'selenium-python')) }},
-    autoGenerateTests: {{ old('auto_generate_tests', $project->settings['auto_generate_tests'] ?? false) ? 'true' : 'false' }},
     isSubmitting: false,
     showNotification: false,
     notificationType: 'success',
@@ -161,7 +160,6 @@
                 @method('PUT') {{-- Use PUT or PATCH for updates --}}
 
                 <input type="hidden" name="default_framework" x-model="defaultFramework">
-                <input type="hidden" name="auto_generate_tests" :value="autoGenerateTests ? 1 : 0">
 
                 <!-- Project Details Section -->
                 <div class="space-y-8">
@@ -256,24 +254,6 @@
                         </template>
                     </div>
 
-                    {{-- Toggle switch logic remains the same, initial state is handled by x-data --}}
-                    <div class="flex items-center space-x-4 animate-fade-in-up delay-500">
-                        <button type="button"
-                                @click="autoGenerateTests = !autoGenerateTests"
-                                :class="autoGenerateTests ? 'bg-zinc-800 dark:bg-zinc-200' : 'bg-zinc-200 dark:bg-zinc-700'"
-                                class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-zinc-500 focus:ring-offset-2">
-                            <span :class="autoGenerateTests ? 'translate-x-5' : 'translate-x-0'"
-                                  class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white dark:bg-zinc-800 shadow-lg ring-0 transition-transform duration-300 ease-in-out"></span>
-                        </button>
-                        <div>
-                            <label class="text-sm font-medium text-zinc-700 dark:text-zinc-300 cursor-pointer">
-                                Auto-generate tests from user stories
-                            </label>
-                            <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-                                Arxitest will automatically create test scripts from Jira user stories
-                            </p>
-                        </div>
-                    </div>
                 </div>
 
                 <!-- Animated Submit Button -->

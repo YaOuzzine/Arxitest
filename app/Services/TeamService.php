@@ -41,7 +41,7 @@ class TeamService
                 $invites = json_decode($data['invites'], true, 512, JSON_THROW_ON_ERROR);
                 $this->processInvitations($team, $invites);
             } catch (\JsonException $e) {
-                Log::error('Invalid team invites JSON: '.$e->getMessage());
+                Log::error('Invalid team invites JSON: ' . $e->getMessage());
             }
         }
 
