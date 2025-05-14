@@ -108,3 +108,50 @@ Route::get('/projects/{project}/stories', function (App\Models\Project $project)
         'stories' => $stories,
     ]);
 });
+
+
+// Test Execution Status API
+Route::get('/executions/{execution}/status', function (App\Models\TestExecution $execution) {
+    return response()->json([
+        'success' => true,
+        'data' => [
+            'status' => [
+                'name' => $execution->status->name ?? 'unknown',
+                'id' => $execution->status->id ?? null
+            ],
+            'start_time' => $execution->start_time,
+            'end_time' => $execution->end_time,
+            'duration' => $execution->duration
+        ]
+    ]);
+})->middleware('api');
+
+// Test Execution Metrics API
+Route::get('/executions/{execution}/metrics', function (App\Models\TestExecution $execution) {
+    $metrics = collect();
+
+    foreach ($execution->containers as $container) {
+        $containerMetrics = $container->resourceMetrics()->orderBy('metric_time')->get();
+        $metrics = $metrics->concat($containerMetrics);
+    }
+
+    return response()->json([
+        'success' => true,
+        'data' => [
+            'metrics' => $metrics
+        ]
+    ]);
+})->middleware('api');
+
+// Environment Details API
+Route::get('/environments/{environment}', function (App\Models\Environment $environment) {
+    return response()->json([
+        'success' => true,
+        'data' => [
+            'id' => $environment->id,
+            'name' => $environment->name,
+            'is_global' => $environment->is_global,
+            'configuration' => $environment->configuration
+        ]
+    ]);
+})->middleware('api');

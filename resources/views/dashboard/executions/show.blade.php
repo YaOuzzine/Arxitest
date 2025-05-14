@@ -1,3 +1,4 @@
+<!-- resources/views/dashboard/executions/show.blade.php -->
 @extends('layouts.dashboard')
 
 @section('title', 'Execution Details')
@@ -5,604 +6,699 @@
 @section('breadcrumbs')
     <li class="flex items-center">
         <i data-lucide="chevron-right" class="w-4 h-4 text-zinc-400 mx-1"></i>
-        <a href="{{ route('dashboard.executions.index') }}" class="text-zinc-700 dark:text-zinc-300">Executions</a>
+        <a href="{{ route('dashboard.executions.index') }}" class="text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300">
+            Test Executions
+        </a>
     </li>
     <li class="flex items-center">
         <i data-lucide="chevron-right" class="w-4 h-4 text-zinc-400 mx-1"></i>
-        <span class="text-zinc-700 dark:text-zinc-300">Execution #{{ $execution->id }}</span>
+        <span class="text-zinc-700 dark:text-zinc-300">{{ substr($execution->id, 0, 8) }}</span>
     </li>
 @endsection
 
 @section('content')
-    <div x-data="{ activeTab: 'overview' }">
-        <div class="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+<div class="space-y-6" x-data="executionDetails({
+    executionId: '{{ $execution->id }}',
+    statusName: '{{ $execution->status->name ?? 'unknown' }}',
+    isRunning: {{ json_encode($execution->isRunning() ?? false) }},
+    logs: {{ json_encode($logs) }},
+    hasMoreLogs: {{ json_encode($hasMoreLogs) }},
+    logOffset: 0,
+    logFileExists: {{ json_encode($logFileExists) }},
+    logFilePath: '{{ $logFilePath }}',
+    refreshInterval: 5000
+})">
+    <!-- Execution Header -->
+    <div class="bg-white dark:bg-zinc-800 shadow-md rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-700">
+        <div class="px-6 py-4 border-b border-zinc-200 dark:border-zinc-700 flex justify-between items-center">
             <div>
-                <h1 class="text-2xl font-bold text-zinc-900 dark:text-white">
-                    Test Execution #{{ $execution->id }}
+                <h1 class="text-xl font-bold text-zinc-900 dark:text-white">
+                    Test Execution: {{ substr($execution->id, 0, 8) }}
                 </h1>
-                <p class="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-                    {{ $execution->testScript->name ?? 'Unknown script' }} on
-                    {{ $execution->environment->name ?? 'Unknown environment' }}
+                <p class="text-sm text-zinc-500 dark:text-zinc-400">
+                    Script: {{ $execution->testScript->name ?? 'Unknown Script' }}
                 </p>
             </div>
-
-            <div class="flex items-center space-x-3">
-                @if ($execution->isRunning())
-                    <form action="{{ route('dashboard.executions.abort', $execution->id) }}" method="POST"
-                        onsubmit="return confirm('Are you sure you want to abort this execution?')">
-                        @csrf
-                        <button type="submit" class="btn-danger">
-                            <i data-lucide="square" class="w-5 h-5 mr-1.5"></i>
-                            Abort Execution
-                        </button>
-                    </form>
-                @endif
-
-                <a href="{{ route('dashboard.executions.create') }}" class="btn-primary">
-                    <i data-lucide="play" class="w-5 h-5 mr-1.5"></i>
-                    Run Another Test
-                </a>
+            <div>
+                <!-- Status Badge -->
+                <span x-show="statusName === 'pending'" class="px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+                    Pending
+                </span>
+                <span x-show="statusName === 'running'" class="px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+                    <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-blue-600 dark:text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Running
+                </span>
+                <span x-show="statusName === 'completed'" class="px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                    Completed
+                </span>
+                <span x-show="statusName === 'failed'" class="px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
+                    Failed
+                </span>
+                <span x-show="statusName === 'aborted'" class="px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400">
+                    Aborted
+                </span>
+                <span x-show="!['pending', 'running', 'completed', 'failed', 'aborted'].includes(statusName)" class="px-3 py-1 inline-flex text-sm leading-5 font-semibold rounded-full bg-zinc-100 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-300">
+                    {{ $execution->status->name ?? 'Unknown' }}
+                </span>
             </div>
         </div>
 
-        <div
-            class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-700 overflow-hidden mb-6">
-            <div class="p-6">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {{-- Status --}}
-                    <div>
-                        <h3 class="text-sm font-medium text-zinc-500 dark:text-zinc-400 mb-1">Status</h3>
-                        @php
-                            $statusClass = match ($execution->status->name ?? 'unknown') {
-                                'pending' => 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300',
-                                'running'
-                                    => 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 animate-pulse',
-                                'completed' => 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
-                                'failed' => 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
-                                'aborted' => 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300',
-                                'timeout' => 'bg-pink-100 text-pink-800 dark:bg-pink-900/40 dark:text-pink-300',
-                                default => 'bg-zinc-100 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-300',
-                            };
-                        @endphp
-                        <span class="px-2.5 py-1 inline-flex text-sm font-semibold rounded-full {{ $statusClass }}">
-                            {{ ucfirst($execution->status->name ?? 'Unknown') }}
-                        </span>
+        <!-- Execution Details -->
+        <div class="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="space-y-4">
+                <h2 class="text-lg font-medium text-zinc-800 dark:text-zinc-200">Details</h2>
+                <dl class="space-y-2">
+                    <div class="flex justify-between">
+                        <dt class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Initiator:</dt>
+                        <dd class="text-sm text-zinc-900 dark:text-zinc-200">{{ $execution->initiator->name ?? 'System' }}</dd>
                     </div>
-
-                    {{-- Started --}}
-                    <div>
-                        <h3 class="text-sm font-medium text-zinc-500 dark:text-zinc-400 mb-1">Started</h3>
-                        <p class="text-lg font-medium text-zinc-900 dark:text-white">
-                            {{ $execution->start_time ? $execution->start_time->format('M d, Y H:i:s') : 'Not started' }}
-                        </p>
+                    <div class="flex justify-between">
+                        <dt class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Environment:</dt>
+                        <dd class="text-sm text-zinc-900 dark:text-zinc-200">{{ $execution->environment->name ?? 'Unknown' }}</dd>
                     </div>
-
-                    {{-- Duration --}}
-                    <div>
-                        <h3 class="text-sm font-medium text-zinc-500 dark:text-zinc-400 mb-1">Duration</h3>
-                        <p class="text-lg font-medium text-zinc-900 dark:text-white">
-                            @if ($execution->start_time && $execution->end_time)
-                                {{ $execution->start_time->diff($execution->end_time)->format('%H:%I:%S') }}
-                            @elseif($execution->start_time && !$execution->end_time)
-                                Running ({{ $execution->start_time->diffForHumans(null, true) }})
-                            @else
-                                Not available
-                            @endif
-                        </p>
+                    <div class="flex justify-between">
+                        <dt class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Start Time:</dt>
+                        <dd class="text-sm text-zinc-900 dark:text-zinc-200">{{ $execution->start_time ? $execution->start_time->format('M j, Y g:i:s A') : 'Not started' }}</dd>
                     </div>
-
-                    {{-- Initiator --}}
-                    <div>
-                        <h3 class="text-sm font-medium text-zinc-500 dark:text-zinc-400 mb-1">Initiated By</h3>
-                        <p class="text-lg font-medium text-zinc-900 dark:text-white">
-                            {{ $execution->initiator->name ?? 'System' }}
-                        </p>
+                    <div class="flex justify-between">
+                        <dt class="text-sm font-medium text-zinc-500 dark:text-zinc-400">End Time:</dt>
+                        <dd class="text-sm text-zinc-900 dark:text-zinc-200" x-ref="endTimeDisplay">{{ $execution->end_time ? $execution->end_time->format('M j, Y g:i:s A') : 'Running...' }}</dd>
                     </div>
-
-                    {{-- Framework --}}
-                    <div>
-                        <h3 class="text-sm font-medium text-zinc-500 dark:text-zinc-400 mb-1">Framework</h3>
-                        <p class="text-lg font-medium text-zinc-900 dark:text-white">
-                            {{ ucfirst(str_replace('-', ' ', $execution->testScript->framework_type ?? 'Unknown')) }}
-                        </p>
-                    </div>
-
-                    {{-- Container Count --}}
-                    <div>
-                        <h3 class="text-sm font-medium text-zinc-500 dark:text-zinc-400 mb-1">Containers</h3>
-                        <p class="text-lg font-medium text-zinc-900 dark:text-white">
-                            {{ $execution->containers->count() }}
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        {{-- Tabs --}}
-        <div class="mb-6 border-b border-zinc-200 dark:border-zinc-700">
-            <ul class="flex flex-wrap -mb-px">
-                <li class="mr-2">
-                    <button @click="activeTab = 'overview'"
-                        :class="{ 'border-indigo-500 text-indigo-600 dark:text-indigo-400': activeTab === 'overview', 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300': activeTab !== 'overview' }"
-                        class="inline-block p-4 border-b-2 font-medium">
-                        Overview
-                    </button>
-                </li>
-                <li class="mr-2">
-                    <button @click="activeTab = 'containers'"
-                        :class="{ 'border-indigo-500 text-indigo-600 dark:text-indigo-400': activeTab === 'containers', 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300': activeTab !== 'containers' }"
-                        class="inline-block p-4 border-b-2 font-medium">
-                        Containers
-                    </button>
-                </li>
-                <li class="mr-2">
-                    <button @click="activeTab = 'logs'"
-                        :class="{ 'border-indigo-500 text-indigo-600 dark:text-indigo-400': activeTab === 'logs', 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300': activeTab !== 'logs' }"
-                        class="inline-block p-4 border-b-2 font-medium">
-                        Logs
-                    </button>
-                </li>
-                <li class="mr-2">
-                    <button @click="activeTab = 'script'"
-                        :class="{ 'border-indigo-500 text-indigo-600 dark:text-indigo-400': activeTab === 'script', 'border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300': activeTab !== 'script' }"
-                        class="inline-block p-4 border-b-2 font-medium">
-                        Script
-                    </button>
-                </li>
-            </ul>
-        </div>
-
-        {{-- Tab Content --}}
-        <div
-            class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-700 overflow-hidden">
-            {{-- Overview Tab --}}
-            <div x-show="activeTab === 'overview'" class="p-6">
-                <h2 class="text-lg font-semibold text-zinc-900 dark:text-white mb-4">Execution Details</h2>
-
-                <div class="mb-6">
-                    <h3 class="text-sm font-medium text-zinc-500 dark:text-zinc-400 mb-2">Test Information</h3>
-                    <div class="bg-zinc-50 dark:bg-zinc-700/30 rounded-lg p-4">
-                        <dl class="divide-y divide-zinc-200 dark:divide-zinc-700/50">
-                            <div class="py-3 grid grid-cols-3 gap-4">
-                                <dt class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Test Script</dt>
-                                <dd class="text-sm text-zinc-900 dark:text-white col-span-2">
-                                    {{ $execution->testScript->name ?? 'Unknown' }}</dd>
-                            </div>
-                            <div class="py-3 grid grid-cols-3 gap-4">
-                                <dt class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Test Case</dt>
-                                <dd class="text-sm text-zinc-900 dark:text-white col-span-2">
-                                    {{ $execution->testScript->testCase->title ?? 'N/A' }}</dd>
-                            </div>
-                            <div class="py-3 grid grid-cols-3 gap-4">
-                                <dt class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Environment</dt>
-                                <dd class="text-sm text-zinc-900 dark:text-white col-span-2">
-                                    {{ $execution->environment->name ?? 'Unknown' }}</dd>
-                            </div>
-                            <div class="py-3 grid grid-cols-3 gap-4">
-                                <dt class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Framework</dt>
-                                <dd class="text-sm text-zinc-900 dark:text-white col-span-2">
-                                    {{ ucfirst(str_replace('-', ' ', $execution->testScript->framework_type ?? 'Unknown')) }}
-                                </dd>
-                            </div>
-                        </dl>
-                    </div>
-                </div>
-
-                <div>
-                    <h3 class="text-sm font-medium text-zinc-500 dark:text-zinc-400 mb-2">Timeline</h3>
-                    <div class="bg-zinc-50 dark:bg-zinc-700/30 rounded-lg p-4">
-                        <ol class="relative border-l border-zinc-300 dark:border-zinc-600 ml-3">
-                            <li class="mb-6 ml-6">
-                                <span
-                                    class="absolute flex items-center justify-center w-6 h-6 bg-blue-100 rounded-full -left-3 ring-8 ring-zinc-50 dark:ring-zinc-700/30 dark:bg-blue-900/30">
-                                    <i data-lucide="file-plus" class="w-3 h-3 text-blue-600 dark:text-blue-400"></i>
-                                </span>
-                                <h3 class="flex items-center mb-1 text-sm font-semibold text-zinc-900 dark:text-white">
-                                    Execution Created
-                                </h3>
-                                <time class="block mb-2 text-xs font-normal text-zinc-500 dark:text-zinc-400">
-                                    {{ $execution->created_at ? $execution->created_at->format('M d, Y h:i:s A') : 'N/A' }}
-                                </time>
-                            </li>
-
-                            <li class="mb-6 ml-6">
-                                <span
-                                    class="absolute flex items-center justify-center w-6 h-6 bg-blue-100 rounded-full -left-3 ring-8 ring-zinc-50 dark:ring-zinc-700/30 dark:bg-blue-900/30">
-                                    <i data-lucide="play" class="w-3 h-3 text-blue-600 dark:text-blue-400"></i>
-                                </span>
-                                <h3 class="flex items-center mb-1 text-sm font-semibold text-zinc-900 dark:text-white">
-                                    Execution Started
-                                </h3>
-                                <time class="block mb-2 text-xs font-normal text-zinc-500 dark:text-zinc-400">
-                                    {{ $execution->start_time ? $execution->start_time->format('M d, Y h:i:s A') : 'N/A' }}
-                                </time>
-                            </li>
-
-                            @if ($execution->end_time)
-                                <li class="ml-6">
-                                    @php
-                                        $iconClass = match ($execution->status->name ?? '') {
-                                            'completed' => 'bg-green-100 dark:bg-green-900/30',
-                                            'failed', 'aborted', 'timeout' => 'bg-red-100 dark:bg-red-900/30',
-                                            default => 'bg-zinc-100 dark:bg-zinc-700/50',
-                                        };
-
-                                        $iconName = match ($execution->status->name ?? '') {
-                                            'completed' => 'check',
-                                            'failed' => 'x',
-                                            'aborted' => 'square',
-                                            'timeout' => 'clock',
-                                            default => 'flag',
-                                        };
-
-                                        $iconColor = match ($execution->status->name ?? '') {
-                                            'completed' => 'text-green-600 dark:text-green-400',
-                                            'failed', 'aborted', 'timeout' => 'text-red-600 dark:text-red-400',
-                                            default => 'text-zinc-600 dark:text-zinc-400',
-                                        };
-                                    @endphp
-                                    <span
-                                        class="absolute flex items-center justify-center w-6 h-6 {{ $iconClass }} rounded-full -left-3 ring-8 ring-zinc-50 dark:ring-zinc-700/30">
-                                        <i data-lucide="{{ $iconName }}" class="w-3 h-3 {{ $iconColor }}"></i>
-                                    </span>
-                                    <h3 class="flex items-center mb-1 text-sm font-semibold text-zinc-900 dark:text-white">
-                                        Execution {{ ucfirst($execution->status->name ?? 'Completed') }}
-                                    </h3>
-                                    <time class="block mb-2 text-xs font-normal text-zinc-500 dark:text-zinc-400">
-                                        {{ $execution->end_time->format('M d, Y h:i:s A') }}
-                                    </time>
-                                </li>
-                            @endif
-                        </ol>
-                    </div>
-                </div>
-            </div>
-
-            {{-- Containers Tab --}}
-            <div x-show="activeTab === 'containers'" class="p-6">
-                <h2 class="text-lg font-semibold text-zinc-900 dark:text-white mb-4">Containers</h2>
-
-                @if ($execution->containers->isEmpty())
-                    <div class="bg-zinc-50 dark:bg-zinc-700/30 rounded-lg p-6 text-center">
-                        <i data-lucide="box" class="w-12 h-12 mx-auto text-zinc-400 dark:text-zinc-500 mb-3"></i>
-                        <h3 class="text-lg font-medium text-zinc-900 dark:text-white">No Containers Found</h3>
-                        <p class="mt-2 text-zinc-500 dark:text-zinc-400">This execution hasn't created any containers yet.
-                        </p>
-                    </div>
-                @else
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-zinc-200 dark:divide-zinc-700">
-                            <thead class="bg-zinc-50 dark:bg-zinc-700/30">
-                                <tr>
-                                    <th
-                                        class="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                                        Container ID</th>
-                                    <th
-                                        class="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                                        Status</th>
-                                    <th
-                                        class="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                                        Started</th>
-                                    <th
-                                        class="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                                        Duration</th>
-                                </tr>
-                            </thead>
-                            <tbody class="bg-white dark:bg-zinc-800 divide-y divide-zinc-200 dark:divide-zinc-700">
-                                @foreach ($execution->containers as $container)
-                                    @php
-                                        $containerStatus = $container->status ?? 'unknown';
-                                        $statusClass = match ($containerStatus) {
-                                            'pending'
-                                                => 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300',
-                                            'running'
-                                                => 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 animate-pulse',
-                                            'completed'
-                                                => 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
-                                            'failed',
-                                            'terminated'
-                                                => 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
-                                            default => 'bg-zinc-100 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-300',
-                                        };
-
-                                        $containerDuration = null;
-                                        if ($container->start_time && $container->end_time) {
-                                            $containerDuration = $container->start_time->diffInSeconds(
-                                                $container->end_time,
-                                            );
-                                        }
-                                    @endphp
-                                    <tr>
-                                        <td
-                                            class="px-6 py-4 whitespace-nowrap text-sm font-medium text-zinc-900 dark:text-white">
-                                            {{ $container->container_id }}
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap">
-                                            <span
-                                                class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full {{ $statusClass }}">
-                                                {{ ucfirst($containerStatus) }}
-                                            </span>
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400">
-                                            {{ $container->start_time ? $container->start_time->format('M d, Y H:i:s') : 'Not started' }}
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400">
-                                            @if ($containerDuration !== null)
-                                                {{ gmdate('H:i:s', $containerDuration) }}
-                                            @elseif($container->start_time && !$container->end_time && $containerStatus === 'running')
-                                                Running ({{ $container->start_time->diffForHumans(null, true) }})
-                                            @else
-                                                N/A
-                                            @endif
-                                        </td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                @endif
-            </div>
-            <div class="mt-6">
-
-                <h3 class="text-lg font-semibold text-zinc-900 dark:text-white mb-3">Execution Logs</h3>
-
-                <div class="overflow-x-auto">
-                    <div class="bg-zinc-50 dark:bg-zinc-700/30 p-4 rounded-lg">
-                        <div class="flex justify-between items-center mb-2">
-                            <h4 class="font-medium text-zinc-700 dark:text-zinc-300">Test Output</h4>
-                            <div>
-                                <span
-                                    class="px-2 py-1 text-xs rounded bg-indigo-100 dark:bg-indigo-900/20 text-indigo-800 dark:text-indigo-300">
-                                    {{ $execution->status->name ?? 'Unknown' }}
-                                </span>
-                            </div>
-                        </div>
-
-                        <div class="relative">
-                            @if ($hasMoreLogs)
-                                <button id="load-more-logs"
-                                    class="absolute top-0 left-0 right-0 bg-zinc-700 hover:bg-zinc-600 text-white py-2 text-center w-full z-10 rounded-t-lg">
-                                    Load more logs <i data-lucide="chevron-up" class="inline-block w-4 h-4"></i>
-                                </button>
-                            @endif
-
-                            <pre id="logs-container" class="overflow-auto p-4 bg-zinc-800 text-zinc-100 rounded-lg h-96 text-sm font-mono"
-                                data-execution-id="{{ $logFilePath }}" data-offset="0" data-has-more="{{ $hasMoreLogs ? 'true' : 'false' }}">{{ $logs }}</pre>
-
-                            <div id="logs-loading"
-                                class="hidden absolute inset-0 bg-zinc-800/50 flex items-center justify-center">
-                                <div class="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-indigo-500">
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="mt-4">
-                            <h4 class="font-medium text-zinc-700 dark:text-zinc-300 mb-2">Container Status</h4>
-                            <table class="min-w-full divide-y divide-zinc-200 dark:divide-zinc-700">
-                                <thead>
-                                    <tr>
-                                        <th
-                                            class="px-4 py-2 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                                            Container ID</th>
-                                        <th
-                                            class="px-4 py-2 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                                            DB Status</th>
-                                        <th
-                                            class="px-4 py-2 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                                            Docker Status</th>
-                                        <th
-                                            class="px-4 py-2 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                                            Runtime</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @if (is_array($containerStatus) || is_object($containerStatus))
-                                        @foreach ($containerStatus as $id => $status)
-                                            <tr>
-                                                <td class="px-4 py-2 text-sm text-zinc-800 dark:text-zinc-200 font-mono">
-                                                    {{ $id }}</td>
-                                                <td class="px-4 py-2 text-sm text-zinc-800 dark:text-zinc-200">
-                                                    {{ $status['db_status'] }}</td>
-                                                <td class="px-4 py-2 text-sm text-zinc-800 dark:text-zinc-200">
-                                                    {{ $status['docker_status'] }}</td>
-                                                <td class="px-4 py-2 text-sm text-zinc-800 dark:text-zinc-200">
-                                                    {{ $status['start_time'] ? $status['start_time']->diffForHumans() : 'N/A' }}
-                                                    @if ($status['end_time'])
-                                                        - {{ $status['end_time']->diffForHumans() }}
-                                                    @endif
-                                                </td>
-                                            </tr>
-                                        @endforeach
-                                    @else
-                                        <tr>
-                                            <td colspan="4" class="px-4 py-2 text-sm text-zinc-800 dark:text-zinc-200">
-                                                No container status information available.
-                                            </td>
-                                        </tr>
-                                    @endif
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="mt-4 flex space-x-4">
-                    <button onclick="refreshPage()" class="btn-secondary">
-                        <i data-lucide="refresh-cw" class="w-5 h-5 mr-1.5"></i>
-                        Refresh Logs
-                    </button>
-
-                    <a href="{{ route('dashboard.executions.emergency-stop', $execution->id) }}" class="btn-danger"
-                        onclick="return confirm('Are you sure you want to perform an emergency stop? This is for when the normal abort function is unresponsive.')">
-                        Emergency Stop
-                    </a>
-
-                    @if ($execution->status->name === 'running' || $execution->status->name === 'pending')
-                        @if (request()->has('refresh'))
-                            <a href="{{ route('dashboard.executions.show', $execution->id) }}" class="btn-secondary">
-                                <i data-lucide="pause" class="w-5 h-5 mr-1.5"></i>
-                                Stop Auto-Refresh
-                            </a>
-                        @else
-                            <a href="{{ route('dashboard.executions.show', ['execution' => $execution->id, 'refresh' => 1]) }}"
-                                class="btn-secondary">
-                                <i data-lucide="play" class="w-5 h-5 mr-1.5"></i>
-                                Start Auto-Refresh
-                            </a>
-                        @endif
-                    @endif
-
-                    @if ($execution->status->name === 'running' || $execution->status->name === 'pending')
-                        <form action="{{ route('dashboard.executions.abort', $execution->id) }}" method="POST">
-                            @csrf
-                            <button type="submit" class="btn-danger">
-                                <i data-lucide="x-circle" class="w-5 h-5 mr-1.5"></i>
-                                Abort Execution
-                            </button>
-                        </form>
-                    @endif
-                </div>
-            </div>
-
-            {{-- Logs Tab --}}
-            <div x-show="activeTab === 'logs'" class="p-6">
-                <h2 class="text-lg font-semibold text-zinc-900 dark:text-white mb-4">Execution Logs</h2>
-
-                @php
-                    $logsAvailable = $execution->s3_results_key && Storage::exists($execution->s3_results_key);
-                @endphp
-
-                @if (!$logsAvailable && !$execution->isRunning())
-                    <div class="bg-zinc-50 dark:bg-zinc-700/30 rounded-lg p-6 text-center">
-                        <i data-lucide="file-search" class="w-12 h-12 mx-auto text-zinc-400 dark:text-zinc-500 mb-3"></i>
-                        <h3 class="text-lg font-medium text-zinc-900 dark:text-white">No Logs Available</h3>
-                        <p class="mt-2 text-zinc-500 dark:text-zinc-400">Logs for this execution are not available.</p>
-                    </div>
-                @elseif($execution->isRunning())
-                    <div class="bg-zinc-50 dark:bg-zinc-700/30 rounded-lg p-6 text-center">
-                        <div
-                            class="animate-spin mb-3 mx-auto w-12 h-12 border-4 border-indigo-500 dark:border-indigo-400 border-t-transparent dark:border-t-transparent rounded-full">
-                        </div>
-                        <h3 class="text-lg font-medium text-zinc-900 dark:text-white">Execution in Progress</h3>
-                        <p class="mt-2 text-zinc-500 dark:text-zinc-400">Logs will be available when the execution
-                            completes.</p>
-                    </div>
-                @else
-                    <div class="bg-zinc-50 dark:bg-zinc-800 rounded-lg overflow-hidden">
-                        <div class="flex items-center justify-between bg-zinc-100 dark:bg-zinc-700 px-4 py-2">
-                            <span class="text-sm font-medium text-zinc-700 dark:text-zinc-300">Execution Logs</span>
-                            <div class="flex items-center space-x-2">
-                                <a href="{{ route('dashboard.executions.logs.download', $execution->id) }}"
-                                    class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-900 dark:hover:text-indigo-300 text-sm">
-                                    <i data-lucide="download" class="w-4 h-4 inline-block"></i>
-                                    Download
-                                </a>
-                            </div>
-                        </div>
-                        <div class="overflow-auto max-h-[600px] p-4 font-mono text-sm bg-zinc-950 text-zinc-300">
-                            <pre>{{ Storage::get($execution->s3_results_key) }}</pre>
-                        </div>
-                    </div>
-                @endif
-            </div>
-
-            {{-- Script Tab --}}
-            <div x-show="activeTab === 'script'" class="p-6">
-                <h2 class="text-lg font-semibold text-zinc-900 dark:text-white mb-4">Test Script</h2>
-
-                @if ($execution->testScript)
-                    <div class="bg-zinc-50 dark:bg-zinc-800 rounded-lg overflow-hidden">
-                        <div class="flex items-center justify-between bg-zinc-100 dark:bg-zinc-700 px-4 py-2">
-                            <span class="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                                {{ $execution->testScript->name ?? 'Test Script' }}
-                                ({{ ucfirst(str_replace('-', ' ', $execution->testScript->framework_type ?? 'Unknown')) }})
+                    <div class="flex justify-between">
+                        <dt class="text-sm font-medium text-zinc-500 dark:text-zinc-400">Duration:</dt>
+                        <dd class="text-sm text-zinc-900 dark:text-zinc-200" x-ref="durationDisplay">
+                            <span x-show="!isRunning">{{ $execution->duration ? gmdate('H:i:s', $execution->duration) : '-' }}</span>
+                            <span x-show="isRunning" class="text-blue-600 dark:text-blue-400">
+                                Running... <span x-ref="liveTimer"></span>
                             </span>
-                        </div>
-                        <div class="overflow-auto max-h-[600px] p-4 font-mono text-sm bg-zinc-950 text-zinc-300">
-                            <pre>{{ $execution->testScript->script_content ?? 'Script content not available' }}</pre>
+                        </dd>
+                    </div>
+                </dl>
+            </div>
+
+            <div class="space-y-4 md:col-span-2">
+                <h2 class="text-lg font-medium text-zinc-800 dark:text-zinc-200">Containers</h2>
+                <div class="bg-zinc-50 dark:bg-zinc-700/30 rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-600/50">
+                    <table class="min-w-full divide-y divide-zinc-200 dark:divide-zinc-700">
+                        <thead class="bg-zinc-100 dark:bg-zinc-800">
+                            <tr>
+                                <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Container ID</th>
+                                <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Status</th>
+                                <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Started</th>
+                                <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Duration</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">
+                            @forelse($execution->containers as $container)
+                                <tr>
+                                    <td class="px-4 py-3 text-sm font-medium text-zinc-900 dark:text-zinc-200">{{ substr($container->container_id, 0, 12) }}</td>
+                                    <td class="px-4 py-3">
+                                        @if($container->status === 'running')
+                                            <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+                                                Running
+                                            </span>
+                                        @elseif($container->status === 'completed')
+                                            <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                                                Completed
+                                            </span>
+                                        @elseif($container->status === 'failed')
+                                            <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
+                                                Failed
+                                            </span>
+                                        @elseif($container->status === 'terminated')
+                                            <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400">
+                                                Terminated
+                                            </span>
+                                        @else
+                                            <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-zinc-100 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-300">
+                                                {{ ucfirst($container->status) }}
+                                            </span>
+                                        @endif
+                                    </td>
+                                    <td class="px-4 py-3 text-sm text-zinc-500 dark:text-zinc-400">
+                                        {{ $container->start_time ? $container->start_time->diffForHumans() : 'Not started' }}
+                                    </td>
+                                    <td class="px-4 py-3 text-sm text-zinc-500 dark:text-zinc-400">
+                                        @if($container->start_time && $container->end_time)
+                                            {{ gmdate('H:i:s', $container->start_time->diffInSeconds($container->end_time)) }}
+                                        @elseif($container->status === 'running')
+                                            Running...
+                                        @else
+                                            -
+                                        @endif
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="4" class="px-4 py-3 text-sm text-zinc-500 dark:text-zinc-400 text-center">
+                                        No containers provisioned yet.
+                                    </td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="px-6 py-4 border-t border-zinc-200 dark:border-zinc-700 flex flex-wrap gap-3 justify-end">
+            @if($execution->isRunning())
+                <button @click="abortExecution()" class="px-3 py-2 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 rounded-md hover:bg-red-200 dark:hover:bg-red-800/50 inline-flex items-center">
+                    <i data-lucide="square" class="w-4 h-4 mr-2"></i> Abort Execution
+                </button>
+            @endif
+            <a href="{{ route('dashboard.executions.logs.download', $execution->id) }}" class="px-3 py-2 bg-zinc-100 text-zinc-700 dark:bg-zinc-700/30 dark:text-zinc-300 rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-700/50 inline-flex items-center" x-bind:class="{ 'opacity-50 pointer-events-none': !logFileExists }">
+                <i data-lucide="download" class="w-4 h-4 mr-2"></i> Download Logs
+            </a>
+            <a href="{{ route('dashboard.executions.index') }}" class="px-3 py-2 bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 rounded-md hover:bg-indigo-200 dark:hover:bg-indigo-800/50 inline-flex items-center">
+                <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i> Back to Executions
+            </a>
+        </div>
+    </div>
+
+    <!-- Execution Logs -->
+    <div class="bg-white dark:bg-zinc-800 shadow-md rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-700">
+        <div class="px-6 py-4 border-b border-zinc-200 dark:border-zinc-700 flex justify-between items-center">
+            <h2 class="text-lg font-medium text-zinc-800 dark:text-zinc-200">
+                Execution Logs
+            </h2>
+            <div class="flex items-center space-x-2">
+                <div x-show="isRunning" class="text-xs text-zinc-500 dark:text-zinc-400">
+                    Auto-refreshing logs...
+                </div>
+                <button @click="refreshLogs" class="px-2 py-1 bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 rounded hover:bg-indigo-200 dark:hover:bg-indigo-800/50 inline-flex items-center text-xs">
+                    <i data-lucide="refresh-cw" class="w-3 h-3 mr-1"></i> Refresh
+                </button>
+            </div>
+        </div>
+
+        <div class="p-6">
+            <!-- Log Display -->
+            <div class="bg-zinc-900 rounded-lg overflow-hidden text-white font-mono text-sm">
+                <div class="flex bg-zinc-800 px-4 py-2 border-b border-zinc-700 justify-between items-center">
+                    <div class="flex items-center">
+                        <i data-lucide="terminal" class="w-4 h-4 mr-2 text-zinc-400"></i>
+                        <span class="text-zinc-200">Test Execution Log</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <button @click="clearLogs" class="text-zinc-400 hover:text-zinc-200 transition-colors">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="relative">
+                    <pre id="log-container" x-ref="logContainer" class="p-4 overflow-auto max-h-96 text-zinc-300 whitespace-pre-wrap" style="font-size: 0.85rem; line-height: 1.5;" x-html="formattedLogs"></pre>
+
+                    <!-- Loading Overlay -->
+                    <div x-show="isLoadingLogs" class="absolute inset-0 bg-zinc-900/80 flex items-center justify-center">
+                        <div class="flex flex-col items-center">
+                            <svg class="animate-spin h-8 w-8 text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span class="mt-2 text-indigo-400">Loading logs...</span>
                         </div>
                     </div>
-                @else
-                    <div class="bg-zinc-50 dark:bg-zinc-700/30 rounded-lg p-6 text-center">
-                        <i data-lucide="file-code" class="w-12 h-12 mx-auto text-zinc-400 dark:text-zinc-500 mb-3"></i>
-                        <h3 class="text-lg font-medium text-zinc-900 dark:text-white">Script Not Available</h3>
-                        <p class="mt-2 text-zinc-500 dark:text-zinc-400">The test script content is not available.</p>
+
+                    <!-- Empty State -->
+                    <div x-show="!isLoadingLogs && (!logs || logs.trim() === '')" class="absolute inset-0 flex items-center justify-center">
+                        <div class="text-center">
+                            <i data-lucide="file-text" class="h-12 w-12 text-zinc-700 mx-auto mb-3"></i>
+                            <p class="text-zinc-500">No logs available yet.</p>
+                            <p class="text-zinc-600 text-xs mt-1" x-show="isRunning">Logs will appear as execution progresses.</p>
+                        </div>
                     </div>
-                @endif
+                </div>
+
+                <!-- Load More Button -->
+                <div x-show="hasMoreLogs" class="px-4 py-2 bg-zinc-800 border-t border-zinc-700 flex justify-center">
+                    <button @click="loadMoreLogs" class="text-xs text-indigo-400 hover:text-indigo-300 transition-colors" x-bind:disabled="isLoadingMore">
+                        <span x-show="!isLoadingMore">Load more logs</span>
+                        <span x-show="isLoadingMore">Loading...</span>
+                    </button>
+                </div>
             </div>
         </div>
     </div>
+
+    <!-- Resource Metrics -->
+    <div class="bg-white dark:bg-zinc-800 shadow-md rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-700" x-show="hasResourceMetrics">
+        <div class="px-6 py-4 border-b border-zinc-200 dark:border-zinc-700">
+            <h2 class="text-lg font-medium text-zinc-800 dark:text-zinc-200">
+                Resource Metrics
+            </h2>
+        </div>
+
+        <div class="p-6">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- CPU Usage Chart -->
+                <div class="bg-zinc-50 dark:bg-zinc-700/30 rounded-lg p-4 border border-zinc-200 dark:border-zinc-600/50">
+                    <h3 class="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-4">CPU Usage</h3>
+                    <div class="h-64">
+                        <canvas id="cpu-chart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Memory Usage Chart -->
+                <div class="bg-zinc-50 dark:bg-zinc-700/30 rounded-lg p-4 border border-zinc-200 dark:border-zinc-600/50">
+                    <h3 class="text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-4">Memory Usage</h3>
+                    <div class="h-64">
+                        <canvas id="memory-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Abort Execution Confirmation Modal -->
+<div x-data="{ show: false }" x-show="show" @open-abort-modal.window="show = true" class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+    <div class="flex items-end justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+        <div class="fixed inset-0 transition-opacity bg-zinc-900/60 dark:bg-zinc-900/80" aria-hidden="true" @click="show = false"></div>
+        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+        <div class="inline-block overflow-hidden text-left align-bottom transition-all transform bg-white dark:bg-zinc-800 rounded-lg shadow-xl sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+            <div class="px-4 pt-5 pb-4 bg-white dark:bg-zinc-800 sm:p-6 sm:pb-4">
+                <div class="sm:flex sm:items-start">
+                    <div class="flex items-center justify-center flex-shrink-0 w-12 h-12 mx-auto bg-red-100 dark:bg-red-900/30 rounded-full sm:mx-0 sm:h-10 sm:w-10">
+                        <i data-lucide="alert-triangle" class="w-6 h-6 text-red-600 dark:text-red-400"></i>
+                    </div>
+                    <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                        <h3 class="text-lg font-medium leading-6 text-zinc-900 dark:text-zinc-100" id="modal-title">
+                            Abort Execution
+                        </h3>
+                        <div class="mt-2">
+                            <p class="text-sm text-zinc-500 dark:text-zinc-400">
+                                Are you sure you want to abort this test execution? This action cannot be undone and may result in incomplete test results.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="px-4 py-3 bg-zinc-50 dark:bg-zinc-800/50 sm:px-6 sm:flex sm:flex-row-reverse border-t border-zinc-200 dark:border-zinc-700">
+                <button type="button" @click="$dispatch('confirm-abort'); show = false" class="inline-flex justify-center w-full px-4 py-2 text-base font-medium text-white bg-red-600 border border-transparent rounded-md shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm">
+                    Abort
+                </button>
+                <button type="button" @click="show = false" class="inline-flex justify-center w-full px-4 py-2 mt-3 text-base font-medium text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-700 border border-zinc-300 dark:border-zinc-600 rounded-md shadow-sm hover:bg-zinc-50 dark:hover:bg-zinc-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
+
 @push('scripts')
-    <script>
-        function refreshPage() {
-            window.location.href = "{{ route('dashboard.executions.show', $execution->id) }}";
-        }
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+<script>
+    function executionDetails(config) {
+        return {
+            executionId: config.executionId,
+            statusName: config.statusName,
+            isRunning: config.isRunning,
+            logs: config.logs || '',
+            hasMoreLogs: config.hasMoreLogs || false,
+            logOffset: config.logOffset || 0,
+            logFileExists: config.logFileExists || false,
+            logFilePath: config.logFilePath || '',
+            refreshInterval: config.refreshInterval || 5000,
+            pollingInterval: null,
+            timerInterval: null,
+            isLoadingLogs: false,
+            isLoadingMore: false,
+            hasResourceMetrics: false,
+            cpuChart: null,
+            memoryChart: null,
 
-        // Auto-refresh only if the refresh parameter is set
-        @if (request()->has('refresh') && ($execution->status->name === 'running' || $execution->status->name === 'pending'))
-            setTimeout(function() {
-                window.location.reload();
-            }, 5000); // Refresh every 5 seconds
-        @endif
+            get formattedLogs() {
+                if (!this.logs) return '';
 
-        document.addEventListener('DOMContentLoaded', function() {
-            const loadMoreBtn = document.getElementById('load-more-logs');
-            const logsContainer = document.getElementById('logs-container');
-            const logsLoading = document.getElementById('logs-loading');
+                // Color coding based on log level
+                return this.logs
+                    .replace(/\[ERROR\].*$/gm, '<span class="text-red-400">$&</span>')
+                    .replace(/\[WARN\].*$/gm, '<span class="text-yellow-400">$&</span>')
+                    .replace(/\[INFO\].*$/gm, '<span class="text-blue-400">$&</span>')
+                    .replace(/\[DEBUG\].*$/gm, '<span class="text-green-400">$&</span>')
+                    .replace(/\[PASS\].*$/gm, '<span class="text-green-500">$&</span>')
+                    .replace(/\[FAIL\].*$/gm, '<span class="text-red-500">$&</span>');
+            },
 
-            if (loadMoreBtn && logsContainer) {
-                loadMoreBtn.addEventListener('click', function() {
-                    const executionId = logsContainer.dataset.executionId;
-                    const currentOffset = parseInt(logsContainer.dataset.offset || 0);
-                    const hasMore = logsContainer.dataset.hasMore === 'true';
+            init() {
+                // Initialize log container and scrolling
+                this.$nextTick(() => {
+                    this.scrollLogsToBottom();
 
-                    if (!hasMore) return;
+                    // Start polling if execution is running
+                    if (this.isRunning) {
+                        this.startPolling();
+                    }
 
-                    // Show loading indicator
-                    if (logsLoading) logsLoading.classList.remove('hidden');
+                    // Try to load resource metrics if available
+                    this.loadResourceMetrics();
+                });
 
-                    // Make AJAX request to load more logs
-                    fetch(`/dashboard/executions/${executionId}/logs?offset=${currentOffset}&limit=1000`, {
-                            headers: {
-                                'X-Requested-With': 'XMLHttpRequest',
-                                'Accept': 'application/json',
-                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')
-                                    .content
+                // Listen for abort confirmation
+                this.$el.addEventListener('confirm-abort', () => {
+                    this.confirmAbort();
+                });
+            },
+
+            startPolling() {
+                // Clear any existing intervals
+                this.clearIntervals();
+
+                // Set up polling for status updates
+                this.pollingInterval = setInterval(() => {
+                    this.checkStatus();
+                    this.refreshLogs();
+                }, this.refreshInterval);
+
+                // Set up timer for live duration updates
+                const startTime = new Date("{{ $execution->start_time ?? now() }}");
+
+                this.timerInterval = setInterval(() => {
+                    const now = new Date();
+                    const diffInSeconds = Math.floor((now - startTime) / 1000);
+
+                    const hours = Math.floor(diffInSeconds / 3600);
+                    const minutes = Math.floor((diffInSeconds % 3600) / 60);
+                    const seconds = diffInSeconds % 60;
+
+                    const formattedTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
+                    const liveTimer = this.$refs.liveTimer;
+                    if (liveTimer) {
+                        liveTimer.textContent = formattedTime;
+                    }
+                }, 1000);
+            },
+
+            clearIntervals() {
+                if (this.pollingInterval) {
+                    clearInterval(this.pollingInterval);
+                    this.pollingInterval = null;
+                }
+
+                if (this.timerInterval) {
+                    clearInterval(this.timerInterval);
+                    this.timerInterval = null;
+                }
+            },
+
+            async checkStatus() {
+                try {
+                    const response = await fetch(`/api/executions/${this.executionId}/status`);
+                    if (!response.ok) throw new Error('Failed to fetch status');
+
+                    const data = await response.json();
+                    if (!data.success) throw new Error(data.message || 'Failed to get status');
+
+                    // Update status
+                    this.statusName = data.data.status.name;
+                    this.isRunning = data.data.status.name === 'running';
+
+                    // Update end time and duration if execution is complete
+                    if (data.data.end_time && !this.isRunning) {
+                        const endTimeDisplay = this.$refs.endTimeDisplay;
+                        const durationDisplay = this.$refs.durationDisplay;
+
+                        if (endTimeDisplay) {
+                            // Format the end time for display
+                            const endDate = new Date(data.data.end_time);
+                            endTimeDisplay.textContent = endDate.toLocaleString();
+                        }
+
+                        if (durationDisplay && data.data.duration) {
+                            const hours = Math.floor(data.data.duration / 3600);
+                            const minutes = Math.floor((data.data.duration % 3600) / 60);
+                            const seconds = data.data.duration % 60;
+
+                            durationDisplay.querySelector('span:first-child').textContent =
+                                `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                        }
+
+                        // Stop polling if execution is no longer running
+                        this.clearIntervals();
+
+                        // Refresh the resource metrics
+                        this.loadResourceMetrics();
+                    }
+                } catch (error) {
+                    console.error('Error checking execution status:', error);
+                }
+            },
+
+            async refreshLogs() {
+                try {
+                    this.isLoadingLogs = true;
+
+                    const response = await fetch(`/dashboard/executions/${this.executionId}/logs?offset=0&limit=1000`);
+                    if (!response.ok) throw new Error('Failed to fetch logs');
+
+                    const data = await response.json();
+                    if (!data.success) throw new Error(data.message || 'Failed to get logs');
+
+                    this.logs = data.data.logs;
+                    this.hasMoreLogs = data.data.hasMore;
+                    this.logOffset = data.data.nextOffset;
+
+                    // Scroll to bottom of logs after update
+                    this.$nextTick(() => {
+                        this.scrollLogsToBottom();
+                    });
+                } catch (error) {
+                    console.error('Error refreshing logs:', error);
+                } finally {
+                    this.isLoadingLogs = false;
+                }
+            },
+
+            async loadMoreLogs() {
+                try {
+                    this.isLoadingMore = true;
+
+                    const response = await fetch(`/dashboard/executions/${this.executionId}/logs?offset=${this.logOffset}&limit=1000`);
+                    if (!response.ok) throw new Error('Failed to fetch more logs');
+
+                    const data = await response.json();
+                    if (!data.success) throw new Error(data.message || 'Failed to get more logs');
+
+                    // Prepend the older logs to the beginning
+                    this.logs = data.data.logs + this.logs;
+                    this.hasMoreLogs = data.data.hasMore;
+                    this.logOffset = data.data.nextOffset;
+
+                    // No need to scroll after loading more (older) logs
+                } catch (error) {
+                    console.error('Error loading more logs:', error);
+                } finally {
+                    this.isLoadingMore = false;
+                }
+            },
+
+            scrollLogsToBottom() {
+                const logContainer = this.$refs.logContainer;
+                if (logContainer) {
+                    logContainer.scrollTop = logContainer.scrollHeight;
+                }
+            },
+
+            clearLogs() {
+                this.logs = '';
+            },
+
+            abortExecution() {
+                window.dispatchEvent(new CustomEvent('open-abort-modal'));
+            },
+
+            async confirmAbort() {
+                try {
+                    const response = await fetch(`/dashboard/executions/${this.executionId}/abort`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                            'Accept': 'application/json'
+                        }
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        // Update status immediately
+                        this.statusName = 'aborted';
+                        this.isRunning = false;
+
+                        // Show success notification
+                        window.dispatchEvent(new CustomEvent('notify', {
+                            detail: {
+                                type: 'success',
+                                message: 'Test execution aborted successfully'
                             }
-                        })
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.success) {
-                                // Prepend the new logs to the existing ones
-                                logsContainer.textContent = data.logs + logsContainer.textContent;
+                        }));
 
-                                // Update offset for next load
-                                logsContainer.dataset.offset = data.nextOffset;
-                                logsContainer.dataset.hasMore = data.hasMore ? 'true' : 'false';
+                        // Refresh page after a short delay
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 2000);
+                    } else {
+                        throw new Error(data.message || 'Failed to abort execution');
+                    }
+                } catch (error) {
+                    console.error('Error aborting execution:', error);
 
-                                // Hide load more button if no more logs
-                                if (!data.hasMore) {
-                                    loadMoreBtn.classList.add('hidden');
+                    // Show error notification
+                    window.dispatchEvent(new CustomEvent('notify', {
+                        detail: {
+                            type: 'error',
+                            message: `Failed to abort execution: ${error.message}`
+                        }
+                    }));
+                }
+            },
+
+            async loadResourceMetrics() {
+                try {
+                    const response = await fetch(`/api/executions/${this.executionId}/metrics`);
+                    if (!response.ok) {
+                        console.log('No metrics available for this execution');
+                        return;
+                    }
+
+                    const data = await response.json();
+                    if (!data.success || !data.data || !data.data.metrics || data.data.metrics.length === 0) {
+                        return;
+                    }
+
+                    this.hasResourceMetrics = true;
+
+                    this.$nextTick(() => {
+                        this.initCharts(data.data.metrics);
+                    });
+                } catch (error) {
+                    console.error('Error loading resource metrics:', error);
+                }
+            },
+
+            initCharts(metrics) {
+                // Prepare data for charts
+                const timestamps = metrics.map(m => new Date(m.metric_time).toLocaleTimeString());
+                const cpuData = metrics.map(m => m.cpu_usage);
+                const memoryData = metrics.map(m => m.memory_usage);
+
+                // Destroy existing charts if they exist
+                if (this.cpuChart) {
+                    this.cpuChart.destroy();
+                }
+
+                if (this.memoryChart) {
+                    this.memoryChart.destroy();
+                }
+
+                // Get the current theme mode
+                const isDarkMode = document.documentElement.classList.contains('dark');
+                const textColor = isDarkMode ? '#d1d5db' : '#1f2937';
+                const gridColor = isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
+
+                // Initialize CPU chart
+                const cpuCtx = document.getElementById('cpu-chart').getContext('2d');
+                this.cpuChart = new Chart(cpuCtx, {
+                    type: 'line',
+                    data: {
+                        labels: timestamps,
+                        datasets: [{
+                            label: 'CPU Usage (%)',
+                            data: cpuData,
+                            borderColor: '#6366f1',
+                            backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                            fill: true,
+                            tension: 0.3
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                labels: {
+                                    color: textColor
                                 }
-                            } else {
-                                // Handle error
-                                console.error('Failed to load logs:', data.message);
-                                loadMoreBtn.textContent = 'Failed to load more logs';
-                                loadMoreBtn.classList.add('text-red-500');
                             }
-                        })
-                        .catch(error => {
-                            console.error('Error loading logs:', error);
-                            loadMoreBtn.textContent = 'Error loading logs';
-                            loadMoreBtn.classList.add('text-red-500');
-                        })
-                        .finally(() => {
-                            // Hide loading indicator
-                            if (logsLoading) logsLoading.classList.add('hidden');
-                        });
+                        },
+                        scales: {
+                            x: {
+                                grid: {
+                                    color: gridColor
+                                },
+                                ticks: {
+                                    color: textColor
+                                }
+                            },
+                            y: {
+                                grid: {
+                                    color: gridColor
+                                },
+                                ticks: {
+                                    color: textColor
+                                },
+                                min: 0,
+                                max: 100
+                            }
+                        }
+                    }
+                });
+
+                // Initialize Memory chart
+                const memoryCtx = document.getElementById('memory-chart').getContext('2d');
+                this.memoryChart = new Chart(memoryCtx, {
+                    type: 'line',
+                    data: {
+                        labels: timestamps,
+                        datasets: [{
+                            label: 'Memory Usage (MB)',
+                            data: memoryData,
+                            borderColor: '#8b5cf6',
+                            backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                            fill: true,
+                            tension: 0.3
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                labels: {
+                                    color: textColor
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                grid: {
+                                    color: gridColor
+                                },
+                                ticks: {
+                                    color: textColor
+                                }
+                            },
+                            y: {
+                                grid: {
+                                    color: gridColor
+                                },
+                                ticks: {
+                                    color: textColor
+                                },
+                                min: 0
+                            }
+                        }
+                    }
                 });
             }
-        });
-    </script>
+        };
+    }
+</script>
 @endpush
