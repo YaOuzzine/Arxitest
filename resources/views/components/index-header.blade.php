@@ -65,9 +65,3 @@
     @endif
 </div>
 
-<!-- Optional Filters Section -->
-@if($filters)
-    <div class="mb-6">
-        {{ $filters }}
-    </div>
-@endif

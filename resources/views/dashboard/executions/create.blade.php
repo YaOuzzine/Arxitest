@@ -17,221 +17,224 @@
 @endsection
 
 @section('content')
-    <div class="max-w-3xl mx-auto" x-data="executionCreate">
-        <div class="bg-white dark:bg-zinc-800 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-700 overflow-hidden">
-            <div class="p-6 border-b border-zinc-200 dark:border-zinc-700 bg-gradient-to-r from-zinc-50 to-blue-50/20 dark:from-zinc-800/50 dark:to-blue-900/10">
-                <h1 class="text-2xl font-bold text-zinc-900 dark:text-white">
-                    Run Test Execution
-                </h1>
-                <p class="mt-1 text-zinc-500 dark:text-zinc-400">
-                    Configure and run a new test execution
-                </p>
+<div class="max-w-4xl mx-auto" x-data="createExecution()">
+    <!-- Header -->
+    <div class="mb-6">
+        <h1 class="text-3xl font-bold text-zinc-900 dark:text-white">Run Test Execution</h1>
+        <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+            Configure and start a new test execution run
+        </p>
+    </div>
+
+    <!-- Form Card -->
+    <div class="bg-white dark:bg-zinc-800 shadow-md rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-700">
+        <div class="border-b border-zinc-200 dark:border-zinc-700 px-6 py-4 bg-zinc-50 dark:bg-zinc-800/50">
+            <h2 class="text-lg font-semibold text-zinc-800 dark:text-zinc-200">Execution Settings</h2>
+        </div>
+
+        <form action="{{ route('dashboard.executions.store') }}" method="POST" class="p-6 space-y-6">
+            @csrf
+
+            <!-- Test Script Selection -->
+            <div>
+                <label for="script_id" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Test Script <span class="text-red-500">*</span></label>
+                <select name="script_id" id="script_id" class="w-full rounded-lg border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" required @change="loadScriptDetails($event.target.value)">
+                    <option value="">Select a test script</option>
+                    @foreach($scripts as $script)
+                        <option value="{{ $script->id }}" data-framework="{{ $script->framework_type }}" data-test-case="{{ $script->testCase->title ?? 'Unknown' }}">
+                            {{ $script->name }} ({{ $script->framework_type }})
+                        </option>
+                    @endforeach
+                </select>
+                @error('script_id')
+                    <p class="mt-1 text-sm text-red-500">{{ $message }}</p>
+                @enderror
             </div>
 
-            <form method="POST" action="{{ route('dashboard.executions.store') }}" class="p-6 space-y-6">
-                @csrf
-
-                <!-- Script Selection -->
-                <div>
-                    <label for="script_id" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                        Test Script <span class="text-red-500">*</span>
-                    </label>
-                    <select id="script_id" name="script_id" required
-                        class="w-full rounded-lg border-zinc-300 dark:border-zinc-600 focus:border-indigo-500 focus:ring-indigo-500 dark:bg-zinc-800 dark:text-zinc-200"
-                        @change="updateScriptDetails">
-                        <option value="">Select a script</option>
-                        @foreach($scripts as $script)
-                            <option value="{{ $script->id }}" data-framework="{{ $script->framework_type }}"
-                                data-case-title="{{ $script->testCase ? $script->testCase->title : 'No test case' }}">
-                                {{ $script->name }}
-                            </option>
-                        @endforeach
-                    </select>
-                    @error('script_id')
-                        <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
-                    @enderror
-
-                    <!-- Script Details (hidden until script selected) -->
-                    <div x-show="scriptDetails.id" x-cloak class="mt-3 p-3 bg-zinc-50 dark:bg-zinc-700/30 rounded-lg border border-zinc-200 dark:border-zinc-600">
-                        <div class="flex items-start">
-                            <div class="flex-shrink-0">
-                                <span class="inline-flex items-center justify-center h-10 w-10 rounded-md bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400">
-                                    <i data-lucide="file-code" class="h-5 w-5"></i>
-                                </span>
-                            </div>
-                            <div class="ml-3">
-                                <h3 class="text-sm font-medium text-zinc-900 dark:text-white" x-text="scriptDetails.name"></h3>
-                                <div class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                                    <div><span class="font-medium">Framework:</span> <span x-text="scriptDetails.framework"></span></div>
-                                    <div><span class="font-medium">Test Case:</span> <span x-text="scriptDetails.testCase"></span></div>
-                                </div>
-                            </div>
-                        </div>
+            <!-- Script Details Preview -->
+            <div x-show="selectedScript" x-cloak class="bg-zinc-50 dark:bg-zinc-700/30 rounded-lg p-4 border border-zinc-200 dark:border-zinc-600/50">
+                <h3 class="text-sm font-medium text-zinc-800 dark:text-zinc-200 mb-2">Script Details</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div>
+                        <p class="text-zinc-500 dark:text-zinc-400">Framework Type:</p>
+                        <p class="font-medium text-zinc-800 dark:text-zinc-200" x-text="selectedFramework"></p>
+                    </div>
+                    <div>
+                        <p class="text-zinc-500 dark:text-zinc-400">Test Case:</p>
+                        <p class="font-medium text-zinc-800 dark:text-zinc-200" x-text="selectedTestCase"></p>
                     </div>
                 </div>
+            </div>
 
-                <!-- Environment Selection -->
-                <div>
-                    <label for="environment_id" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                        Environment <span class="text-red-500">*</span>
-                    </label>
-                    <select id="environment_id" name="environment_id" required
-                        class="w-full rounded-lg border-zinc-300 dark:border-zinc-600 focus:border-indigo-500 focus:ring-indigo-500 dark:bg-zinc-800 dark:text-zinc-200"
-                        @change="updateEnvironmentDetails">
-                        <option value="">Select an environment</option>
-                        @foreach($environments as $env)
-                            <option value="{{ $env->id }}" data-config="{{ json_encode($env->configuration) }}">
-                                {{ $env->name }}
-                            </option>
-                        @endforeach
-                    </select>
-                    @error('environment_id')
-                        <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
-                    @enderror
+            <!-- Environment Selection -->
+            <div>
+                <label for="environment_id" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Environment <span class="text-red-500">*</span></label>
+                <select name="environment_id" id="environment_id" class="w-full rounded-lg border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" required @change="loadEnvironmentDetails($event.target.value)">
+                    <option value="">Select an environment</option>
+                    @foreach($environments as $environment)
+                        <option value="{{ $environment->id }}">
+                            {{ $environment->name }} {{ $environment->is_global ? '(Global)' : '' }}
+                        </option>
+                    @endforeach
+                </select>
+                @error('environment_id')
+                    <p class="mt-1 text-sm text-red-500">{{ $message }}</p>
+                @enderror
+            </div>
 
-                    <!-- Environment Details (hidden until environment selected) -->
-                    <div x-show="environmentDetails.id" x-cloak class="mt-3 p-3 bg-zinc-50 dark:bg-zinc-700/30 rounded-lg border border-zinc-200 dark:border-zinc-600">
-                        <div class="flex items-start">
-                            <div class="flex-shrink-0">
-                                <span class="inline-flex items-center justify-center h-10 w-10 rounded-md bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-400">
-                                    <i data-lucide="server" class="h-5 w-5"></i>
-                                </span>
-                            </div>
-                            <div class="ml-3">
-                                <h3 class="text-sm font-medium text-zinc-900 dark:text-white" x-text="environmentDetails.name"></h3>
-                                <div class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                                    <template x-for="(value, key) in environmentDetails.config" :key="key">
-                                        <div>
-                                            <span class="font-medium" x-text="key"></span>:
-                                            <span x-text="value"></span>
-                                        </div>
-                                    </template>
-                                </div>
-                            </div>
-                        </div>
+            <!-- Environment Details Preview -->
+            <div x-show="selectedEnvironment" x-cloak class="bg-zinc-50 dark:bg-zinc-700/30 rounded-lg p-4 border border-zinc-200 dark:border-zinc-600/50">
+                <h3 class="text-sm font-medium text-zinc-800 dark:text-zinc-200 mb-2">Environment Variables</h3>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-zinc-200 dark:divide-zinc-700">
+                        <thead>
+                            <tr class="text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
+                                <th class="px-4 py-2">Key</th>
+                                <th class="px-4 py-2">Value</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">
+                            <template x-for="(value, key) in environmentVars" :key="key">
+                                <tr>
+                                    <td class="px-4 py-2 text-sm font-medium text-zinc-900 dark:text-zinc-200" x-text="key"></td>
+                                    <td class="px-4 py-2 text-sm text-zinc-500 dark:text-zinc-400" x-text="value"></td>
+                                </tr>
+                            </template>
+                            <tr x-show="Object.keys(environmentVars).length === 0">
+                                <td colspan="2" class="px-4 py-3 text-sm text-zinc-500 dark:text-zinc-400 text-center">
+                                    No environment variables configured
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Additional Options -->
+            <div class="border-t border-zinc-200 dark:border-zinc-700 pt-6">
+                <h3 class="text-sm font-medium text-zinc-800 dark:text-zinc-200 mb-4">Execution Options</h3>
+
+                <div class="space-y-3">
+                    <!-- Timeout -->
+                    <div class="flex items-center">
+                        <input id="enable_timeout" name="enable_timeout" type="checkbox" x-model="enableTimeout" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-zinc-300 dark:border-zinc-600 rounded">
+                        <label for="enable_timeout" class="ml-2 block text-sm text-zinc-700 dark:text-zinc-300">
+                            Custom timeout
+                        </label>
+                    </div>
+
+                    <div x-show="enableTimeout" x-cloak class="flex items-center pl-7">
+                        <label for="timeout_minutes" class="block text-sm text-zinc-700 dark:text-zinc-300 mr-2">
+                            Timeout after
+                        </label>
+                        <input type="number" name="timeout_minutes" id="timeout_minutes" class="w-20 rounded-lg border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" min="1" max="60" value="10">
+                        <span class="ml-2 text-sm text-zinc-700 dark:text-zinc-300">minutes</span>
+                    </div>
+
+                    <!-- Priority -->
+                    <div class="flex items-center">
+                        <input id="high_priority" name="priority" type="checkbox" value="high" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-zinc-300 dark:border-zinc-600 rounded">
+                        <label for="high_priority" class="ml-2 block text-sm text-zinc-700 dark:text-zinc-300">
+                            High priority execution
+                        </label>
+                    </div>
+
+                    <!-- Notification -->
+                    <div class="flex items-center">
+                        <input id="notify_completion" name="notify_completion" type="checkbox" value="1" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-zinc-300 dark:border-zinc-600 rounded">
+                        <label for="notify_completion" class="ml-2 block text-sm text-zinc-700 dark:text-zinc-300">
+                            Notify me when execution completes
+                        </label>
                     </div>
                 </div>
+            </div>
 
-                <!-- Advanced Options (Collapsible) -->
-                <div x-data="{ open: false }">
-                    <button type="button" @click="open = !open" class="flex items-center text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200">
-                        <i data-lucide="settings-2" class="w-4 h-4 mr-1"></i>
-                        Advanced Options
-                        <i data-lucide="chevron-down" class="w-4 h-4 ml-1 transition-transform" :class="open ? 'rotate-180' : ''"></i>
-                    </button>
-
-                    <div x-show="open" x-transition class="mt-3 space-y-4 bg-zinc-50 dark:bg-zinc-700/30 p-4 rounded-lg border border-zinc-200 dark:border-zinc-600">
-                        <!-- Timeout -->
-                        <div>
-                            <label for="timeout" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                                Execution Timeout (minutes)
-                            </label>
-                            <input type="number" id="timeout" name="timeout" min="1" max="120" value="30"
-                                class="w-full rounded-lg border-zinc-300 dark:border-zinc-600 focus:border-indigo-500 focus:ring-indigo-500 dark:bg-zinc-800 dark:text-zinc-200 text-sm">
-                            <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                                Maximum duration before the execution is automatically terminated (1-120 minutes)
-                            </p>
-                        </div>
-
-                        <!-- Retries -->
-                        <div>
-                            <label for="retries" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                                Retry Count
-                            </label>
-                            <input type="number" id="retries" name="retries" min="0" max="3" value="0"
-                                class="w-full rounded-lg border-zinc-300 dark:border-zinc-600 focus:border-indigo-500 focus:ring-indigo-500 dark:bg-zinc-800 dark:text-zinc-200 text-sm">
-                            <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                                Number of automatic retries if the execution fails (0-3)
-                            </p>
-                        </div>
-
-                        <!-- Priority -->
-                        <div>
-                            <label for="priority" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                                Execution Priority
-                            </label>
-                            <select id="priority" name="priority"
-                                class="w-full rounded-lg border-zinc-300 dark:border-zinc-600 focus:border-indigo-500 focus:ring-indigo-500 dark:bg-zinc-800 dark:text-zinc-200 text-sm">
-                                <option value="normal">Normal</option>
-                                <option value="high">High</option>
-                                <option value="low">Low</option>
-                            </select>
-                            <p class="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                                Priority affects the order in which queued executions are processed
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Submit Buttons -->
-                <div class="flex items-center justify-end space-x-3 pt-4 border-t border-zinc-200 dark:border-zinc-700">
-                    <a href="{{ route('dashboard.executions.index') }}" class="px-4 py-2 bg-white dark:bg-zinc-700 border border-zinc-300 dark:border-zinc-600 rounded-lg text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-600 transition-colors">
-                        Cancel
-                    </a>
-                    <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow transition-colors flex items-center">
-                        <i data-lucide="play" class="w-4 h-4 mr-1.5"></i>
-                        Run Test
-                    </button>
-                </div>
-            </form>
-        </div>
+            <!-- Form Actions -->
+            <div class="flex justify-end space-x-3 pt-4 border-t border-zinc-200 dark:border-zinc-700">
+                <a href="{{ route('dashboard.executions.index') }}" class="px-4 py-2 bg-white dark:bg-zinc-700 border border-zinc-300 dark:border-zinc-600 rounded-md text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    Cancel
+                </a>
+                <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 flex items-center">
+                    <i data-lucide="play" class="w-4 h-4 mr-2"></i>
+                    Start Execution
+                </button>
+            </div>
+        </form>
     </div>
+</div>
 @endsection
 
 @push('scripts')
 <script>
-    document.addEventListener('alpine:init', () => {
-        Alpine.data('executionCreate', () => ({
-            scriptDetails: {
-                id: '',
-                name: '',
-                framework: '',
-                testCase: ''
-            },
-            environmentDetails: {
-                id: '',
-                name: '',
-                config: {}
-            },
+    function createExecution() {
+        return {
+            selectedScript: null,
+            selectedFramework: '',
+            selectedTestCase: '',
+            selectedEnvironment: null,
+            environmentVars: {},
+            enableTimeout: false,
 
-            updateScriptDetails() {
-                const select = document.getElementById('script_id');
-                const option = select.options[select.selectedIndex];
+            async loadScriptDetails(scriptId) {
+                if (!scriptId) {
+                    this.selectedScript = null;
+                    this.selectedFramework = '';
+                    this.selectedTestCase = '';
+                    return;
+                }
 
-                if (select.value) {
-                    this.scriptDetails = {
-                        id: select.value,
-                        name: option.textContent.trim(),
-                        framework: option.dataset.framework || 'Unknown',
-                        testCase: option.dataset.caseTitle || 'No test case'
-                    };
-                } else {
-                    this.scriptDetails = { id: '', name: '', framework: '', testCase: '' };
+                const option = document.querySelector(`option[value="${scriptId}"]`);
+                if (option) {
+                    this.selectedScript = scriptId;
+                    this.selectedFramework = option.dataset.framework || 'Unknown';
+                    this.selectedTestCase = option.dataset.testCase || 'Unknown';
+                }
+
+                try {
+                    // You can add an API call here to get more detailed script info if needed
+                    // const response = await fetch(`/api/test-scripts/${scriptId}`);
+                    // const data = await response.json();
+                    // if (data.success) {
+                    //     // Update with additional details
+                    // }
+                } catch (error) {
+                    console.error('Error loading script details:', error);
                 }
             },
 
-            updateEnvironmentDetails() {
-                const select = document.getElementById('environment_id');
-                const option = select.options[select.selectedIndex];
+            async loadEnvironmentDetails(environmentId) {
+                if (!environmentId) {
+                    this.selectedEnvironment = null;
+                    this.environmentVars = {};
+                    return;
+                }
 
-                if (select.value) {
-                    let config = {};
-                    try {
-                        config = JSON.parse(option.dataset.config || '{}');
-                    } catch (e) {
-                        console.error('Failed to parse environment config:', e);
+                this.selectedEnvironment = environmentId;
+
+                try {
+                    const response = await fetch(`/api/environments/${environmentId}`);
+                    if (!response.ok) throw new Error('Failed to fetch environment details');
+
+                    const data = await response.json();
+                    if (data.success) {
+                        this.environmentVars = data.data.configuration || {};
+                    } else {
+                        throw new Error(data.message || 'Failed to load environment details');
                     }
+                } catch (error) {
+                    console.error('Error loading environment details:', error);
+                    this.environmentVars = {};
 
-                    this.environmentDetails = {
-                        id: select.value,
-                        name: option.textContent.trim(),
-                        config: config
-                    };
-                } else {
-                    this.environmentDetails = { id: '', name: '', config: {} };
+                    // Show error notification
+                    window.dispatchEvent(new CustomEvent('notify', {
+                        detail: {
+                            type: 'error',
+                            message: `Failed to load environment details: ${error.message}`
+                        }
+                    }));
                 }
             }
-        }));
-    });
+        };
+    }
 </script>
 @endpush

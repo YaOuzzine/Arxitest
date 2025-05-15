@@ -42,6 +42,10 @@ class TestExecutionController extends Controller
             $query->where('environment_id', $request->environment_id);
         }
 
+        if ($request->filled('script_id') && $request->script_id !== 'all') {
+            $query->where('script_id', $request->script_id);
+        }
+
         // Apply date filters
         if ($request->filled('date_filter')) {
             $dateFilter = $request->date_filter;
@@ -86,10 +90,14 @@ class TestExecutionController extends Controller
         // Get all environments for the filter dropdown
         $environments = Environment::where('is_active', true)->get();
 
+        // Get all scripts for the filter dropdown
+        $scripts = TestScript::with(['testCase:id,title', 'creator:id,name'])
+            ->get(['id', 'name', 'framework_type', 'test_case_id']);
+
         // Paginate the results
         $executions = $query->paginate(10)->withQueryString();
 
-        return view('dashboard.executions.index', compact('executions', 'environments'));
+        return view('dashboard.executions.index', compact('executions', 'environments', 'scripts'));
     }
 
     public function create()
