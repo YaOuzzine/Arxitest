@@ -48,7 +48,7 @@
                             class="text-red-500">*</span></label>
                     <input type="hidden" name="project_id" x-model="selectedProject">
 
-                    <x-dropdown.index width="full" triggerClasses="w-full">
+                    <x-dropdown.index width="full" triggerClasses="w-full" x-data="{ open: false }">
                         <x-slot:trigger>
                             <div
                                 class="w-full flex items-center justify-between px-4 py-3 border border-zinc-300/80 dark:border-zinc-600 rounded-xl bg-white dark:bg-zinc-800/90 text-zinc-900 dark:text-zinc-200 shadow-sm cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-400 transition-all duration-200">
@@ -61,7 +61,7 @@
                             <div class="max-h-60 overflow-y-auto space-y-1">
                                 @foreach ($projects as $project)
                                     <x-dropdown.item
-                                        @click="selectProject('{{ $project->id }}', '{{ $project->name }}'); $parent.open = false"
+                                        @click="selectProject('{{ $project->id }}', '{{ $project->name }}'); open = false"
                                         class="group hover:bg-indigo-50/50 dark:hover:bg-indigo-500/20 transition-colors">
                                         <div class="flex items-center gap-3">
                                             <div
@@ -196,7 +196,7 @@
                             class="text-red-500">*</span></label>
                     <input type="hidden" name="environment_id" x-model="selectedEnvironment">
 
-                    <x-dropdown.index width="full" triggerClasses="w-full">
+                    <x-dropdown.index width="full" triggerClasses="w-full" x-data="{ open: false }">
                         <x-slot:trigger>
                             <div
                                 class="w-full flex items-center justify-between px-4 py-3 border border-zinc-300/80 dark:border-zinc-600 rounded-xl bg-white dark:bg-zinc-800/90 text-zinc-900 dark:text-zinc-200 shadow-sm cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-400 transition-all duration-200">
@@ -209,7 +209,7 @@
                             <div class="max-h-60 overflow-y-auto space-y-1">
                                 @foreach ($environments as $environment)
                                     <x-dropdown.item
-                                        @click="selectEnvironment('{{ $environment->id }}', '{{ $environment->name }}'); $parent.open = false"
+                                        @click="selectEnvironment('{{ $environment->id }}', '{{ $environment->name }}'); open = false"
                                         class="group hover:bg-indigo-50/50 dark:hover:bg-indigo-500/20 transition-colors">
                                         <div class="flex items-center gap-3">
                                             <div

@@ -104,7 +104,7 @@ Route::middleware(['guest', 'throttle:5,1'])->group(function () {
 */
 
 // Add this to your routes/web.php file
-Route::get('/debug/test-scripts-relationship', function() {
+Route::get('/debug/test-scripts-relationship', function () {
     $scripts = \App\Models\TestScript::select('id', 'name', 'test_case_id')->get();
     $cases = \App\Models\TestCase::select('id', 'title')->get();
 
@@ -180,6 +180,7 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
         Route::get('/projects/{project}/stories',  [StoryController::class,      'getJsonForProject'])->name('projects.stories');
         Route::get('/projects/{project}/test-suites', [TestSuiteController::class, 'getJsonForProject'])->name('projects.test-suites');
         Route::get('/projects/{project}/test-cases', [TestCaseController::class,   'getJsonForProject'])->name('projects.test-cases');
+        Route::get('/projects/{project}/test-scripts', [TestScriptController::class, 'getJsonForProject'])->name('projects.test-scripts');
     });
 
     Route::get('/dashboard/test-cases', [TestCaseController::class, 'indexAll'])
@@ -219,11 +220,8 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
         Route::get('/{test_script}/edit', [TestScriptController::class, 'edit'])->name('edit'); // Add explicit edit route
         Route::put('/{test_script}', [TestScriptController::class, 'update'])->name('update');
         Route::delete('/{test_script}', [TestScriptController::class, 'destroy'])->name('destroy');
-
     });
 
-    Route::get('/projects/{project}/test-scripts', [TestScriptController::class, 'getJsonForProject'])
-    ->name('dashboard.api.projects.test-scripts');
 
     // Test Data Routes
     Route::prefix('/dashboard/projects/{project}/test-cases/{test_case}/data')->name('dashboard.projects.test-cases.data.')->group(function () {
