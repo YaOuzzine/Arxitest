@@ -28,9 +28,11 @@
         </div>
 
         <!-- Form Card -->
-        <div class="bg-white dark:bg-zinc-800 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-700/50 transition-all">
+        <div
+            class="bg-white dark:bg-zinc-800 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-700/50 transition-all">
             <!-- Card Header -->
-            <div class="px-8 py-6 border-b border-zinc-200/80 dark:border-zinc-700/50 bg-gradient-to-r from-indigo-50/20 to-purple-50/20 dark:from-zinc-800/50 dark:to-zinc-800/50">
+            <div
+                class="px-8 py-6 border-b border-zinc-200/80 dark:border-zinc-700/50 bg-gradient-to-r from-indigo-50/20 to-purple-50/20 dark:from-zinc-800/50 dark:to-zinc-800/50">
                 <h2 class="text-xl font-semibold text-zinc-800 dark:text-zinc-200 flex items-center gap-2">
                     <i data-lucide="settings-2" class="w-5 h-5 text-indigo-600 dark:text-indigo-400"></i>
                     Execution Settings
@@ -42,12 +44,14 @@
 
                 <!-- Test Script Selection -->
                 <div class="space-y-2">
-                    <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300">Test Script <span class="text-red-500">*</span></label>
+                    <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300">Test Script <span
+                            class="text-red-500">*</span></label>
                     <input type="hidden" name="script_id" x-model="selectedScript">
 
                     <x-dropdown.index width="full" triggerClasses="w-full">
                         <x-slot:trigger>
-                            <div class="w-full flex items-center justify-between px-4 py-3 border border-zinc-300/80 dark:border-zinc-600 rounded-xl bg-white dark:bg-zinc-800/90 text-zinc-900 dark:text-zinc-200 shadow-sm cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-400 transition-all duration-200">
+                            <div
+                                class="w-full flex items-center justify-between px-4 py-3 border border-zinc-300/80 dark:border-zinc-600 rounded-xl bg-white dark:bg-zinc-800/90 text-zinc-900 dark:text-zinc-200 shadow-sm cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-400 transition-all duration-200">
                                 <span x-text="selectedScriptName || 'Select a test script'" class="truncate"></span>
                                 <i data-lucide="chevron-down" class="w-4 h-4 text-zinc-400 transition-transform"></i>
                             </div>
@@ -57,11 +61,14 @@
                             <div class="max-h-60 overflow-y-auto space-y-1">
                                 @foreach ($scripts as $script)
                                     <x-dropdown.item
-                                        @click="selectScript('{{ $script['id'] }}', '{{ $script['name'] }}', '{{ $script['framework_type'] }}', '{{ $script['test_case']['title'] ?? 'Unknown' }}')"
+                                        @click="selectScript('{{ $script['id'] }}', '{{ $script['name'] }}', '{{ $script['framework_type'] }}', '{{ $script['test_case']['title'] ?? 'Unknown' }}'); $parent.open = false"
                                         class="group hover:bg-indigo-50/50 dark:hover:bg-indigo-500/20 transition-colors">
                                         <div class="flex items-center gap-3">
-                                            <div class="w-2 h-2 rounded-full bg-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                                            <span class="text-zinc-700 dark:text-zinc-300 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                                            <div
+                                                class="w-2 h-2 rounded-full bg-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            </div>
+                                            <span
+                                                class="text-zinc-700 dark:text-zinc-300 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
                                                 {{ $script['name'] }} ({{ $script['framework_type'] }})
                                             </span>
                                         </div>
@@ -84,14 +91,16 @@
                         Script Details
                     </h3>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                        <div class="flex items-center gap-2 bg-white dark:bg-zinc-700/30 p-3 rounded-lg border border-zinc-200/50 dark:border-zinc-600/50">
+                        <div
+                            class="flex items-center gap-2 bg-white dark:bg-zinc-700/30 p-3 rounded-lg border border-zinc-200/50 dark:border-zinc-600/50">
                             <div class="flex-1">
                                 <p class="text-zinc-500 dark:text-zinc-400 text-xs">Framework Type</p>
                                 <p class="font-medium text-zinc-800 dark:text-zinc-200" x-text="selectedFramework"></p>
                             </div>
                             <i data-lucide="box" class="w-5 h-5 text-indigo-500"></i>
                         </div>
-                        <div class="flex items-center gap-2 bg-white dark:bg-zinc-700/30 p-3 rounded-lg border border-zinc-200/50 dark:border-zinc-600/50">
+                        <div
+                            class="flex items-center gap-2 bg-white dark:bg-zinc-700/30 p-3 rounded-lg border border-zinc-200/50 dark:border-zinc-600/50">
                             <div class="flex-1">
                                 <p class="text-zinc-500 dark:text-zinc-400 text-xs">Test Case</p>
                                 <p class="font-medium text-zinc-800 dark:text-zinc-200" x-text="selectedTestCase"></p>
@@ -103,12 +112,14 @@
 
                 <!-- Environment Selection -->
                 <div class="space-y-2">
-                    <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300">Environment <span class="text-red-500">*</span></label>
+                    <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300">Environment <span
+                            class="text-red-500">*</span></label>
                     <input type="hidden" name="environment_id" x-model="selectedEnvironment">
 
                     <x-dropdown.index width="full" triggerClasses="w-full">
                         <x-slot:trigger>
-                            <div class="w-full flex items-center justify-between px-4 py-3 border border-zinc-300/80 dark:border-zinc-600 rounded-xl bg-white dark:bg-zinc-800/90 text-zinc-900 dark:text-zinc-200 shadow-sm cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-400 transition-all duration-200">
+                            <div
+                                class="w-full flex items-center justify-between px-4 py-3 border border-zinc-300/80 dark:border-zinc-600 rounded-xl bg-white dark:bg-zinc-800/90 text-zinc-900 dark:text-zinc-200 shadow-sm cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-400 transition-all duration-200">
                                 <span x-text="selectedEnvironmentName || 'Select an environment'" class="truncate"></span>
                                 <i data-lucide="chevron-down" class="w-4 h-4 text-zinc-400 transition-transform"></i>
                             </div>
@@ -118,11 +129,14 @@
                             <div class="max-h-60 overflow-y-auto space-y-1">
                                 @foreach ($environments as $environment)
                                     <x-dropdown.item
-                                        @click="selectEnvironment('{{ $environment->id }}', '{{ $environment->name }}')"
+                                        @click="selectEnvironment('{{ $environment->id }}', '{{ $environment->name }}'); $parent.open = false"
                                         class="group hover:bg-indigo-50/50 dark:hover:bg-indigo-500/20 transition-colors">
                                         <div class="flex items-center gap-3">
-                                            <div class="w-2 h-2 rounded-full bg-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                                            <span class="text-zinc-700 dark:text-zinc-300 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                                            <div
+                                                class="w-2 h-2 rounded-full bg-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            </div>
+                                            <span
+                                                class="text-zinc-700 dark:text-zinc-300 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
                                                 {{ $environment->name }} {{ $environment->is_global ? '(Global)' : '' }}
                                             </span>
                                         </div>
@@ -155,12 +169,15 @@
                             <tbody class="divide-y divide-zinc-200/50 dark:divide-zinc-600/50 bg-white dark:bg-zinc-800/30">
                                 <template x-for="(value, key) in environmentVars" :key="key">
                                     <tr class="hover:bg-zinc-50/50 dark:hover:bg-zinc-700/30 transition-colors">
-                                        <td class="px-4 py-2.5 text-sm font-medium text-zinc-800 dark:text-zinc-200" x-text="key"></td>
-                                        <td class="px-4 py-2.5 text-sm text-zinc-600 dark:text-zinc-400" x-text="value"></td>
+                                        <td class="px-4 py-2.5 text-sm font-medium text-zinc-800 dark:text-zinc-200"
+                                            x-text="key"></td>
+                                        <td class="px-4 py-2.5 text-sm text-zinc-600 dark:text-zinc-400" x-text="value">
+                                        </td>
                                     </tr>
                                 </template>
                                 <tr x-show="Object.keys(environmentVars).length === 0">
-                                    <td colspan="2" class="px-4 py-3 text-sm text-zinc-500 dark:text-zinc-400 text-center">
+                                    <td colspan="2"
+                                        class="px-4 py-3 text-sm text-zinc-500 dark:text-zinc-400 text-center">
                                         No environment variables configured
                                     </td>
                                 </tr>
@@ -180,11 +197,11 @@
                         <!-- Timeout Pill -->
                         <div class="relative">
                             <input type="hidden" name="enable_timeout" x-model="enableTimeout">
-                            <button type="button"
-                                @click="enableTimeout = !enableTimeout"
+                            <button type="button" @click="enableTimeout = !enableTimeout"
                                 :class="enableTimeout
-                                    ? 'bg-indigo-500/20 border-indigo-500/40 text-indigo-700 dark:text-indigo-300'
-                                    : 'bg-zinc-100/50 dark:bg-zinc-700/30 border-zinc-300/50 dark:border-zinc-600/50 text-zinc-600 dark:text-zinc-300'"
+                                    ?
+                                    'bg-indigo-500/20 border-indigo-500/40 text-indigo-700 dark:text-indigo-300' :
+                                    'bg-zinc-100/50 dark:bg-zinc-700/30 border-zinc-300/50 dark:border-zinc-600/50 text-zinc-600 dark:text-zinc-300'"
                                 class="px-4 py-2 rounded-full border flex items-center gap-2 transition-all duration-200 hover:scale-[98%]">
                                 <i data-lucide="clock" class="w-4 h-4"></i>
                                 <span>Custom Timeout</span>
@@ -194,7 +211,7 @@
 
                             <!-- Timeout Input -->
                             <div x-show="enableTimeout" x-collapse
-                                class="absolute left-0 top-full mt-2 bg-white dark:bg-zinc-800 p-2 rounded-lg border border-zinc-200/50 dark:border-zinc-700/50 shadow-sm z-10">
+                                class="absolute left-0 top-full mt-2 bg-white dark:bg-zinc-800 p-2 rounded-lg border border-zinc-200/50 dark:border-zinc-700/50 shadow-sm z-50">
                                 <div class="flex items-center gap-2">
                                     <input type="number" name="timeout_minutes" id="timeout_minutes"
                                         class="w-20 px-3 py-1 rounded-lg border-zinc-300/50 dark:border-zinc-600/50 bg-transparent text-zinc-900 dark:text-zinc-200 shadow-sm focus:ring-1 focus:ring-indigo-500"
@@ -206,11 +223,11 @@
 
                         <!-- Priority Pill -->
                         <input type="hidden" name="priority" x-model="highPriority">
-                        <button type="button"
-                            @click="highPriority = !highPriority"
+                        <button type="button" @click="highPriority = !highPriority"
                             :class="highPriority
-                                ? 'bg-red-500/20 border-red-500/40 text-red-700 dark:text-red-300'
-                                : 'bg-zinc-100/50 dark:bg-zinc-700/30 border-zinc-300/50 dark:border-zinc-600/50 text-zinc-600 dark:text-zinc-300'"
+                                ?
+                                'bg-red-500/20 border-red-500/40 text-red-700 dark:text-red-300' :
+                                'bg-zinc-100/50 dark:bg-zinc-700/30 border-zinc-300/50 dark:border-zinc-600/50 text-zinc-600 dark:text-zinc-300'"
                             class="px-4 py-2 rounded-full border flex items-center gap-2 transition-all duration-200 hover:scale-[98%]">
                             <i data-lucide="alert-triangle" class="w-4 h-4"></i>
                             <span>High Priority</span>
@@ -220,11 +237,11 @@
 
                         <!-- Notification Pill -->
                         <input type="hidden" name="notify_completion" x-model="notifyCompletion">
-                        <button type="button"
-                            @click="notifyCompletion = !notifyCompletion"
+                        <button type="button" @click="notifyCompletion = !notifyCompletion"
                             :class="notifyCompletion
-                                ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-700 dark:text-emerald-300'
-                                : 'bg-zinc-100/50 dark:bg-zinc-700/30 border-zinc-300/50 dark:border-zinc-600/50 text-zinc-600 dark:text-zinc-300'"
+                                ?
+                                'bg-emerald-500/20 border-emerald-500/40 text-emerald-700 dark:text-emerald-300' :
+                                'bg-zinc-100/50 dark:bg-zinc-700/30 border-zinc-300/50 dark:border-zinc-600/50 text-zinc-600 dark:text-zinc-300'"
                             class="px-4 py-2 rounded-full border flex items-center gap-2 transition-all duration-200 hover:scale-[98%]">
                             <i data-lucide="bell" class="w-4 h-4"></i>
                             <span>Notify on Completion</span>
@@ -254,9 +271,17 @@
 @push('styles')
     <style>
         @keyframes gradient-x {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
+            0% {
+                background-position: 0% 50%;
+            }
+
+            50% {
+                background-position: 100% 50%;
+            }
+
+            100% {
+                background-position: 0% 50%;
+            }
         }
 
         .animate-gradient-x {
@@ -264,7 +289,9 @@
             animation: gradient-x 3s ease infinite;
         }
 
-        [x-cloak] { display: none !important; }
+        [x-cloak] {
+            display: none !important;
+        }
 
         .shadow-xs {
             box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
