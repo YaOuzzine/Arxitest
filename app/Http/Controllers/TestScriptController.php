@@ -247,6 +247,45 @@ class TestScriptController extends Controller
     }
 
     /**
+     * Get test scripts for a specific project as JSON
+     */
+    public function getJsonForProject(Project $project)
+    {
+        // Verify the project belongs to the current team
+        $team = $this->getCurrentTeam(request());
+        if ($project->team_id !== $team->id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Project not found in current team'
+            ], 404);
+        }
+
+        // Get all test cases in this project through test suites
+        $testCaseIds = $project->testCases()->pluck('id')->toArray();
+
+        // Get all scripts associated with these test cases
+        $scripts = TestScript::whereIn('test_case_id', $testCaseIds)
+            ->with(['testCase:id,title', 'creator:id,name'])
+            ->get()
+            ->map(function ($script) {
+                return [
+                    'id' => $script->id,
+                    'name' => $script->name,
+                    'framework_type' => $script->framework_type,
+                    'test_case' => $script->testCase ? [
+                        'id' => $script->testCase->id,
+                        'title' => $script->testCase->title
+                    ] : null
+                ];
+            });
+
+        return response()->json([
+            'success' => true,
+            'scripts' => $scripts
+        ]);
+    }
+
+    /**
      * Remove the specified test script.
      */
     public function destroy(Project $project, TestCase $test_case, TestScript $test_script)

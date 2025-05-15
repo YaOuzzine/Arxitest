@@ -7,10 +7,12 @@ use App\Http\Requests\LoadMoreLogsRequest;
 use App\Models\TestExecution;
 use App\Models\TestScript;
 use App\Models\Environment;
+use App\Models\Project;
 use App\Services\TestExecutionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use App\Traits\JsonResponse;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 
 class TestExecutionController extends Controller
@@ -100,28 +102,24 @@ class TestExecutionController extends Controller
         return view('dashboard.executions.index', compact('executions', 'environments', 'scripts'));
     }
 
-    public function create()
+    public function create(Request $request)
     {
-        // Get test scripts with additional data for better display
-        $scripts = TestScript::with(['testCase:id,title', 'creator:id,name'])
-            ->get()
-            ->map(function ($script) {
-                // Keep only the data we need
-                return [
-                    'id' => $script->id,
-                    'name' => $script->name,
-                    'framework_type' => $script->framework_type,
-                    'test_case' => $script->testCase ? [
-                        'id' => $script->testCase->id,
-                        'title' => $script->testCase->title
-                    ] : null
-                ];
-            });
+        // Get current team
+        $team = $this->getCurrentTeam($request);
+
+        // Get all projects for this team for the project dropdown
+        $projects = $team->projects()->orderBy('name')->get(['id', 'name']);
+
+        // Default to empty scripts collection
+        $scripts = collect();
+
+        // If project_id is provided, we can pre-select that project
+        $selectedProjectId = $request->input('project_id');
 
         // Get active environments
         $environments = Environment::where('is_active', true)->get();
 
-        return view('dashboard.executions.create', compact('scripts', 'environments'));
+        return view('dashboard.executions.create', compact('scripts', 'environments', 'projects', 'selectedProjectId'));
     }
 
     public function store(StoreTestExecutionRequest $request)
@@ -131,6 +129,7 @@ class TestExecutionController extends Controller
             ->route('dashboard.executions.show', $execution->id)
             ->with('success', 'Test execution queued successfully!');
     }
+
 
     public function show(TestExecution $execution)
     {

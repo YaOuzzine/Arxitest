@@ -42,6 +42,47 @@
             <form action="{{ route('dashboard.executions.store') }}" method="POST" class="p-8 space-y-8">
                 @csrf
 
+                <!-- Project Selection -->
+                <div class="space-y-2">
+                    <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300">Project <span
+                            class="text-red-500">*</span></label>
+                    <input type="hidden" name="project_id" x-model="selectedProject">
+
+                    <x-dropdown.index width="full" triggerClasses="w-full">
+                        <x-slot:trigger>
+                            <div
+                                class="w-full flex items-center justify-between px-4 py-3 border border-zinc-300/80 dark:border-zinc-600 rounded-xl bg-white dark:bg-zinc-800/90 text-zinc-900 dark:text-zinc-200 shadow-sm cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-400 transition-all duration-200">
+                                <span x-text="selectedProjectName || 'Select a project'" class="truncate"></span>
+                                <i data-lucide="chevron-down" class="w-4 h-4 text-zinc-400 transition-transform"></i>
+                            </div>
+                        </x-slot:trigger>
+
+                        <x-slot:content>
+                            <div class="max-h-60 overflow-y-auto space-y-1">
+                                @foreach ($projects as $project)
+                                    <x-dropdown.item
+                                        @click="selectProject('{{ $project->id }}', '{{ $project->name }}'); $parent.open = false"
+                                        class="group hover:bg-indigo-50/50 dark:hover:bg-indigo-500/20 transition-colors">
+                                        <div class="flex items-center gap-3">
+                                            <div
+                                                class="w-2 h-2 rounded-full bg-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            </div>
+                                            <span
+                                                class="text-zinc-700 dark:text-zinc-300 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                                                {{ $project->name }}
+                                            </span>
+                                        </div>
+                                    </x-dropdown.item>
+                                @endforeach
+                            </div>
+                        </x-slot:content>
+                    </x-dropdown.index>
+
+                    @error('project_id')
+                        <p class="mt-1 text-sm text-red-500">{{ $message }}</p>
+                    @enderror
+                </div>
+
                 <!-- Test Script Selection -->
                 <div class="space-y-2">
                     <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300">Test Script <span
@@ -50,30 +91,69 @@
 
                     <x-dropdown.index width="full" triggerClasses="w-full">
                         <x-slot:trigger>
-                            <div
-                                class="w-full flex items-center justify-between px-4 py-3 border border-zinc-300/80 dark:border-zinc-600 rounded-xl bg-white dark:bg-zinc-800/90 text-zinc-900 dark:text-zinc-200 shadow-sm cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-400 transition-all duration-200">
+                            <div class="w-full flex items-center justify-between px-4 py-3 border border-zinc-300/80 dark:border-zinc-600 rounded-xl bg-white dark:bg-zinc-800/90 text-zinc-900 dark:text-zinc-200 shadow-sm cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-400 transition-all duration-200"
+                                :class="{ 'opacity-50': !selectedProject }">
                                 <span x-text="selectedScriptName || 'Select a test script'" class="truncate"></span>
                                 <i data-lucide="chevron-down" class="w-4 h-4 text-zinc-400 transition-transform"></i>
+                                <div x-show="isLoadingScripts" class="absolute inset-y-0 right-10 flex items-center">
+                                    <svg class="animate-spin h-4 w-4 text-indigo-500" xmlns="http://www.w3.org/2000/svg"
+                                        fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10"
+                                            stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor"
+                                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                                        </path>
+                                    </svg>
+                                </div>
                             </div>
                         </x-slot:trigger>
 
                         <x-slot:content>
                             <div class="max-h-60 overflow-y-auto space-y-1">
-                                @foreach ($scripts as $script)
-                                    <x-dropdown.item
-                                        @click="selectScript('{{ $script['id'] }}', '{{ $script['name'] }}', '{{ $script['framework_type'] }}', '{{ $script['test_case']['title'] ?? 'Unknown' }}'); $parent.open = false"
-                                        class="group hover:bg-indigo-50/50 dark:hover:bg-indigo-500/20 transition-colors">
+                                <!-- No project selected message -->
+                                <div x-show="!selectedProject"
+                                    class="px-4 py-3 text-sm text-zinc-500 dark:text-zinc-400 text-center">
+                                    Please select a project first
+                                </div>
+
+                                <!-- Loading indicator -->
+                                <div x-show="selectedProject && isLoadingScripts"
+                                    class="px-4 py-3 text-sm text-zinc-500 dark:text-zinc-400 text-center">
+                                    <svg class="animate-spin h-5 w-5 mx-auto mb-2 text-indigo-500"
+                                        xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10"
+                                            stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor"
+                                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                                        </path>
+                                    </svg>
+                                    Loading scripts...
+                                </div>
+
+                                <!-- No scripts available message -->
+                                <div x-show="selectedProject && !isLoadingScripts && scripts.length === 0"
+                                    class="px-4 py-3 text-sm text-zinc-500 dark:text-zinc-400 text-center">
+                                    No scripts available for this project
+                                </div>
+
+                                <!-- Dynamic script list -->
+                                <template x-for="script in scripts" :key="script.id">
+                                    <div @click="selectScript(script.id, script.name, script.framework_type, script.test_case?.title || 'No Test Case'); $parent.open = false"
+                                        class="px-4 py-2.5 cursor-pointer hover:bg-indigo-50/50 dark:hover:bg-indigo-500/20 transition-colors group">
                                         <div class="flex items-center gap-3">
                                             <div
                                                 class="w-2 h-2 rounded-full bg-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity">
                                             </div>
-                                            <span
-                                                class="text-zinc-700 dark:text-zinc-300 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                                                {{ $script['name'] }} ({{ $script['framework_type'] }})
-                                            </span>
+                                            <div class="flex flex-col">
+                                                <span
+                                                    class="text-zinc-700 dark:text-zinc-300 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors"
+                                                    x-text="script.name"></span>
+                                                <span class="text-xs text-zinc-500 dark:text-zinc-400"
+                                                    x-text="'Framework: ' + script.framework_type"></span>
+                                            </div>
                                         </div>
-                                    </x-dropdown.item>
-                                @endforeach
+                                    </div>
+                                </template>
                             </div>
                         </x-slot:content>
                     </x-dropdown.index>
@@ -166,7 +246,8 @@
                                     <th class="px-4 py-2.5">Value</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-zinc-200/50 dark:divide-zinc-600/50 bg-white dark:bg-zinc-800/30">
+                            <tbody
+                                class="divide-y divide-zinc-200/50 dark:divide-zinc-600/50 bg-white dark:bg-zinc-800/30">
                                 <template x-for="(value, key) in environmentVars" :key="key">
                                     <tr class="hover:bg-zinc-50/50 dark:hover:bg-zinc-700/30 transition-colors">
                                         <td class="px-4 py-2.5 text-sm font-medium text-zinc-800 dark:text-zinc-200"
@@ -303,6 +384,8 @@
     <script>
         function createExecution() {
             return {
+                selectedProject: '{{ $selectedProjectId ?? '' }}',
+                selectedProjectName: '',
                 selectedScript: null,
                 selectedScriptName: '',
                 selectedFramework: '',
@@ -313,12 +396,81 @@
                 enableTimeout: false,
                 highPriority: false,
                 notifyCompletion: true,
+                scripts: [],
+                isLoadingScripts: false,
+
+                init() {
+                    // If project is already selected (from query param), load its name
+                    if (this.selectedProject) {
+                        const projectSelect = document.querySelector('select[name="project_id"]');
+                        if (projectSelect) {
+                            const option = Array.from(projectSelect.options).find(opt => opt.value === this
+                                .selectedProject);
+                            if (option) {
+                                this.selectedProjectName = option.textContent.trim();
+                                this.loadScriptsForProject(this.selectedProject);
+                            }
+                        }
+                    }
+                },
+
+                selectProject(id, name) {
+                    this.selectedProject = id;
+                    this.selectedProjectName = name;
+
+                    // Reset script selection
+                    this.selectedScript = null;
+                    this.selectedScriptName = '';
+                    this.selectedFramework = '';
+                    this.selectedTestCase = '';
+
+                    // Load scripts for this project
+                    this.loadScriptsForProject(id);
+                },
+
+                async loadScriptsForProject(projectId) {
+                    if (!projectId) return;
+
+                    this.isLoadingScripts = true;
+                    this.scripts = [];
+
+                    try {
+                        const response = await fetch(`/dashboard/api/projects/${projectId}/test-scripts`);
+                        if (!response.ok) throw new Error('Failed to fetch scripts');
+
+                        const data = await response.json();
+                        if (data.success) {
+                            this.scripts = data.scripts || [];
+                        }
+                    } catch (error) {
+                        console.error('Error loading scripts:', error);
+                        // Show error notification
+                        window.dispatchEvent(new CustomEvent('notify', {
+                            detail: {
+                                type: 'error',
+                                message: `Failed to load scripts: ${error.message}`
+                            }
+                        }));
+                    } finally {
+                        this.isLoadingScripts = false;
+                    }
+                },
 
                 selectScript(id, name, framework, testCase) {
                     this.selectedScript = id;
                     this.selectedScriptName = name;
                     this.selectedFramework = framework || 'Unknown';
-                    this.selectedTestCase = testCase || 'Unknown';
+                    // Don't display "No Test Case" in the UI
+                    this.selectedTestCase = testCase && testCase !== 'No Test Case' ?
+                        testCase :
+                        ''; // Just leave it empty instead
+
+                    console.log('Selected script:', {
+                        id,
+                        name,
+                        framework,
+                        testCase
+                    });
                 },
 
                 selectEnvironment(id, name) {
@@ -387,6 +539,7 @@
                 },
             };
         }
+
 
         // Initialize Alpine when everything is loaded
         document.addEventListener('alpine:init', () => {

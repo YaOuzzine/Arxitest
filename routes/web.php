@@ -104,7 +104,18 @@ Route::middleware(['guest', 'throttle:5,1'])->group(function () {
 */
 
 // Add this to your routes/web.php file
+Route::get('/debug/test-scripts-relationship', function() {
+    $scripts = \App\Models\TestScript::select('id', 'name', 'test_case_id')->get();
+    $cases = \App\Models\TestCase::select('id', 'title')->get();
 
+    return [
+        'scripts_count' => $scripts->count(),
+        'scripts_with_test_case' => $scripts->whereNotNull('test_case_id')->count(),
+        'scripts_sample' => $scripts->take(5),
+        'test_cases_count' => $cases->count(),
+        'test_cases_sample' => $cases->take(5)
+    ];
+});
 // Guest routes for invitation acceptance
 Route::get('invitations/accept/{token}', [InvitationController::class, 'accept'])
     ->name('invitations.accept');
@@ -208,7 +219,12 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
         Route::get('/{test_script}/edit', [TestScriptController::class, 'edit'])->name('edit'); // Add explicit edit route
         Route::put('/{test_script}', [TestScriptController::class, 'update'])->name('update');
         Route::delete('/{test_script}', [TestScriptController::class, 'destroy'])->name('destroy');
+
     });
+
+    Route::get('/projects/{project}/test-scripts', [TestScriptController::class, 'getJsonForProject'])
+    ->name('dashboard.api.projects.test-scripts');
+
     // Test Data Routes
     Route::prefix('/dashboard/projects/{project}/test-cases/{test_case}/data')->name('dashboard.projects.test-cases.data.')->group(function () {
         Route::get('/', [TestDataController::class, 'index'])->name('index');
