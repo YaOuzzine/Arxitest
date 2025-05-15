@@ -6,7 +6,8 @@
 @section('breadcrumbs')
     <li class="flex items-center">
         <i data-lucide="chevron-right" class="w-4 h-4 text-zinc-400 mx-1"></i>
-        <a href="{{ route('dashboard.executions.index') }}" class="text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300">
+        <a href="{{ route('dashboard.executions.index') }}"
+            class="text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors">
             Test Executions
         </a>
     </li>
@@ -17,224 +18,352 @@
 @endsection
 
 @section('content')
-<div class="max-w-4xl mx-auto" x-data="createExecution()">
-    <!-- Header -->
-    <div class="mb-6">
-        <h1 class="text-3xl font-bold text-zinc-900 dark:text-white">Run Test Execution</h1>
-        <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            Configure and start a new test execution run
-        </p>
-    </div>
-
-    <!-- Form Card -->
-    <div class="bg-white dark:bg-zinc-800 shadow-md rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-700">
-        <div class="border-b border-zinc-200 dark:border-zinc-700 px-6 py-4 bg-zinc-50 dark:bg-zinc-800/50">
-            <h2 class="text-lg font-semibold text-zinc-800 dark:text-zinc-200">Execution Settings</h2>
+    <div class="max-w-4xl mx-auto" x-data="createExecution()">
+        <!-- Header -->
+        <div class="mb-8">
+            <h1 class="text-3xl font-bold text-zinc-900 dark:text-white mb-2">Run Test Execution</h1>
+            <p class="text-zinc-500 dark:text-zinc-400 transition-colors">
+                Configure and start a new test execution run
+            </p>
         </div>
 
-        <form action="{{ route('dashboard.executions.store') }}" method="POST" class="p-6 space-y-6">
-            @csrf
-
-            <!-- Test Script Selection -->
-            <div>
-                <label for="script_id" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Test Script <span class="text-red-500">*</span></label>
-                <select name="script_id" id="script_id" class="w-full rounded-lg border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" required @change="loadScriptDetails($event.target.value)">
-                    <option value="">Select a test script</option>
-                    @foreach($scripts as $script)
-                        <option value="{{ $script->id }}" data-framework="{{ $script->framework_type }}" data-test-case="{{ $script->testCase->title ?? 'Unknown' }}">
-                            {{ $script->name }} ({{ $script->framework_type }})
-                        </option>
-                    @endforeach
-                </select>
-                @error('script_id')
-                    <p class="mt-1 text-sm text-red-500">{{ $message }}</p>
-                @enderror
+        <!-- Form Card -->
+        <div class="bg-white dark:bg-zinc-800 rounded-2xl shadow-xl border border-zinc-200/50 dark:border-zinc-700/50 transition-all">
+            <!-- Card Header -->
+            <div class="px-8 py-6 border-b border-zinc-200/80 dark:border-zinc-700/50 bg-gradient-to-r from-indigo-50/20 to-purple-50/20 dark:from-zinc-800/50 dark:to-zinc-800/50">
+                <h2 class="text-xl font-semibold text-zinc-800 dark:text-zinc-200 flex items-center gap-2">
+                    <i data-lucide="settings-2" class="w-5 h-5 text-indigo-600 dark:text-indigo-400"></i>
+                    Execution Settings
+                </h2>
             </div>
 
-            <!-- Script Details Preview -->
-            <div x-show="selectedScript" x-cloak class="bg-zinc-50 dark:bg-zinc-700/30 rounded-lg p-4 border border-zinc-200 dark:border-zinc-600/50">
-                <h3 class="text-sm font-medium text-zinc-800 dark:text-zinc-200 mb-2">Script Details</h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    <div>
-                        <p class="text-zinc-500 dark:text-zinc-400">Framework Type:</p>
-                        <p class="font-medium text-zinc-800 dark:text-zinc-200" x-text="selectedFramework"></p>
-                    </div>
-                    <div>
-                        <p class="text-zinc-500 dark:text-zinc-400">Test Case:</p>
-                        <p class="font-medium text-zinc-800 dark:text-zinc-200" x-text="selectedTestCase"></p>
+            <form action="{{ route('dashboard.executions.store') }}" method="POST" class="p-8 space-y-8">
+                @csrf
+
+                <!-- Test Script Selection -->
+                <div class="space-y-2">
+                    <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300">Test Script <span class="text-red-500">*</span></label>
+                    <input type="hidden" name="script_id" x-model="selectedScript">
+
+                    <x-dropdown.index width="full" triggerClasses="w-full">
+                        <x-slot:trigger>
+                            <div class="w-full flex items-center justify-between px-4 py-3 border border-zinc-300/80 dark:border-zinc-600 rounded-xl bg-white dark:bg-zinc-800/90 text-zinc-900 dark:text-zinc-200 shadow-sm cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-400 transition-all duration-200">
+                                <span x-text="selectedScriptName || 'Select a test script'" class="truncate"></span>
+                                <i data-lucide="chevron-down" class="w-4 h-4 text-zinc-400 transition-transform"></i>
+                            </div>
+                        </x-slot:trigger>
+
+                        <x-slot:content>
+                            <div class="max-h-60 overflow-y-auto space-y-1">
+                                @foreach ($scripts as $script)
+                                    <x-dropdown.item
+                                        @click="selectScript('{{ $script['id'] }}', '{{ $script['name'] }}', '{{ $script['framework_type'] }}', '{{ $script['test_case']['title'] ?? 'Unknown' }}')"
+                                        class="group hover:bg-indigo-50/50 dark:hover:bg-indigo-500/20 transition-colors">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-2 h-2 rounded-full bg-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                            <span class="text-zinc-700 dark:text-zinc-300 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                                                {{ $script['name'] }} ({{ $script['framework_type'] }})
+                                            </span>
+                                        </div>
+                                    </x-dropdown.item>
+                                @endforeach
+                            </div>
+                        </x-slot:content>
+                    </x-dropdown.index>
+
+                    @error('script_id')
+                        <p class="mt-1 text-sm text-red-500">{{ $message }}</p>
+                    @enderror
+                </div>
+
+                <!-- Script Details Preview -->
+                <div x-show="selectedScript" x-collapse
+                    class="bg-indigo-50/30 dark:bg-indigo-500/10 rounded-xl p-5 border border-indigo-200/50 dark:border-indigo-500/20 space-y-3 transition-all duration-300">
+                    <h3 class="text-sm font-semibold text-indigo-700 dark:text-indigo-400 flex items-center gap-2">
+                        <i data-lucide="file-text" class="w-4 h-4"></i>
+                        Script Details
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        <div class="flex items-center gap-2 bg-white dark:bg-zinc-700/30 p-3 rounded-lg border border-zinc-200/50 dark:border-zinc-600/50">
+                            <div class="flex-1">
+                                <p class="text-zinc-500 dark:text-zinc-400 text-xs">Framework Type</p>
+                                <p class="font-medium text-zinc-800 dark:text-zinc-200" x-text="selectedFramework"></p>
+                            </div>
+                            <i data-lucide="box" class="w-5 h-5 text-indigo-500"></i>
+                        </div>
+                        <div class="flex items-center gap-2 bg-white dark:bg-zinc-700/30 p-3 rounded-lg border border-zinc-200/50 dark:border-zinc-600/50">
+                            <div class="flex-1">
+                                <p class="text-zinc-500 dark:text-zinc-400 text-xs">Test Case</p>
+                                <p class="font-medium text-zinc-800 dark:text-zinc-200" x-text="selectedTestCase"></p>
+                            </div>
+                            <i data-lucide="list-checks" class="w-5 h-5 text-indigo-500"></i>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Environment Selection -->
-            <div>
-                <label for="environment_id" class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Environment <span class="text-red-500">*</span></label>
-                <select name="environment_id" id="environment_id" class="w-full rounded-lg border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" required @change="loadEnvironmentDetails($event.target.value)">
-                    <option value="">Select an environment</option>
-                    @foreach($environments as $environment)
-                        <option value="{{ $environment->id }}">
-                            {{ $environment->name }} {{ $environment->is_global ? '(Global)' : '' }}
-                        </option>
-                    @endforeach
-                </select>
-                @error('environment_id')
-                    <p class="mt-1 text-sm text-red-500">{{ $message }}</p>
-                @enderror
-            </div>
+                <!-- Environment Selection -->
+                <div class="space-y-2">
+                    <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300">Environment <span class="text-red-500">*</span></label>
+                    <input type="hidden" name="environment_id" x-model="selectedEnvironment">
 
-            <!-- Environment Details Preview -->
-            <div x-show="selectedEnvironment" x-cloak class="bg-zinc-50 dark:bg-zinc-700/30 rounded-lg p-4 border border-zinc-200 dark:border-zinc-600/50">
-                <h3 class="text-sm font-medium text-zinc-800 dark:text-zinc-200 mb-2">Environment Variables</h3>
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-zinc-200 dark:divide-zinc-700">
-                        <thead>
-                            <tr class="text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                                <th class="px-4 py-2">Key</th>
-                                <th class="px-4 py-2">Value</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">
-                            <template x-for="(value, key) in environmentVars" :key="key">
-                                <tr>
-                                    <td class="px-4 py-2 text-sm font-medium text-zinc-900 dark:text-zinc-200" x-text="key"></td>
-                                    <td class="px-4 py-2 text-sm text-zinc-500 dark:text-zinc-400" x-text="value"></td>
+                    <x-dropdown.index width="full" triggerClasses="w-full">
+                        <x-slot:trigger>
+                            <div class="w-full flex items-center justify-between px-4 py-3 border border-zinc-300/80 dark:border-zinc-600 rounded-xl bg-white dark:bg-zinc-800/90 text-zinc-900 dark:text-zinc-200 shadow-sm cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-400 transition-all duration-200">
+                                <span x-text="selectedEnvironmentName || 'Select an environment'" class="truncate"></span>
+                                <i data-lucide="chevron-down" class="w-4 h-4 text-zinc-400 transition-transform"></i>
+                            </div>
+                        </x-slot:trigger>
+
+                        <x-slot:content>
+                            <div class="max-h-60 overflow-y-auto space-y-1">
+                                @foreach ($environments as $environment)
+                                    <x-dropdown.item
+                                        @click="selectEnvironment('{{ $environment->id }}', '{{ $environment->name }}')"
+                                        class="group hover:bg-indigo-50/50 dark:hover:bg-indigo-500/20 transition-colors">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-2 h-2 rounded-full bg-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                            <span class="text-zinc-700 dark:text-zinc-300 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                                                {{ $environment->name }} {{ $environment->is_global ? '(Global)' : '' }}
+                                            </span>
+                                        </div>
+                                    </x-dropdown.item>
+                                @endforeach
+                            </div>
+                        </x-slot:content>
+                    </x-dropdown.index>
+
+                    @error('environment_id')
+                        <p class="mt-1 text-sm text-red-500">{{ $message }}</p>
+                    @enderror
+                </div>
+
+                <!-- Environment Details Preview -->
+                <div x-show="selectedEnvironment" x-collapse
+                    class="bg-emerald-50/30 dark:bg-emerald-500/10 rounded-xl p-5 border border-emerald-200/50 dark:border-emerald-500/20 transition-all duration-300">
+                    <h3 class="text-sm font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-2 mb-3">
+                        <i data-lucide="server" class="w-4 h-4"></i>
+                        Environment Variables
+                    </h3>
+                    <div class="overflow-x-auto rounded-lg border border-zinc-200/50 dark:border-zinc-600/50">
+                        <table class="w-full divide-y divide-zinc-200/50 dark:divide-zinc-600/50">
+                            <thead class="bg-zinc-50/50 dark:bg-zinc-700/30">
+                                <tr class="text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase">
+                                    <th class="px-4 py-2.5">Key</th>
+                                    <th class="px-4 py-2.5">Value</th>
                                 </tr>
-                            </template>
-                            <tr x-show="Object.keys(environmentVars).length === 0">
-                                <td colspan="2" class="px-4 py-3 text-sm text-zinc-500 dark:text-zinc-400 text-center">
-                                    No environment variables configured
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- Additional Options -->
-            <div class="border-t border-zinc-200 dark:border-zinc-700 pt-6">
-                <h3 class="text-sm font-medium text-zinc-800 dark:text-zinc-200 mb-4">Execution Options</h3>
-
-                <div class="space-y-3">
-                    <!-- Timeout -->
-                    <div class="flex items-center">
-                        <input id="enable_timeout" name="enable_timeout" type="checkbox" x-model="enableTimeout" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-zinc-300 dark:border-zinc-600 rounded">
-                        <label for="enable_timeout" class="ml-2 block text-sm text-zinc-700 dark:text-zinc-300">
-                            Custom timeout
-                        </label>
-                    </div>
-
-                    <div x-show="enableTimeout" x-cloak class="flex items-center pl-7">
-                        <label for="timeout_minutes" class="block text-sm text-zinc-700 dark:text-zinc-300 mr-2">
-                            Timeout after
-                        </label>
-                        <input type="number" name="timeout_minutes" id="timeout_minutes" class="w-20 rounded-lg border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-200 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" min="1" max="60" value="10">
-                        <span class="ml-2 text-sm text-zinc-700 dark:text-zinc-300">minutes</span>
-                    </div>
-
-                    <!-- Priority -->
-                    <div class="flex items-center">
-                        <input id="high_priority" name="priority" type="checkbox" value="high" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-zinc-300 dark:border-zinc-600 rounded">
-                        <label for="high_priority" class="ml-2 block text-sm text-zinc-700 dark:text-zinc-300">
-                            High priority execution
-                        </label>
-                    </div>
-
-                    <!-- Notification -->
-                    <div class="flex items-center">
-                        <input id="notify_completion" name="notify_completion" type="checkbox" value="1" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-zinc-300 dark:border-zinc-600 rounded">
-                        <label for="notify_completion" class="ml-2 block text-sm text-zinc-700 dark:text-zinc-300">
-                            Notify me when execution completes
-                        </label>
+                            </thead>
+                            <tbody class="divide-y divide-zinc-200/50 dark:divide-zinc-600/50 bg-white dark:bg-zinc-800/30">
+                                <template x-for="(value, key) in environmentVars" :key="key">
+                                    <tr class="hover:bg-zinc-50/50 dark:hover:bg-zinc-700/30 transition-colors">
+                                        <td class="px-4 py-2.5 text-sm font-medium text-zinc-800 dark:text-zinc-200" x-text="key"></td>
+                                        <td class="px-4 py-2.5 text-sm text-zinc-600 dark:text-zinc-400" x-text="value"></td>
+                                    </tr>
+                                </template>
+                                <tr x-show="Object.keys(environmentVars).length === 0">
+                                    <td colspan="2" class="px-4 py-3 text-sm text-zinc-500 dark:text-zinc-400 text-center">
+                                        No environment variables configured
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
-            </div>
 
-            <!-- Form Actions -->
-            <div class="flex justify-end space-x-3 pt-4 border-t border-zinc-200 dark:border-zinc-700">
-                <a href="{{ route('dashboard.executions.index') }}" class="px-4 py-2 bg-white dark:bg-zinc-700 border border-zinc-300 dark:border-zinc-600 rounded-md text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                    Cancel
-                </a>
-                <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 flex items-center">
-                    <i data-lucide="play" class="w-4 h-4 mr-2"></i>
-                    Start Execution
-                </button>
-            </div>
-        </form>
+                <!-- Execution Options -->
+                <div class="space-y-6 pt-6 border-t border-zinc-200/50 dark:border-zinc-700/50">
+                    <h3 class="text-sm font-semibold text-zinc-800 dark:text-zinc-200 flex items-center gap-2">
+                        <i data-lucide="toggle-right" class="w-4 h-4 text-indigo-600 dark:text-indigo-400"></i>
+                        Execution Options
+                    </h3>
+
+                    <div class="flex flex-wrap gap-3">
+                        <!-- Timeout Pill -->
+                        <div class="relative">
+                            <input type="hidden" name="enable_timeout" x-model="enableTimeout">
+                            <button type="button"
+                                @click="enableTimeout = !enableTimeout"
+                                :class="enableTimeout
+                                    ? 'bg-indigo-500/20 border-indigo-500/40 text-indigo-700 dark:text-indigo-300'
+                                    : 'bg-zinc-100/50 dark:bg-zinc-700/30 border-zinc-300/50 dark:border-zinc-600/50 text-zinc-600 dark:text-zinc-300'"
+                                class="px-4 py-2 rounded-full border flex items-center gap-2 transition-all duration-200 hover:scale-[98%]">
+                                <i data-lucide="clock" class="w-4 h-4"></i>
+                                <span>Custom Timeout</span>
+                                <div :class="enableTimeout ? 'bg-indigo-500' : 'bg-zinc-400 dark:bg-zinc-500'"
+                                    class="w-2 h-2 rounded-full ml-1 transition-colors"></div>
+                            </button>
+
+                            <!-- Timeout Input -->
+                            <div x-show="enableTimeout" x-collapse
+                                class="absolute left-0 top-full mt-2 bg-white dark:bg-zinc-800 p-2 rounded-lg border border-zinc-200/50 dark:border-zinc-700/50 shadow-sm z-10">
+                                <div class="flex items-center gap-2">
+                                    <input type="number" name="timeout_minutes" id="timeout_minutes"
+                                        class="w-20 px-3 py-1 rounded-lg border-zinc-300/50 dark:border-zinc-600/50 bg-transparent text-zinc-900 dark:text-zinc-200 shadow-sm focus:ring-1 focus:ring-indigo-500"
+                                        min="1" max="60" value="10">
+                                    <span class="text-sm text-zinc-500 dark:text-zinc-400">minutes</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Priority Pill -->
+                        <input type="hidden" name="priority" x-model="highPriority">
+                        <button type="button"
+                            @click="highPriority = !highPriority"
+                            :class="highPriority
+                                ? 'bg-red-500/20 border-red-500/40 text-red-700 dark:text-red-300'
+                                : 'bg-zinc-100/50 dark:bg-zinc-700/30 border-zinc-300/50 dark:border-zinc-600/50 text-zinc-600 dark:text-zinc-300'"
+                            class="px-4 py-2 rounded-full border flex items-center gap-2 transition-all duration-200 hover:scale-[98%]">
+                            <i data-lucide="alert-triangle" class="w-4 h-4"></i>
+                            <span>High Priority</span>
+                            <div :class="highPriority ? 'bg-red-500' : 'bg-zinc-400 dark:bg-zinc-500'"
+                                class="w-2 h-2 rounded-full ml-1 transition-colors"></div>
+                        </button>
+
+                        <!-- Notification Pill -->
+                        <input type="hidden" name="notify_completion" x-model="notifyCompletion">
+                        <button type="button"
+                            @click="notifyCompletion = !notifyCompletion"
+                            :class="notifyCompletion
+                                ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-700 dark:text-emerald-300'
+                                : 'bg-zinc-100/50 dark:bg-zinc-700/30 border-zinc-300/50 dark:border-zinc-600/50 text-zinc-600 dark:text-zinc-300'"
+                            class="px-4 py-2 rounded-full border flex items-center gap-2 transition-all duration-200 hover:scale-[98%]">
+                            <i data-lucide="bell" class="w-4 h-4"></i>
+                            <span>Notify on Completion</span>
+                            <div :class="notifyCompletion ? 'bg-emerald-500' : 'bg-zinc-400 dark:bg-zinc-500'"
+                                class="w-2 h-2 rounded-full ml-1 transition-colors"></div>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Form Actions -->
+                <div class="flex justify-end gap-3 pt-8 border-t border-zinc-200/50 dark:border-zinc-700/50">
+                    <a href="{{ route('dashboard.executions.index') }}"
+                        class="px-5 py-2.5 bg-white dark:bg-zinc-700/30 border border-zinc-300/50 dark:border-zinc-600/50 rounded-xl text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50/50 dark:hover:bg-zinc-700/50 transition-colors duration-200 hover:scale-[98%]">
+                        Cancel
+                    </a>
+                    <button type="submit"
+                        class="px-5 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl hover:shadow-lg hover:shadow-indigo-500/20 transition-all duration-200 hover:scale-[98%] flex items-center gap-2">
+                        <i data-lucide="play" class="w-4 h-4"></i>
+                        Start Execution
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
-</div>
 @endsection
 
+@push('styles')
+    <style>
+        @keyframes gradient-x {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .animate-gradient-x {
+            background-size: 200% auto;
+            animation: gradient-x 3s ease infinite;
+        }
+
+        [x-cloak] { display: none !important; }
+
+        .shadow-xs {
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        }
+    </style>
+@endpush
+
 @push('scripts')
-<script>
-    function createExecution() {
-        return {
-            selectedScript: null,
-            selectedFramework: '',
-            selectedTestCase: '',
-            selectedEnvironment: null,
-            environmentVars: {},
-            enableTimeout: false,
+    <script>
+        function createExecution() {
+            return {
+                selectedScript: null,
+                selectedScriptName: '',
+                selectedFramework: '',
+                selectedTestCase: '',
+                selectedEnvironment: null,
+                selectedEnvironmentName: '',
+                environmentVars: {},
+                enableTimeout: false,
+                highPriority: false,
+                notifyCompletion: true,
 
-            async loadScriptDetails(scriptId) {
-                if (!scriptId) {
-                    this.selectedScript = null;
-                    this.selectedFramework = '';
-                    this.selectedTestCase = '';
-                    return;
-                }
+                selectScript(id, name, framework, testCase) {
+                    this.selectedScript = id;
+                    this.selectedScriptName = name;
+                    this.selectedFramework = framework || 'Unknown';
+                    this.selectedTestCase = testCase || 'Unknown';
+                },
 
-                const option = document.querySelector(`option[value="${scriptId}"]`);
-                if (option) {
-                    this.selectedScript = scriptId;
-                    this.selectedFramework = option.dataset.framework || 'Unknown';
-                    this.selectedTestCase = option.dataset.testCase || 'Unknown';
-                }
+                selectEnvironment(id, name) {
+                    this.selectedEnvironment = id;
+                    this.selectedEnvironmentName = name;
 
-                try {
-                    // You can add an API call here to get more detailed script info if needed
-                    // const response = await fetch(`/api/test-scripts/${scriptId}`);
-                    // const data = await response.json();
-                    // if (data.success) {
-                    //     // Update with additional details
-                    // }
-                } catch (error) {
-                    console.error('Error loading script details:', error);
-                }
-            },
-
-            async loadEnvironmentDetails(environmentId) {
-                if (!environmentId) {
-                    this.selectedEnvironment = null;
-                    this.environmentVars = {};
-                    return;
-                }
-
-                this.selectedEnvironment = environmentId;
-
-                try {
-                    const response = await fetch(`/api/environments/${environmentId}`);
-                    if (!response.ok) throw new Error('Failed to fetch environment details');
-
-                    const data = await response.json();
-                    if (data.success) {
-                        this.environmentVars = data.data.configuration || {};
-                    } else {
-                        throw new Error(data.message || 'Failed to load environment details');
+                    // Load environment details when selected
+                    if (id) {
+                        this.loadEnvironmentDetails(id);
                     }
-                } catch (error) {
-                    console.error('Error loading environment details:', error);
-                    this.environmentVars = {};
+                },
 
-                    // Show error notification
-                    window.dispatchEvent(new CustomEvent('notify', {
-                        detail: {
-                            type: 'error',
-                            message: `Failed to load environment details: ${error.message}`
+                async loadScriptDetails(scriptId) {
+                    if (!scriptId) {
+                        this.selectedScript = null;
+                        this.selectedScriptName = '';
+                        this.selectedFramework = '';
+                        this.selectedTestCase = '';
+                        return;
+                    }
+
+                    try {
+                        // Optional API call for additional details if needed
+                        // const response = await fetch(`/api/test-scripts/${scriptId}`);
+                        // const data = await response.json();
+                        // if (data.success) {
+                        //     // Update with additional script details
+                        // }
+                    } catch (error) {
+                        console.error('Error loading script details:', error);
+                    }
+                },
+
+                async loadEnvironmentDetails(environmentId) {
+                    if (!environmentId) {
+                        this.selectedEnvironment = null;
+                        this.selectedEnvironmentName = '';
+                        this.environmentVars = {};
+                        return;
+                    }
+
+                    this.selectedEnvironment = environmentId;
+
+                    try {
+                        const response = await fetch(`/api/environments/${environmentId}`);
+                        if (!response.ok) throw new Error('Failed to fetch environment details');
+
+                        const data = await response.json();
+                        if (data.success) {
+                            this.environmentVars = data.data.configuration || {};
+                        } else {
+                            throw new Error(data.message || 'Failed to load environment details');
                         }
-                    }));
-                }
-            }
-        };
-    }
-</script>
+                    } catch (error) {
+                        console.error('Error loading environment details:', error);
+                        this.environmentVars = {};
+
+                        // Show error notification
+                        window.dispatchEvent(new CustomEvent('notify', {
+                            detail: {
+                                type: 'error',
+                                message: `Failed to load environment details: ${error.message}`
+                            }
+                        }));
+                    }
+                },
+            };
+        }
+
+        // Initialize Alpine when everything is loaded
+        document.addEventListener('alpine:init', () => {
+            // You can add any Alpine store data or components here if needed
+        });
+    </script>
 @endpush
