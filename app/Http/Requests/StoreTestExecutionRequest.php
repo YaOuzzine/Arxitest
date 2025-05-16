@@ -17,15 +17,15 @@ class StoreTestExecutionRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      */
-    public function rules(): array
-    {
-        return [
-            'script_id' => 'required|exists:test_scripts,id',
-            'environment_id' => 'required|exists:environments,id',
-            'enable_timeout' => 'nullable|boolean',
-            'timeout_minutes' => 'nullable|integer|min:1|max:60',
-            'priority' => 'nullable|boolean',
-            'notify_completion' => 'nullable|boolean',
-        ];
-    }
+public function rules()
+{
+    return [
+        'script_id' => 'required|exists:test_scripts,id',
+        'environment_id' => 'required|exists:environments,id',
+        'enable_timeout' => 'sometimes|boolean',
+        'timeout_minutes' => 'required_if:enable_timeout,true|integer|min:1|max:60',
+        'priority' => 'sometimes|boolean',
+        'notify_completion' => 'sometimes|boolean',
+    ];
+}
 }

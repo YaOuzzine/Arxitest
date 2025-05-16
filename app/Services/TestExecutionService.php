@@ -16,9 +16,19 @@ class TestExecutionService
      * Create and dispatch a new test execution.
      */
     public function create(array $data): TestExecution
-    {
-        $pending = ExecutionStatus::where('name', 'pending')->firstOrFail();
+{
+    Log::info('TestExecutionService: Starting execution creation', [
+        'data' => $data
+    ]);
 
+    try {
+        // Find pending status
+        Log::info('TestExecutionService: Finding pending status');
+        $pending = ExecutionStatus::where('name', 'pending')->firstOrFail();
+        Log::info('TestExecutionService: Found pending status', ['status_id' => $pending->id]);
+
+        // Create execution record
+        Log::info('TestExecutionService: Creating execution record');
         $exec = TestExecution::create([
             'script_id'      => $data['script_id'],
             'initiator_id'   => Auth::id(),
@@ -27,10 +37,35 @@ class TestExecutionService
             'start_time'     => now(),
         ]);
 
+        Log::info('TestExecutionService: Execution record created', [
+            'execution_id' => $exec->id,
+            'script_id' => $exec->script_id,
+            'initiator_id' => $exec->initiator_id,
+            'environment_id' => $exec->environment_id
+        ]);
+
+        // Dispatch job
+        Log::info('TestExecutionService: Dispatching execution job', [
+            'execution_id' => $exec->id,
+            'job_class' => RunTestExecutionJob::class
+        ]);
+
         RunTestExecutionJob::dispatch($exec);
 
+        Log::info('TestExecutionService: Job dispatched successfully');
+
         return $exec;
+    } catch (\Exception $e) {
+        Log::error('TestExecutionService: Error in execution creation', [
+            'error' => $e->getMessage(),
+            'line' => $e->getLine(),
+            'file' => $e->getFile(),
+            'trace' => $e->getTraceAsString()
+        ]);
+
+        throw $e; // Re-throw to be caught by the controller
     }
+}
 
     /**
      * Retrieve the recent portion of logs for the execution.

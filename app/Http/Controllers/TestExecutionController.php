@@ -32,7 +32,10 @@ class TestExecutionController extends Controller
         $team = $this->getCurrentTeam($request);
 
         // Get projects for this team
-        $projects = $team->projects()->orderBy('name')->get(['id', 'name']);
+        $projects = $team
+            ->projects()
+            ->orderBy('name')
+            ->get(['id', 'name']);
         $selectedProjectId = $request->input('project_id');
 
         // Initialize collections
@@ -57,23 +60,19 @@ class TestExecutionController extends Controller
                 // Get environments for this project (both project-specific and global)
                 $environments = \App\Models\Environment::where('is_active', true)
                     ->where(function ($query) use ($selectedProjectId) {
-                        $query->where('is_global', true)
-                            ->orWhereHas('projects', function ($q) use ($selectedProjectId) {
-                                $q->where('projects.id', $selectedProjectId);
-                            });
+                        $query->where('is_global', true)->orWhereHas('projects', function ($q) use ($selectedProjectId) {
+                            $q->where('projects.id', $selectedProjectId);
+                        });
                     })
                     ->get();
             }
         } else {
             // If no project selected, just get global environments
-            $environments = \App\Models\Environment::where('is_active', true)
-                ->where('is_global', true)
-                ->get();
+            $environments = \App\Models\Environment::where('is_active', true)->where('is_global', true)->get();
         }
 
         // Continue with the existing filter logic for executions
-        $query = TestExecution::with(['testScript', 'initiator', 'environment', 'status'])
-            ->orderByDesc('created_at');
+        $query = TestExecution::with(['testScript', 'initiator', 'environment', 'status'])->orderByDesc('created_at');
 
         // Apply filters
         if ($request->filled('status') && $request->status !== 'all') {
@@ -104,16 +103,10 @@ class TestExecutionController extends Controller
                     $query->whereDate('start_time', $today->copy()->subDay());
                     break;
                 case 'week':
-                    $query->whereBetween('start_time', [
-                        $today->copy()->startOfWeek(),
-                        $today->copy()->endOfWeek()
-                    ]);
+                    $query->whereBetween('start_time', [$today->copy()->startOfWeek(), $today->copy()->endOfWeek()]);
                     break;
                 case 'month':
-                    $query->whereBetween('start_time', [
-                        $today->copy()->startOfMonth(),
-                        $today->copy()->endOfMonth()
-                    ]);
+                    $query->whereBetween('start_time', [$today->copy()->startOfMonth(), $today->copy()->endOfMonth()]);
                     break;
             }
         }
@@ -136,19 +129,12 @@ class TestExecutionController extends Controller
         $environments = Environment::where('is_active', true)->get();
 
         // Get all scripts for the filter dropdown
-        $scripts = TestScript::with(['testCase:id,title', 'creator:id,name'])
-            ->get(['id', 'name', 'framework_type', 'test_case_id']);
+        $scripts = TestScript::with(['testCase:id,title', 'creator:id,name'])->get(['id', 'name', 'framework_type', 'test_case_id']);
 
         // Paginate the results
         $executions = $query->paginate(10)->withQueryString();
 
-        return view('dashboard.executions.index', compact(
-            'executions',
-            'environments',
-            'scripts',
-            'projects',
-            'selectedProjectId'
-        ));
+        return view('dashboard.executions.index', compact('executions', 'environments', 'scripts', 'projects', 'selectedProjectId'));
     }
 
     public function create(Request $request)
@@ -157,7 +143,10 @@ class TestExecutionController extends Controller
         $team = $this->getCurrentTeam($request);
 
         // Get all projects for this team for the project dropdown
-        $projects = $team->projects()->orderBy('name')->get(['id', 'name']);
+        $projects = $team
+            ->projects()
+            ->orderBy('name')
+            ->get(['id', 'name']);
 
         // Default to empty scripts collection
         $scripts = collect();
@@ -173,30 +162,82 @@ class TestExecutionController extends Controller
 
     public function store(StoreTestExecutionRequest $request)
     {
-        $execution = $this->execService->create($request->validated());
-        return redirect()
-            ->route('dashboard.executions.show', $execution->id)
-            ->with('success', 'Test execution queued successfully!');
-    }
+        try {
+            // Initial logging
+            Log::info('TestExecutionController: Received execution request', [
+                'request_data' => $request->all(),
+                'user_id' => Auth::id(),
+                'user_email' => Auth::user()->email ?? 'unknown',
+                'request_method' => $request->method(),
+                'content_type' => $request->header('Content-Type'),
+                'referrer' => $request->header('Referer'),
+            ]);
 
+            // Log validated data
+            $validatedData = $request->validated();
+            Log::info('TestExecutionController: Validated data', [
+                'validated_data' => $validatedData,
+                'missing_fields' => array_diff(['script_id', 'environment_id'], array_keys($validatedData)),
+            ]);
+
+            // Check for required dependencies before creating
+            $scriptExists = \App\Models\TestScript::where('id', $validatedData['script_id'] ?? '')->exists();
+            $environmentExists = \App\Models\Environment::where('id', $validatedData['environment_id'] ?? '')->exists();
+            $pendingStatusExists = \App\Models\ExecutionStatus::where('name', 'pending')->exists();
+
+            Log::info('TestExecutionController: Dependencies check', [
+                'script_exists' => $scriptExists,
+                'script_id' => $validatedData['script_id'] ?? 'missing',
+                'environment_exists' => $environmentExists,
+                'environment_id' => $validatedData['environment_id'] ?? 'missing',
+                'pending_status_exists' => $pendingStatusExists,
+            ]);
+
+            // Create execution
+            Log::info('TestExecutionController: Calling execution service create method');
+            $execution = $this->execService->create($validatedData);
+
+            Log::info('TestExecutionController: Execution created successfully', [
+                'execution_id' => $execution->id,
+                'script_id' => $execution->script_id,
+                'environment_id' => $execution->environment_id,
+                'status_id' => $execution->status_id,
+                'start_time' => $execution->start_time,
+            ]);
+
+            return redirect()->route('dashboard.executions.show', $execution->id)->with('success', 'Test execution queued successfully!');
+        } catch (\Exception $e) {
+            Log::error('TestExecutionController: Failed to create test execution', [
+                'error' => $e->getMessage(),
+                'error_code' => $e->getCode(),
+                'error_file' => $e->getFile(),
+                'error_line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+                'request_data' => $request->all(),
+            ]);
+
+            return redirect()
+                ->back()
+                ->withInput()
+                ->with('error', 'Failed to create test execution: ' . $e->getMessage());
+        }
+    }
 
     public function show(TestExecution $execution)
     {
         $execution->load(['testScript', 'initiator', 'environment', 'status', 'containers']);
 
-        ['logs' => $logs, 'hasMore' => $hasMore] =
-            $this->execService->getRecentLogs($execution);
+        ['logs' => $logs, 'hasMore' => $hasMore] = $this->execService->getRecentLogs($execution);
 
-        $containerStatus =
-            $this->execService->getContainerStatuses($execution);
+        $containerStatus = $this->execService->getContainerStatuses($execution);
 
         return view('dashboard.executions.show', [
-            'execution'      => $execution,
-            'logs'           => $logs,
-            'hasMoreLogs'    => $hasMore,
+            'execution' => $execution,
+            'logs' => $logs,
+            'hasMoreLogs' => $hasMore,
             'containerStatus' => $containerStatus,
-            'logFileExists'  => file_exists(storage_path("app/executions/{$execution->id}/execution_log.txt")),
-            'logFilePath'    => $execution->id,
+            'logFileExists' => file_exists(storage_path("app/executions/{$execution->id}/execution_log.txt")),
+            'logFilePath' => $execution->id,
         ]);
     }
 
@@ -205,18 +246,20 @@ class TestExecutionController extends Controller
      */
     public function loadMoreLogs(Request $request, $id)
     {
-
         $validator = Validator::make($request->all(), [
             'offset' => 'nullable|integer|min:0',
-            'limit' => 'nullable|integer|min:10|max:2000'
+            'limit' => 'nullable|integer|min:10|max:2000',
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Invalid parameters',
-                'errors' => $validator->errors()
-            ], 422);
+            return response()->json(
+                [
+                    'success' => false,
+                    'message' => 'Invalid parameters',
+                    'errors' => $validator->errors(),
+                ],
+                422,
+            );
         }
 
         $offset = $request->input('offset', 0);
@@ -226,10 +269,13 @@ class TestExecutionController extends Controller
             $data = $this->execService->getMoreLogs($id, $offset, $limit);
             return response()->json(['success' => true, 'data' => $data]);
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to load logs: ' . $e->getMessage()
-            ], 500);
+            return response()->json(
+                [
+                    'success' => false,
+                    'message' => 'Failed to load logs: ' . $e->getMessage(),
+                ],
+                500,
+            );
         }
     }
 
@@ -247,7 +293,7 @@ class TestExecutionController extends Controller
             return $this->successResponse([
                 'status' => $execution->status->name,
                 'end_time' => $execution->end_time,
-                'updated_at' => $execution->updated_at
+                'updated_at' => $execution->updated_at,
             ]);
         } catch (\Exception $e) {
             return $this->errorResponse('Failed to get execution status: ' . $e->getMessage(), 500);

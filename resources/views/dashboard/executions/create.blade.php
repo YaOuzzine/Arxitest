@@ -458,6 +458,48 @@
 
 @push('scripts')
     <script>
+        // Updated form submission logging
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.querySelector('form[action*="executions"]');
+            if (form) {
+                form.addEventListener('submit', function(event) {
+                    // Don't prevent the default submission - we just want to log
+                    console.log('=== FORM SUBMISSION ===');
+                    console.log('Form action:', this.action);
+                    console.log('Form method:', this.method);
+
+                    // Log all form input values
+                    const formData = new FormData(this);
+                    console.log('Form data:');
+                    for (let [key, value] of formData.entries()) {
+                        console.log(`${key}: ${value}`);
+                    }
+
+                    // Try-catch block to avoid errors
+                    try {
+                        // Safer way to get Alpine data if available
+                        if (window.Alpine && document.querySelector('[x-data]').__x) {
+                            const alpineData = document.querySelector('[x-data]').__x.$data;
+                            console.log('Alpine data:', {
+                                selectedProject: alpineData.selectedProject,
+                                selectedScript: alpineData.selectedScript,
+                                selectedEnvironment: alpineData.selectedEnvironment,
+                                enableTimeout: alpineData.enableTimeout,
+                                highPriority: alpineData.highPriority,
+                                notifyCompletion: alpineData.notifyCompletion
+                            });
+                        } else {
+                            console.log('Alpine data not available in this context');
+                        }
+                    } catch (error) {
+                        console.log('Could not access Alpine data:', error.message);
+                    }
+                });
+            } else {
+                console.warn('Execution form not found!');
+            }
+        });
+
         function createExecution() {
             return {
                 selectedProject: '{{ $selectedProjectId ?? '' }}',
@@ -483,18 +525,23 @@
                 filteredEnvironments: [],
                 environments: @json($environments),
 
+
                 init() {
+                    console.log("Initializing test execution form");
+
                     // If project is already selected (from query param), load its name
                     if (this.selectedProject) {
                         // Find project name from available projects
                         const project = @json($projects).find(p => p.id === this.selectedProject);
                         if (project) {
+                            console.log("Found pre-selected project:", project);
                             this.selectedProjectName = project.name;
                             this.loadScriptsForProject(this.selectedProject);
+                            this.loadEnvironmentsForProject(this.selectedProject);
                         }
                     }
 
-                    // Initialize filtered scripts
+                    // Initialize watchers
                     this.$watch('searchTerm', (value) => {
                         this.filterScripts();
                     });
@@ -502,6 +549,7 @@
                     this.$watch('scripts', () => {
                         this.filterScripts();
                     });
+
                     // Initialize filtered environments
                     this.filteredEnvironments = this.environments;
 
@@ -594,12 +642,21 @@
                     this.scripts = [];
 
                     try {
+                        console.log("Loading scripts for project:", projectId);
                         const response = await fetch(`/dashboard/api/projects/${projectId}/test-scripts`);
-                        if (!response.ok) throw new Error('Failed to fetch scripts');
+
+                        if (!response.ok) {
+                            console.error("Failed to fetch scripts:", response.status, response.statusText);
+                            throw new Error('Failed to fetch scripts');
+                        }
 
                         const data = await response.json();
+                        console.log("Scripts response:", data);
+
                         if (data.success) {
                             this.scripts = data.scripts || [];
+                            console.log("Loaded scripts:", this.scripts);
+                            this.filterScripts();
                         }
                     } catch (error) {
                         console.error('Error loading scripts:', error);

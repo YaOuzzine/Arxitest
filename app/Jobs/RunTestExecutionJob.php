@@ -53,7 +53,11 @@ class RunTestExecutionJob implements ShouldQueue
      */
     public function handle(): void
     {
-        Log::info("Starting test execution #{$this->execution->id}");
+        Log::info('RunTestExecutionJob: Starting job execution', [
+        'execution_id' => $this->execution->id,
+        'script_id' => $this->execution->script_id,
+        'environment_id' => $this->execution->environment_id
+    ]);
         $container = null;
 
         try {
@@ -133,6 +137,8 @@ class RunTestExecutionJob implements ShouldQueue
 
             // 9. Process test results
             $this->processResults($container);
+
+            Log::info('RunTestExecutionJob: Job completed successfully');
         } catch (\Exception $e) {
             Log::error("Error executing test #{$this->execution->id}: " . $e->getMessage());
 
