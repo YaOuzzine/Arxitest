@@ -28,7 +28,50 @@ class TestExecutionController extends Controller
 
     public function index(Request $request)
     {
-        // Get base query with necessary relationships
+        // Get current team
+        $team = $this->getCurrentTeam($request);
+
+        // Get projects for this team
+        $projects = $team->projects()->orderBy('name')->get(['id', 'name']);
+        $selectedProjectId = $request->input('project_id');
+
+        // Initialize collections
+        $scripts = collect();
+        $environments = collect();
+
+        // If a project is selected, get its scripts and environments
+        if ($selectedProjectId) {
+            // Verify the project belongs to this team
+            $project = $projects->firstWhere('id', $selectedProjectId);
+
+            if ($project) {
+                // Get test cases for this project, then get scripts
+                $testCaseIds = \App\Models\TestCase::whereHas('testSuite', function ($query) use ($selectedProjectId) {
+                    $query->where('project_id', $selectedProjectId);
+                })->pluck('id');
+
+                $scripts = \App\Models\TestScript::whereIn('test_case_id', $testCaseIds)
+                    ->with(['testCase:id,title', 'creator:id,name'])
+                    ->get(['id', 'name', 'framework_type', 'test_case_id']);
+
+                // Get environments for this project (both project-specific and global)
+                $environments = \App\Models\Environment::where('is_active', true)
+                    ->where(function ($query) use ($selectedProjectId) {
+                        $query->where('is_global', true)
+                            ->orWhereHas('projects', function ($q) use ($selectedProjectId) {
+                                $q->where('projects.id', $selectedProjectId);
+                            });
+                    })
+                    ->get();
+            }
+        } else {
+            // If no project selected, just get global environments
+            $environments = \App\Models\Environment::where('is_active', true)
+                ->where('is_global', true)
+                ->get();
+        }
+
+        // Continue with the existing filter logic for executions
         $query = TestExecution::with(['testScript', 'initiator', 'environment', 'status'])
             ->orderByDesc('created_at');
 
@@ -40,11 +83,11 @@ class TestExecutionController extends Controller
             });
         }
 
-        if ($request->filled('environment_id') && $request->environment_id !== 'all') {
+        if ($request->filled('environment_id')) {
             $query->where('environment_id', $request->environment_id);
         }
 
-        if ($request->filled('script_id') && $request->script_id !== 'all') {
+        if ($request->filled('script_id')) {
             $query->where('script_id', $request->script_id);
         }
 
@@ -99,7 +142,13 @@ class TestExecutionController extends Controller
         // Paginate the results
         $executions = $query->paginate(10)->withQueryString();
 
-        return view('dashboard.executions.index', compact('executions', 'environments', 'scripts'));
+        return view('dashboard.executions.index', compact(
+            'executions',
+            'environments',
+            'scripts',
+            'projects',
+            'selectedProjectId'
+        ));
     }
 
     public function create(Request $request)

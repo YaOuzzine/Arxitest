@@ -37,7 +37,7 @@ class TestScriptController extends Controller
                 'project' => $project,
                 'testCase' => $test_case,
                 'testSuite' => $test_case->testSuite,
-                'testScripts' => $testScripts
+                'testScripts' => $testScripts,
             ]);
         } catch (\Exception $e) {
             return back()->with('error', $e->getMessage());
@@ -56,7 +56,7 @@ class TestScriptController extends Controller
                 'project' => $project,
                 'testCase' => $test_case,
                 'testSuite' => $test_case->testSuite,
-                'testScript' => $test_script
+                'testScript' => $test_script,
             ]);
         } catch (\Exception $e) {
             return back()->with('error', $e->getMessage());
@@ -74,7 +74,7 @@ class TestScriptController extends Controller
             return view('dashboard.test-scripts.create', [
                 'project' => $project,
                 'testCase' => $test_case,
-                'testSuite' => $test_case->testSuite
+                'testSuite' => $test_case->testSuite,
             ]);
         } catch (\Exception $e) {
             return back()->with('error', $e->getMessage());
@@ -89,33 +89,32 @@ class TestScriptController extends Controller
         try {
             $this->testScriptService->validateRelationships($project, $test_case);
 
-            $testScript = $this->testScriptService->createScript(
-                $test_case,
-                $request->input('name'),
-                $request->input('framework_type'),
-                $request->input('script_content'),
-                $request->input('metadata', [])
-            );
+            $testScript = $this->testScriptService->createScript($test_case, $request->input('name'), $request->input('framework_type'), $request->input('script_content'), $request->input('metadata', []));
 
             if ($request->expectsJson()) {
                 return response()->json([
                     'success' => true,
                     'message' => 'Test script created successfully.',
-                    'data' => $testScript
+                    'data' => $testScript,
                 ]);
             }
 
-            return redirect()->route('dashboard.projects.test-cases.scripts.show', [
-                'project' => $project->id,
-                'test_case' => $test_case->id,
-                'test_script' => $testScript->id
-            ])->with('success', 'Test script created successfully.');
+            return redirect()
+                ->route('dashboard.projects.test-cases.scripts.show', [
+                    'project' => $project->id,
+                    'test_case' => $test_case->id,
+                    'test_script' => $testScript->id,
+                ])
+                ->with('success', 'Test script created successfully.');
         } catch (\Exception $e) {
             if ($request->expectsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => $e->getMessage()
-                ], 400);
+                return response()->json(
+                    [
+                        'success' => false,
+                        'message' => $e->getMessage(),
+                    ],
+                    400,
+                );
             }
             return redirect()->back()->with('error', $e->getMessage())->withInput();
         }
@@ -132,10 +131,13 @@ class TestScriptController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'errors' => $validator->errors()
-            ], 422);
+            return response()->json(
+                [
+                    'success' => false,
+                    'errors' => $validator->errors(),
+                ],
+                422,
+            );
         }
 
         try {
@@ -149,28 +151,28 @@ class TestScriptController extends Controller
                 'test_case_title' => $test_case->title,
                 'test_case_steps' => $test_case->steps,
                 'test_case_expected_results' => $test_case->expected_results,
-                'framework_type' => $request->input('framework_type')
+                'framework_type' => $request->input('framework_type'),
             ];
 
             // Generate the test script WITHOUT saving
             $aiService = app(AIGenerationService::class);
-            $scriptData = $aiService->generateTestScript(
-                $request->input('prompt', ''),
-                $context
-            );
+            $scriptData = $aiService->generateTestScript($request->input('prompt', ''), $context);
 
             // Return just the data for the frontend to handle
             return response()->json([
                 'success' => true,
                 'message' => 'Test script generated successfully',
-                'data' => $scriptData
+                'data' => $scriptData,
             ]);
         } catch (\Exception $e) {
             Log::error('Error generating test script with AI: ' . $e->getMessage());
-            return response()->json([
-                'success' => false,
-                'message' => 'An error occurred while generating the test script: ' . $e->getMessage()
-            ], 500);
+            return response()->json(
+                [
+                    'success' => false,
+                    'message' => 'An error occurred while generating the test script: ' . $e->getMessage(),
+                ],
+                500,
+            );
         }
     }
 
@@ -186,7 +188,7 @@ class TestScriptController extends Controller
                 'project' => $project,
                 'testCase' => $test_case,
                 'testSuite' => $test_case->testSuite,
-                'testScript' => $test_script
+                'testScript' => $test_script,
             ]);
         } catch (\Exception $e) {
             return back()->with('error', $e->getMessage());
@@ -209,11 +211,14 @@ class TestScriptController extends Controller
             ]);
 
             if ($validator->fails()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Validation failed',
-                    'errors' => $validator->errors()
-                ], 422);
+                return response()->json(
+                    [
+                        'success' => false,
+                        'message' => 'Validation failed',
+                        'errors' => $validator->errors(),
+                    ],
+                    422,
+                );
             }
 
             // Update the script
@@ -226,21 +231,26 @@ class TestScriptController extends Controller
                 return response()->json([
                     'success' => true,
                     'message' => 'Test script updated successfully.',
-                    'data' => $test_script
+                    'data' => $test_script,
                 ]);
             }
 
-            return redirect()->route('dashboard.projects.test-cases.show', [
-                'project' => $project->id,
-                'test_case' => $test_case->id
-            ])->with('success', 'Test script updated successfully.');
+            return redirect()
+                ->route('dashboard.projects.test-cases.show', [
+                    'project' => $project->id,
+                    'test_case' => $test_case->id,
+                ])
+                ->with('success', 'Test script updated successfully.');
         } catch (\Exception $e) {
             Log::error('Update script error: ' . $e->getMessage());
             if ($request->expectsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => $e->getMessage()
-                ], 400);
+                return response()->json(
+                    [
+                        'success' => false,
+                        'message' => $e->getMessage(),
+                    ],
+                    400,
+                );
             }
             return redirect()->back()->with('error', $e->getMessage())->withInput();
         }
@@ -250,33 +260,32 @@ class TestScriptController extends Controller
      * Get test scripts for a specific project as JSON
      */
     public function getJsonForProject(Project $project)
-    {
-        try {
-            // Return a minimal response for debugging
-            return response()->json([
-                'success' => true,
-                'project_id' => $project->id,
-                'project_name' => $project->name,
-                'scripts' => [] // Return empty scripts for now
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Test scripts error: ' . $e->getMessage(), [
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString()
-            ]);
+{
+    try {
+        // Get test scripts related to this project through TestScript -> TestCase -> Story -> Project
+        $scripts = TestScript::query()
+            ->with(['testCase:id,title,story_id'])
+            ->whereHas('testCase.story', function($query) use ($project) {
+                $query->where('project_id', $project->id);
+            })
+            ->get(['id', 'name', 'framework_type', 'test_case_id']);
 
-            // Return detailed error for debugging
-            return response()->json([
-                'success' => false,
-                'message' => 'Error fetching test scripts',
-                'error' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine()
-            ], 500);
-        }
+        return response()->json([
+            'success' => true,
+            'scripts' => $scripts
+        ]);
+    } catch (\Exception $e) {
+        Log::error('Error fetching test scripts: ' . $e->getMessage(), [
+            'project_id' => $project->id,
+            'trace' => $e->getTraceAsString()
+        ]);
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Error fetching test scripts: ' . $e->getMessage()
+        ], 500);
     }
-
+}
     /**
      * Remove the specified test script.
      */
@@ -292,10 +301,12 @@ class TestScriptController extends Controller
                 return $this->successResponse([], "Test script \"$scriptName\" deleted successfully.");
             }
 
-            return redirect()->route('dashboard.projects.test-cases.scripts.index', [
-                'project' => $project->id,
-                'test_case' => $test_case->id
-            ])->with('success', "Test script \"$scriptName\" deleted successfully.");
+            return redirect()
+                ->route('dashboard.projects.test-cases.scripts.index', [
+                    'project' => $project->id,
+                    'test_case' => $test_case->id,
+                ])
+                ->with('success', "Test script \"$scriptName\" deleted successfully.");
         } catch (\Exception $e) {
             if (request()->expectsJson()) {
                 return $this->errorResponse($e->getMessage(), 400);

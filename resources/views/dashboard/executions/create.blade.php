@@ -109,6 +109,12 @@
                         </x-slot:trigger>
 
                         <x-slot:content>
+                            <div class="p-2 border-b border-zinc-200 dark:border-zinc-700">
+                                <input type="text" placeholder="Search scripts..." x-model="searchTerm"
+                                    class="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-700 border-transparent rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                    @click.stop>
+                            </div>
+
                             <div class="max-h-60 overflow-y-auto space-y-1">
                                 <!-- No project selected message -->
                                 <div x-show="!selectedProject"
@@ -136,9 +142,15 @@
                                     No scripts available for this project
                                 </div>
 
+                                <!-- No search results message -->
+                                <div x-show="selectedProject && !isLoadingScripts && scripts.length > 0 && filteredScripts.length === 0"
+                                    class="px-4 py-3 text-sm text-zinc-500 dark:text-zinc-400 text-center">
+                                    No scripts matching your search
+                                </div>
+
                                 <!-- Dynamic script list -->
-                                <template x-for="script in scripts" :key="script.id">
-                                    <div @click="selectScript(script.id, script.name, script.framework_type, script.test_case?.title || 'No Test Case'); $parent.open = false"
+                                <template x-for="script in filteredScripts" :key="script.id">
+                                    <div @click="selectScript(script.id, script.name, script.framework_type, script.test_case?.title || 'No Test Case'); open = false"
                                         class="px-4 py-2.5 cursor-pointer hover:bg-indigo-50/50 dark:hover:bg-indigo-500/20 transition-colors group">
                                         <div class="flex items-center gap-3">
                                             <div
@@ -198,30 +210,80 @@
 
                     <x-dropdown.index width="full" triggerClasses="w-full" x-data="{ open: false }">
                         <x-slot:trigger>
-                            <div
-                                class="w-full flex items-center justify-between px-4 py-3 border border-zinc-300/80 dark:border-zinc-600 rounded-xl bg-white dark:bg-zinc-800/90 text-zinc-900 dark:text-zinc-200 shadow-sm cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-400 transition-all duration-200">
+                            <div class="w-full flex items-center justify-between px-4 py-3 border border-zinc-300/80 dark:border-zinc-600 rounded-xl bg-white dark:bg-zinc-800/90 text-zinc-900 dark:text-zinc-200 shadow-sm cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-400 transition-all duration-200"
+                                :class="{ 'opacity-50 pointer-events-none': !selectedProject }">
                                 <span x-text="selectedEnvironmentName || 'Select an environment'" class="truncate"></span>
                                 <i data-lucide="chevron-down" class="w-4 h-4 text-zinc-400 transition-transform"></i>
+                                <div x-show="isLoadingEnvironments" class="absolute inset-y-0 right-10 flex items-center">
+                                    <svg class="animate-spin h-4 w-4 text-indigo-500" xmlns="http://www.w3.org/2000/svg"
+                                        fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10"
+                                            stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor"
+                                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                                        </path>
+                                    </svg>
+                                </div>
                             </div>
                         </x-slot:trigger>
 
                         <x-slot:content>
+                            <div class="p-2 border-b border-zinc-200 dark:border-zinc-700">
+                                <input type="text" placeholder="Search environments..."
+                                    x-model="environmentSearchTerm"
+                                    class="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-700 border-transparent rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                    @click.stop>
+                            </div>
                             <div class="max-h-60 overflow-y-auto space-y-1">
-                                @foreach ($environments as $environment)
-                                    <x-dropdown.item
-                                        @click="selectEnvironment('{{ $environment->id }}', '{{ $environment->name }}'); open = false"
-                                        class="group hover:bg-indigo-50/50 dark:hover:bg-indigo-500/20 transition-colors">
+                                <!-- No project selected message -->
+                                <div x-show="!selectedProject"
+                                    class="px-4 py-3 text-sm text-zinc-500 dark:text-zinc-400 text-center">
+                                    Please select a project first
+                                </div>
+
+                                <!-- Loading indicator -->
+                                <div x-show="selectedProject && isLoadingEnvironments"
+                                    class="px-4 py-3 text-sm text-zinc-500 dark:text-zinc-400 text-center">
+                                    <svg class="animate-spin h-5 w-5 mx-auto mb-2 text-indigo-500"
+                                        xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10"
+                                            stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor"
+                                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                                        </path>
+                                    </svg>
+                                    Loading environments...
+                                </div>
+                                <!-- No environments found message -->
+                                <div x-show="filteredEnvironments.length === 0"
+                                    class="px-4 py-3 text-sm text-zinc-500 dark:text-zinc-400 text-center">
+                                    No environments match your search
+                                </div>
+
+                                <!-- Dynamic environment list -->
+                                <template x-for="env in filteredEnvironments" :key="env.id">
+                                    <div @click="selectEnvironment(env.id, env.name); open = false"
+                                        class="group hover:bg-indigo-50/50 dark:hover:bg-indigo-500/20 transition-colors px-4 py-2.5 cursor-pointer">
                                         <div class="flex items-center gap-3">
                                             <div
                                                 class="w-2 h-2 rounded-full bg-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity">
                                             </div>
-                                            <span
-                                                class="text-zinc-700 dark:text-zinc-300 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                                                {{ $environment->name }} {{ $environment->is_global ? '(Global)' : '' }}
-                                            </span>
+                                            <div class="flex flex-col">
+                                                <span
+                                                    class="text-zinc-700 dark:text-zinc-300 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors"
+                                                    x-text="env.name"></span>
+                                                <span x-show="env.is_global"
+                                                    class="text-xs text-zinc-500 dark:text-zinc-400">
+                                                    Global Environment
+                                                </span>
+                                                <span x-show="!env.is_global"
+                                                    class="text-xs text-zinc-500 dark:text-zinc-400">
+                                                    Project Environment
+                                                </span>
+                                            </div>
                                         </div>
-                                    </x-dropdown.item>
-                                @endforeach
+                                    </div>
+                                </template>
                             </div>
                         </x-slot:content>
                     </x-dropdown.index>
@@ -276,9 +338,9 @@
 
                     <div class="flex flex-wrap gap-3">
                         <!-- Timeout Pill -->
-                        <div class="relative">
+                        <div class="relative" x-data="{ timeoutOpen: false }">
                             <input type="hidden" name="enable_timeout" x-model="enableTimeout">
-                            <button type="button" @click="enableTimeout = !enableTimeout"
+                            <button type="button" @click="enableTimeout = !enableTimeout; timeoutOpen = enableTimeout"
                                 :class="enableTimeout
                                     ?
                                     'bg-indigo-500/20 border-indigo-500/40 text-indigo-700 dark:text-indigo-300' :
@@ -290,14 +352,28 @@
                                     class="w-2 h-2 rounded-full ml-1 transition-colors"></div>
                             </button>
 
-                            <!-- Timeout Input -->
-                            <div x-show="enableTimeout" x-collapse
-                                class="absolute left-0 top-full mt-2 bg-white dark:bg-zinc-800 p-2 rounded-lg border border-zinc-200/50 dark:border-zinc-700/50 shadow-sm z-50">
-                                <div class="flex items-center gap-2">
-                                    <input type="number" name="timeout_minutes" id="timeout_minutes"
-                                        class="w-20 px-3 py-1 rounded-lg border-zinc-300/50 dark:border-zinc-600/50 bg-transparent text-zinc-900 dark:text-zinc-200 shadow-sm focus:ring-1 focus:ring-indigo-500"
-                                        min="1" max="60" value="10">
-                                    <span class="text-sm text-zinc-500 dark:text-zinc-400">minutes</span>
+                            <!-- Timeout Input - Animated -->
+                            <div x-show="timeoutOpen" x-transition:enter="transition ease-out duration-300"
+                                x-transition:enter-start="opacity-0 transform -translate-y-2 scale-95"
+                                x-transition:enter-end="opacity-100 transform translate-y-0 scale-100"
+                                x-transition:leave="transition ease-in duration-200"
+                                x-transition:leave-start="opacity-100 transform translate-y-0 scale-100"
+                                x-transition:leave-end="opacity-0 transform -translate-y-2 scale-95"
+                                class="dropdown-menu w-full bg-white dark:bg-zinc-800 p-4 rounded-lg border border-zinc-200/50 dark:border-zinc-700/50 shadow-lg z-50 backdrop-blur-sm">
+                                <div class="flex flex-col gap-2">
+                                    <label for="timeout_minutes"
+                                        class="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                                        Execution Timeout
+                                    </label>
+                                    <div class="flex items-center gap-2">
+                                        <input type="number" name="timeout_minutes" id="timeout_minutes"
+                                            class="w-20 px-3 py-2 rounded-lg border-zinc-300/50 dark:border-zinc-600/50 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-200 shadow-sm focus:ring-2 focus:ring-indigo-500"
+                                            min="1" max="60" value="10">
+                                        <span class="text-sm text-zinc-500 dark:text-zinc-400">minutes</span>
+                                    </div>
+                                    <div class="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                                        Execution will be automatically terminated after this time
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -397,23 +473,70 @@
                 highPriority: false,
                 notifyCompletion: true,
                 scripts: [],
+                environments: [],
                 isLoadingScripts: false,
+                isLoadingEnvironments: false,
+                timeoutOpen: false,
+                searchTerm: '',
+                filteredScripts: [],
+                environmentSearchTerm: '',
+                filteredEnvironments: [],
+                environments: @json($environments),
 
                 init() {
                     // If project is already selected (from query param), load its name
                     if (this.selectedProject) {
-                        const projectSelect = document.querySelector('select[name="project_id"]');
-                        if (projectSelect) {
-                            const option = Array.from(projectSelect.options).find(opt => opt.value === this
-                                .selectedProject);
-                            if (option) {
-                                this.selectedProjectName = option.textContent.trim();
-                                this.loadScriptsForProject(this.selectedProject);
-                            }
+                        // Find project name from available projects
+                        const project = @json($projects).find(p => p.id === this.selectedProject);
+                        if (project) {
+                            this.selectedProjectName = project.name;
+                            this.loadScriptsForProject(this.selectedProject);
                         }
                     }
+
+                    // Initialize filtered scripts
+                    this.$watch('searchTerm', (value) => {
+                        this.filterScripts();
+                    });
+
+                    this.$watch('scripts', () => {
+                        this.filterScripts();
+                    });
+                    // Initialize filtered environments
+                    this.filteredEnvironments = this.environments;
+
+                    // Watch for changes to the search term
+                    this.$watch('environmentSearchTerm', () => {
+                        this.filterEnvironments();
+                    });
                 },
 
+                filterEnvironments() {
+                    if (!this.environmentSearchTerm.trim()) {
+                        this.filteredEnvironments = this.environments;
+                        return;
+                    }
+
+                    const term = this.environmentSearchTerm.toLowerCase().trim();
+                    this.filteredEnvironments = this.environments.filter(env =>
+                        env.name.toLowerCase().includes(term) ||
+                        (env.is_global ? 'global' : 'project').includes(term)
+                    );
+                },
+
+                filterScripts() {
+                    if (!this.searchTerm.trim()) {
+                        this.filteredScripts = this.scripts;
+                        return;
+                    }
+
+                    const term = this.searchTerm.toLowerCase().trim();
+                    this.filteredScripts = this.scripts.filter(script =>
+                        script.name.toLowerCase().includes(term) ||
+                        (script.test_case?.title && script.test_case.title.toLowerCase().includes(term)) ||
+                        script.framework_type.toLowerCase().includes(term)
+                    );
+                },
                 selectProject(id, name) {
                     this.selectedProject = id;
                     this.selectedProjectName = name;
@@ -424,9 +547,45 @@
                     this.selectedFramework = '';
                     this.selectedTestCase = '';
 
+                    // Reset environment selection
+                    this.selectedEnvironment = null;
+                    this.selectedEnvironmentName = '';
+                    this.environments = [];
+                    this.filteredEnvironments = [];
+                    this.environmentVars = {};
+
                     // Load scripts for this project
                     this.loadScriptsForProject(id);
+
+                    // Load environments for this project
+                    this.loadEnvironmentsForProject(id);
                 },
+
+                async loadEnvironmentsForProject(projectId) {
+                    if (!projectId) return;
+
+                    try {
+                        // This URL matches the route pattern: dashboard/api/projects/{project}/environments
+                        const response = await fetch(`/dashboard/api/projects/${projectId}/environments`);
+                        if (!response.ok) throw new Error('Failed to fetch environments');
+
+                        const data = await response.json();
+                        if (data.success) {
+                            this.environments = data.environments || [];
+                            this.filterEnvironments();
+                        }
+                    } catch (error) {
+                        console.error('Error loading environments:', error);
+                        // Show error notification
+                        window.dispatchEvent(new CustomEvent('notify', {
+                            detail: {
+                                type: 'error',
+                                message: `Failed to load environments: ${error.message}`
+                            }
+                        }));
+                    }
+                },
+
 
                 async loadScriptsForProject(projectId) {
                     if (!projectId) return;

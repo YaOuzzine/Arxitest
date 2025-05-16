@@ -19,6 +19,29 @@
             <!-- Optional filters section -->
             <x-slot:filters>
                 <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                    <!-- Project Dropdown -->
+                    <div>
+                        <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Project</label>
+                        <x-dropdown.index width="full" triggerClasses="w-full">
+                            <x-slot:trigger>
+                                <div
+                                    class="w-full flex items-center justify-between px-4 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-200 shadow-sm cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-700">
+                                    <span x-text="filters.projectLabel || 'All Projects'"></span>
+                                    <i data-lucide="chevron-down" class="w-4 h-4 text-zinc-400"></i>
+                                </div>
+                            </x-slot:trigger>
+                            <x-slot:content>
+                                <x-dropdown.item @click="selectProject('', 'All Projects')" :active="request('project_id') === ''">All
+                                    Projects</x-dropdown.item>
+                                @foreach ($projects as $project)
+                                    <x-dropdown.item @click="selectProject('{{ $project->id }}', '{{ $project->name }}')"
+                                        :active="request('project_id') === $project->id">
+                                        {{ $project->name }}
+                                    </x-dropdown.item>
+                                @endforeach
+                            </x-slot:content>
+                        </x-dropdown.index>
+                    </div>
                     <!-- Status Dropdown -->
                     <div>
                         <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Status</label>
@@ -359,6 +382,8 @@
                 filters: {
                     status: '{{ request('status') }}',
                     statusLabel: '{{ request('status') ? ucfirst(request('status')) : 'All Statuses' }}',
+                    project_id: '{{ request('project_id') }}',
+                    projectLabel: 'All Projects',
                     script_id: '{{ request('script_id') }}',
                     scriptLabel: 'All Scripts',
                     environment_id: '{{ request('environment_id') }}',
@@ -366,10 +391,22 @@
                     date_filter: '{{ request('date_filter') }}',
                     dateLabel: '{{ request('date_filter') ? getDateFilterLabel(request('date_filter')) : 'All Time' }}'
                 },
-
                 init() {
-                    // Initialize dropdown labels based on request values
+                    // Initialize dropdown labels
                     this.initializeDropdownLabels();
+
+                    // Add event listener for project change
+                    this.$watch('filters.project_id', (value) => {
+                        if (value !== this.filters.project_id) {
+                            // Reset script and environment when project changes
+                            this.filters.script_id = '';
+                            this.filters.scriptLabel = 'All Scripts';
+                            this.filters.environment_id = '';
+                            this.filters.environmentLabel = 'All Environments';
+
+                            this.applyFilters();
+                        }
+                    });
                 },
 
                 initializeDropdownLabels() {
@@ -521,6 +558,19 @@
                             console.error('Error polling execution status:', error);
                         }
                     }, 5000);
+                },
+
+                selectProject(id, name) {
+                    this.filters.project_id = id;
+                    this.filters.projectLabel = id ? name : 'All Projects';
+
+                    // Reset script and environment when project changes
+                    this.filters.script_id = '';
+                    this.filters.scriptLabel = 'All Scripts';
+                    this.filters.environment_id = '';
+                    this.filters.environmentLabel = 'All Environments';
+
+                    this.applyFilters();
                 },
 
                 // Clear polling and timer intervals

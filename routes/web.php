@@ -181,6 +181,7 @@ Route::middleware(['web', 'auth:web', 'require.team'])->group(function () {
         Route::get('/projects/{project}/test-suites', [TestSuiteController::class, 'getJsonForProject'])->name('projects.test-suites');
         Route::get('/projects/{project}/test-cases', [TestCaseController::class,   'getJsonForProject'])->name('projects.test-cases');
         Route::get('/projects/{project}/test-scripts', [TestScriptController::class, 'getJsonForProject'])->name('projects.test-scripts');
+        Route::get('/projects/{project}/environments', [EnvironmentController::class, 'getForProject'])->name('projects.environments');
     });
 
     Route::get('/dashboard/test-cases', [TestCaseController::class, 'indexAll'])
@@ -431,6 +432,7 @@ Route::prefix('dashboard/integrations/jira')->name('dashboard.integrations.jira.
         ->name('load-project-data');
     Route::get('/sync-status/{progressId}', [JiraIntegrationController::class, 'syncStatus'])->name('sync-status');
 });
+
 
 
 
