@@ -15,6 +15,7 @@
         "vite": "^6.0.11"
     },
     "dependencies": {
+        "@alpinejs/collapse": "^3.14.9",
         "@codemirror/commands": "^6.8.1",
         "@codemirror/lang-javascript": "^6.2.3",
         "@codemirror/lang-python": "^6.2.0",

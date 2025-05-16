@@ -339,7 +339,7 @@
                     <div class="flex flex-wrap gap-3">
                         <!-- Timeout Pill -->
                         <div class="relative" x-data="{ timeoutOpen: false }">
-                            <input type="hidden" name="enable_timeout" x-model="enableTimeout">
+                            <input type="hidden" name="enable_timeout" :value="enableTimeout ? '1' : '0'">
                             <button type="button" @click="enableTimeout = !enableTimeout; timeoutOpen = enableTimeout"
                                 :class="enableTimeout
                                     ?
@@ -379,7 +379,7 @@
                         </div>
 
                         <!-- Priority Pill -->
-                        <input type="hidden" name="priority" x-model="highPriority">
+                        <input type="hidden" name="priority" :value="highPriority ? '1' : '0'">
                         <button type="button" @click="highPriority = !highPriority"
                             :class="highPriority
                                 ?
@@ -393,7 +393,7 @@
                         </button>
 
                         <!-- Notification Pill -->
-                        <input type="hidden" name="notify_completion" x-model="notifyCompletion">
+                        <input type="hidden" name="notify_completion" :value="notifyCompletion ? '1' : '0'">
                         <button type="button" @click="notifyCompletion = !notifyCompletion"
                             :class="notifyCompletion
                                 ?
@@ -408,6 +408,19 @@
                     </div>
                 </div>
 
+                <div x-show="formErrors && formErrors.length > 0"
+                    class="mt-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/30 rounded-lg text-red-700 dark:text-red-300">
+                    <h4 class="font-medium flex items-center gap-2 mb-2">
+                        <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+                        Please fix the following errors:
+                    </h4>
+                    <ul class="list-disc pl-5 space-y-1 text-sm">
+                        <template x-for="error in formErrors" :key="error">
+                            <li x-text="error"></li>
+                        </template>
+                    </ul>
+                </div>
+
                 <!-- Form Actions -->
                 <div class="flex justify-end gap-3 pt-8 border-t border-zinc-200/50 dark:border-zinc-700/50">
                     <a href="{{ route('dashboard.executions.index') }}"
@@ -415,9 +428,22 @@
                         Cancel
                     </a>
                     <button type="submit"
-                        class="px-5 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl hover:shadow-lg hover:shadow-indigo-500/20 transition-all duration-200 hover:scale-[98%] flex items-center gap-2">
-                        <i data-lucide="play" class="w-4 h-4"></i>
-                        Start Execution
+                        class="px-5 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-xl hover:shadow-lg hover:shadow-indigo-500/20 transition-all duration-200 hover:scale-[98%] flex items-center gap-2"
+                        :disabled="isSubmitting">
+                        <template x-if="!isSubmitting">
+                            <i data-lucide="play" class="w-4 h-4"></i>
+                        </template>
+                        <template x-if="isSubmitting">
+                            <svg class="animate-spin -ml-1 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg"
+                                fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor"
+                                    stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor"
+                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                                </path>
+                            </svg>
+                        </template>
+                        <span x-text="isSubmitting ? 'Starting...' : 'Start Execution'"></span>
                     </button>
                 </div>
             </form>
@@ -425,83 +451,30 @@
     </div>
 @endsection
 
-@push('styles')
-    <style>
-        @keyframes gradient-x {
-            0% {
-                background-position: 0% 50%;
-            }
-
-            50% {
-                background-position: 100% 50%;
-            }
-
-            100% {
-                background-position: 0% 50%;
-            }
-        }
-
-        .animate-gradient-x {
-            background-size: 200% auto;
-            animation: gradient-x 3s ease infinite;
-        }
-
-        [x-cloak] {
-            display: none !important;
-        }
-
-        .shadow-xs {
-            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-        }
-    </style>
-@endpush
-
 @push('scripts')
     <script>
-        // Updated form submission logging
-        document.addEventListener('DOMContentLoaded', function() {
-            const form = document.querySelector('form[action*="executions"]');
-            if (form) {
-                form.addEventListener('submit', function(event) {
-                    // Don't prevent the default submission - we just want to log
-                    console.log('=== FORM SUBMISSION ===');
-                    console.log('Form action:', this.action);
-                    console.log('Form method:', this.method);
-
-                    // Log all form input values
-                    const formData = new FormData(this);
-                    console.log('Form data:');
-                    for (let [key, value] of formData.entries()) {
-                        console.log(`${key}: ${value}`);
-                    }
-
-                    // Try-catch block to avoid errors
-                    try {
-                        // Safer way to get Alpine data if available
-                        if (window.Alpine && document.querySelector('[x-data]').__x) {
-                            const alpineData = document.querySelector('[x-data]').__x.$data;
-                            console.log('Alpine data:', {
-                                selectedProject: alpineData.selectedProject,
-                                selectedScript: alpineData.selectedScript,
-                                selectedEnvironment: alpineData.selectedEnvironment,
-                                enableTimeout: alpineData.enableTimeout,
-                                highPriority: alpineData.highPriority,
-                                notifyCompletion: alpineData.notifyCompletion
-                            });
-                        } else {
-                            console.log('Alpine data not available in this context');
-                        }
-                    } catch (error) {
-                        console.log('Could not access Alpine data:', error.message);
-                    }
+        // Make sure Alpine's collapse plugin is installed
+        document.addEventListener('alpine:init', () => {
+            if (!window.Alpine.directive('collapse')) {
+                // Create a simple fallback if collapse plugin isn't available
+                window.Alpine.directive('collapse', (el, {
+                    modifiers,
+                    expression
+                }, {
+                    evaluate,
+                    effect
+                }) => {
+                    const show = expression ? evaluate(expression) : true;
+                    el.style.overflow = 'hidden';
+                    el.style.maxHeight = show ? el.scrollHeight + 'px' : '0px';
+                    el.style.transition = 'max-height 0.3s ease-in-out';
                 });
-            } else {
-                console.warn('Execution form not found!');
             }
         });
 
         function createExecution() {
             return {
+                // State variables
                 selectedProject: '{{ $selectedProjectId ?? '' }}',
                 selectedProjectName: '',
                 selectedScript: null,
@@ -523,15 +496,17 @@
                 filteredScripts: [],
                 environmentSearchTerm: '',
                 filteredEnvironments: [],
-                environments: @json($environments),
-
+                formErrors: null,
+                isSubmitting: false,
 
                 init() {
                     console.log("Initializing test execution form");
 
-                    // If project is already selected (from query param), load its name
+                    // Initialize form submission handler
+                    this.setupFormSubmission();
+
+                    // If project is already selected, load its data
                     if (this.selectedProject) {
-                        // Find project name from available projects
                         const project = @json($projects).find(p => p.id === this.selectedProject);
                         if (project) {
                             console.log("Found pre-selected project:", project);
@@ -541,22 +516,97 @@
                         }
                     }
 
-                    // Initialize watchers
-                    this.$watch('searchTerm', (value) => {
-                        this.filterScripts();
-                    });
-
-                    this.$watch('scripts', () => {
-                        this.filterScripts();
-                    });
-
-                    // Initialize filtered environments
+                    // Initialize environments from the server data
+                    this.environments = @json($environments || []);
                     this.filteredEnvironments = this.environments;
 
-                    // Watch for changes to the search term
-                    this.$watch('environmentSearchTerm', () => {
-                        this.filterEnvironments();
+                    // Set up watchers
+                    this.$watch('searchTerm', () => this.filterScripts());
+                    this.$watch('scripts', () => this.filterScripts());
+                    this.$watch('environmentSearchTerm', () => this.filterEnvironments());
+                },
+
+                setupFormSubmission() {
+                    const form = document.querySelector('form[action*="executions"]');
+                    if (!form) return;
+
+                    form.addEventListener('submit', (event) => {
+                        event.preventDefault();
+                        this.submitForm(form);
                     });
+                },
+
+                async submitForm(form) {
+                    if (this.isSubmitting) return;
+                    this.isSubmitting = true;
+                    this.formErrors = null;
+
+                    try {
+                        // Log form data
+                        const formData = new FormData(form);
+                        formData.set('enable_timeout', this.enableTimeout ? '1' : '0');
+                        formData.set('priority', this.highPriority ? '1' : '0');
+                        formData.set('notify_completion', this.notifyCompletion ? '1' : '0');
+                        console.log('=== FORM SUBMISSION ===');
+                        for (let [key, value] of formData.entries()) {
+                            console.log(`${key}: ${value}`);
+                        }
+
+                        // Submit the form with fetch for better error handling
+                        const response = await fetch(form.action, {
+                            method: 'POST',
+                            body: formData,
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'Accept': 'application/json'
+                            },
+                            redirect: 'manual'
+                        });
+
+                        // Check for redirect response (successful form submission)
+                        if (response.type === 'opaqueredirect' || response.redirected ||
+                            (response.status >= 200 && response.status < 300)) {
+
+                            // If redirect or success status, just follow the standard form submission
+                            form.removeEventListener('submit', this.submitForm);
+                            form.submit();
+                            return;
+                        }
+
+                        // If we get here, something went wrong
+                        let result;
+                        try {
+                            result = await response.json();
+                        } catch (e) {
+                            console.error('Error parsing response:', e);
+                            const text = await response.text();
+                            console.log('Raw response:', text);
+                            throw new Error('Invalid server response');
+                        }
+
+                        if (!response.ok) {
+                            // Handle validation errors
+                            if (result.errors) {
+                                this.formErrors = Object.values(result.errors).flat();
+                                console.error('Validation errors:', this.formErrors);
+                            } else {
+                                throw new Error(result.message || 'Server error');
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Form submission error:', error);
+                        this.formErrors = [error.message || 'An error occurred. Please try again.'];
+
+                        // Show error notification
+                        window.dispatchEvent(new CustomEvent('notify', {
+                            detail: {
+                                type: 'error',
+                                message: error.message || 'Form submission failed'
+                            }
+                        }));
+                    } finally {
+                        this.isSubmitting = false;
+                    }
                 },
 
                 filterEnvironments() {
@@ -567,7 +617,7 @@
 
                     const term = this.environmentSearchTerm.toLowerCase().trim();
                     this.filteredEnvironments = this.environments.filter(env =>
-                        env.name.toLowerCase().includes(term) ||
+                        env.name?.toLowerCase().includes(term) ||
                         (env.is_global ? 'global' : 'project').includes(term)
                     );
                 },
@@ -580,11 +630,12 @@
 
                     const term = this.searchTerm.toLowerCase().trim();
                     this.filteredScripts = this.scripts.filter(script =>
-                        script.name.toLowerCase().includes(term) ||
+                        script.name?.toLowerCase().includes(term) ||
                         (script.test_case?.title && script.test_case.title.toLowerCase().includes(term)) ||
-                        script.framework_type.toLowerCase().includes(term)
+                        script.framework_type?.toLowerCase().includes(term)
                     );
                 },
+
                 selectProject(id, name) {
                     this.selectedProject = id;
                     this.selectedProjectName = name;
@@ -598,32 +649,37 @@
                     // Reset environment selection
                     this.selectedEnvironment = null;
                     this.selectedEnvironmentName = '';
-                    this.environments = [];
-                    this.filteredEnvironments = [];
                     this.environmentVars = {};
 
-                    // Load scripts for this project
-                    this.loadScriptsForProject(id);
-
-                    // Load environments for this project
-                    this.loadEnvironmentsForProject(id);
+                    if (id) {
+                        // Load scripts and environments for this project
+                        this.loadScriptsForProject(id);
+                        this.loadEnvironmentsForProject(id);
+                    }
                 },
 
                 async loadEnvironmentsForProject(projectId) {
                     if (!projectId) return;
 
+                    this.isLoadingEnvironments = true;
+
                     try {
-                        // This URL matches the route pattern: dashboard/api/projects/{project}/environments
                         const response = await fetch(`/dashboard/api/projects/${projectId}/environments`);
-                        if (!response.ok) throw new Error('Failed to fetch environments');
+                        if (!response.ok) throw new Error(`Failed to fetch environments (status: ${response.status})`);
 
                         const data = await response.json();
                         if (data.success) {
                             this.environments = data.environments || [];
-                            this.filterEnvironments();
+                            this.filteredEnvironments = this.environments;
+                            console.log('Loaded environments:', this.environments);
+                        } else {
+                            throw new Error(data.message || 'Failed to fetch environments');
                         }
                     } catch (error) {
                         console.error('Error loading environments:', error);
+                        this.environments = [];
+                        this.filteredEnvironments = [];
+
                         // Show error notification
                         window.dispatchEvent(new CustomEvent('notify', {
                             detail: {
@@ -631,9 +687,10 @@
                                 message: `Failed to load environments: ${error.message}`
                             }
                         }));
+                    } finally {
+                        this.isLoadingEnvironments = false;
                     }
                 },
-
 
                 async loadScriptsForProject(projectId) {
                     if (!projectId) return;
@@ -646,8 +703,7 @@
                         const response = await fetch(`/dashboard/api/projects/${projectId}/test-scripts`);
 
                         if (!response.ok) {
-                            console.error("Failed to fetch scripts:", response.status, response.statusText);
-                            throw new Error('Failed to fetch scripts');
+                            throw new Error(`Failed to fetch scripts (status: ${response.status})`);
                         }
 
                         const data = await response.json();
@@ -657,9 +713,14 @@
                             this.scripts = data.scripts || [];
                             console.log("Loaded scripts:", this.scripts);
                             this.filterScripts();
+                        } else {
+                            throw new Error(data.message || 'Failed to fetch scripts');
                         }
                     } catch (error) {
                         console.error('Error loading scripts:', error);
+                        this.scripts = [];
+                        this.filteredScripts = [];
+
                         // Show error notification
                         window.dispatchEvent(new CustomEvent('notify', {
                             detail: {
@@ -676,10 +737,7 @@
                     this.selectedScript = id;
                     this.selectedScriptName = name;
                     this.selectedFramework = framework || 'Unknown';
-                    // Don't display "No Test Case" in the UI
-                    this.selectedTestCase = testCase && testCase !== 'No Test Case' ?
-                        testCase :
-                        ''; // Just leave it empty instead
+                    this.selectedTestCase = testCase && testCase !== 'No Test Case' ? testCase : '';
 
                     console.log('Selected script:', {
                         id,
@@ -699,44 +757,20 @@
                     }
                 },
 
-                async loadScriptDetails(scriptId) {
-                    if (!scriptId) {
-                        this.selectedScript = null;
-                        this.selectedScriptName = '';
-                        this.selectedFramework = '';
-                        this.selectedTestCase = '';
-                        return;
-                    }
-
-                    try {
-                        // Optional API call for additional details if needed
-                        // const response = await fetch(`/api/test-scripts/${scriptId}`);
-                        // const data = await response.json();
-                        // if (data.success) {
-                        //     // Update with additional script details
-                        // }
-                    } catch (error) {
-                        console.error('Error loading script details:', error);
-                    }
-                },
-
                 async loadEnvironmentDetails(environmentId) {
                     if (!environmentId) {
-                        this.selectedEnvironment = null;
-                        this.selectedEnvironmentName = '';
                         this.environmentVars = {};
                         return;
                     }
 
-                    this.selectedEnvironment = environmentId;
-
                     try {
                         const response = await fetch(`/api/environments/${environmentId}`);
-                        if (!response.ok) throw new Error('Failed to fetch environment details');
+                        if (!response.ok) throw new Error(
+                            `Failed to fetch environment details (status: ${response.status})`);
 
                         const data = await response.json();
                         if (data.success) {
-                            this.environmentVars = data.data.configuration || {};
+                            this.environmentVars = data.data?.configuration || {};
                         } else {
                             throw new Error(data.message || 'Failed to load environment details');
                         }
@@ -752,14 +786,8 @@
                             }
                         }));
                     }
-                },
+                }
             };
         }
-
-
-        // Initialize Alpine when everything is loaded
-        document.addEventListener('alpine:init', () => {
-            // You can add any Alpine store data or components here if needed
-        });
     </script>
 @endpush

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Support\Facades\Auth;
 use App\Http\Requests\StoreTestExecutionRequest;
 use App\Http\Requests\LoadMoreLogsRequest;
 use App\Models\TestExecution;
