@@ -547,10 +547,6 @@
                         formData.set('enable_timeout', this.enableTimeout ? '1' : '0');
                         formData.set('priority', this.highPriority ? '1' : '0');
                         formData.set('notify_completion', this.notifyCompletion ? '1' : '0');
-                        console.log('=== FORM SUBMISSION ===');
-                        for (let [key, value] of formData.entries()) {
-                            console.log(`${key}: ${value}`);
-                        }
 
                         // Submit the form with fetch for better error handling
                         const response = await fetch(form.action, {
@@ -559,45 +555,46 @@
                             headers: {
                                 'X-Requested-With': 'XMLHttpRequest',
                                 'Accept': 'application/json'
-                            },
-                            redirect: 'manual'
+                            }
                         });
 
-                        // Check for redirect response (successful form submission)
-                        if (response.type === 'opaqueredirect' || response.redirected ||
-                            (response.status >= 200 && response.status < 300)) {
-
-                            // If redirect or success status, just follow the standard form submission
-                            form.removeEventListener('submit', this.submitForm);
-                            form.submit();
+                        // Check for redirect responses
+                        if (response.redirected) {
+                            // Follow the redirect directly instead of submitting the form again
+                            window.location.href = response.url;
                             return;
                         }
 
-                        // If we get here, something went wrong
+                        // Parse response
                         let result;
                         try {
                             result = await response.json();
                         } catch (e) {
                             console.error('Error parsing response:', e);
-                            const text = await response.text();
-                            console.log('Raw response:', text);
                             throw new Error('Invalid server response');
                         }
 
-                        if (!response.ok) {
-                            // Handle validation errors
-                            if (result.errors) {
-                                this.formErrors = Object.values(result.errors).flat();
-                                console.error('Validation errors:', this.formErrors);
+                        // Handle successful response but without redirect
+                        if (response.ok) {
+                            // Try to determine a redirect URL
+                            if (result.id || result.execution_id) {
+                                window.location.href = `/dashboard/executions/${result.id || result.execution_id}`;
                             } else {
-                                throw new Error(result.message || 'Server error');
+                                window.location.href = '/dashboard/executions';
                             }
+                            return;
+                        }
+
+                        // Handle validation errors
+                        if (!response.ok && result.errors) {
+                            this.formErrors = Object.values(result.errors).flat();
+                        } else {
+                            throw new Error(result.message || 'Server error');
                         }
                     } catch (error) {
                         console.error('Form submission error:', error);
                         this.formErrors = [error.message || 'An error occurred. Please try again.'];
 
-                        // Show error notification
                         window.dispatchEvent(new CustomEvent('notify', {
                             detail: {
                                 type: 'error',
