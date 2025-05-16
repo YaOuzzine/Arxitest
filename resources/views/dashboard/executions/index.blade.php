@@ -35,224 +35,129 @@
                                     Projects</x-dropdown.item>
                                 @foreach ($projects as $project)
                                     <x-dropdown.item @click="selectProject('{{ $project->id }}', '{{ $project->name }}')"
-                                        :active="request('project_id') === $project->id">{{ $project->name }}</x-dropdown.item>
+                                        :active="request('project_id') === $project->id">
+                                        {{ $project->name }}
+                                    </x-dropdown.item>
                                 @endforeach
                             </x-slot:content>
                         </x-dropdown.index>
                     </div>
-
+                    <!-- Status Dropdown -->
+                    <div>
+                        <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Status</label>
+                        <x-dropdown.index width="full" triggerClasses="w-full">
+                            <x-slot:trigger>
+                                <div
+                                    class="w-full flex items-center justify-between px-4 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-200 shadow-sm cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-700">
+                                    <span x-text="filters.statusLabel || 'All Statuses'"></span>
+                                    <i data-lucide="chevron-down" class="w-4 h-4 text-zinc-400"></i>
+                                </div>
+                            </x-slot:trigger>
+                            <x-slot:content>
+                                <x-dropdown.item @click="selectStatus('')" :active="request('status') === ''">All Statuses</x-dropdown.item>
+                                <x-dropdown.item @click="selectStatus('pending')"
+                                    :active="request('status') === 'pending'">Pending</x-dropdown.item>
+                                <x-dropdown.item @click="selectStatus('running')"
+                                    :active="request('status') === 'running'">Running</x-dropdown.item>
+                                <x-dropdown.item @click="selectStatus('completed')"
+                                    :active="request('status') === 'completed'">Completed</x-dropdown.item>
+                                <x-dropdown.item @click="selectStatus('failed')" :active="request('status') === 'failed'">Failed</x-dropdown.item>
+                                <x-dropdown.item @click="selectStatus('aborted')"
+                                    :active="request('status') === 'aborted'">Aborted</x-dropdown.item>
+                            </x-slot:content>
+                        </x-dropdown.index>
+                    </div>
 
                     <!-- Script Dropdown -->
                     <div>
                         <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Test Script</label>
-                        <x-dropdown.search width="full" searchTerm="searchTerm" triggerClasses="w-full">
+                        <x-dropdown.index width="full" triggerClasses="w-full">
                             <x-slot:trigger>
-                                <div class="w-full flex items-center justify-between px-4 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-200 shadow-sm cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-700"
-                                    :class="{ 'opacity-50': !filters.project_id }">
+                                <div
+                                    class="w-full flex items-center justify-between px-4 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-200 shadow-sm cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-700">
                                     <span x-text="filters.scriptLabel || 'All Scripts'"></span>
-                                    <div class="flex items-center">
-                                        <div x-show="isLoadingScripts" class="mr-2">
-                                            <svg class="animate-spin h-4 w-4 text-indigo-500"
-                                                xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                <circle class="opacity-25" cx="12" cy="12" r="10"
-                                                    stroke="currentColor" stroke-width="4"></circle>
-                                                <path class="opacity-75" fill="currentColor"
-                                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
-                                                </path>
-                                            </svg>
-                                        </div>
-                                        <i data-lucide="chevron-down" class="w-4 h-4 text-zinc-400"></i>
-                                    </div>
+                                    <i data-lucide="chevron-down" class="w-4 h-4 text-zinc-400"></i>
                                 </div>
                             </x-slot:trigger>
                             <x-slot:content>
-                                <!-- No project selected message -->
-                                <div x-show="!filters.project_id"
-                                    class="px-4 py-3 text-sm text-zinc-500 dark:text-zinc-400 text-center">
-                                    Please select a project first
+                                <div class="max-h-60 overflow-y-auto">
+                                    <x-dropdown.item @click="selectScript('', 'All Scripts')" :active="request('script_id') === ''">All
+                                        Scripts</x-dropdown.item>
+                                    @foreach ($scripts ?? [] as $script)
+                                        <x-dropdown.item @click="selectScript('{{ $script->id }}', '{{ $script->name }}')"
+                                            :active="request('script_id') === $script->id">
+                                            {{ $script->name }}
+                                        </x-dropdown.item>
+                                    @endforeach
                                 </div>
-
-                                <!-- Loading indicator -->
-                                <div x-show="filters.project_id && isLoadingScripts"
-                                    class="px-4 py-3 text-sm text-zinc-500 dark:text-zinc-400 text-center">
-                                    <svg class="animate-spin h-5 w-5 mx-auto mb-2 text-indigo-500"
-                                        xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                        <circle class="opacity-25" cx="12" cy="12" r="10"
-                                            stroke="currentColor" stroke-width="4"></circle>
-                                        <path class="opacity-75" fill="currentColor"
-                                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
-                                        </path>
-                                    </svg>
-                                    Loading scripts...
-                                </div>
-
-                                <!-- No scripts message -->
-                                <div x-show="filters.project_id && !isLoadingScripts && filteredScripts.length === 0"
-                                    class="px-4 py-3 text-sm text-zinc-500 dark:text-zinc-400 text-center">
-                                    No scripts found
-                                </div>
-
-                                <!-- All Scripts option -->
-                                <template x-if="filters.project_id && filteredScripts.length > 0">
-                                    <x-dropdown.item @click="selectScript('', 'All Scripts')">All Scripts</x-dropdown.item>
-                                </template>
-
-                                <!-- Script list -->
-                                <template x-for="script in filteredScripts" :key="script.id">
-                                    <x-dropdown.item @click="selectScript(script.id, script.name)" :class="{'bg-indigo-50 dark:bg-indigo-900/20': filters.script_id === script.id}">
-                                        <div class="flex flex-col">
-                                            <span x-text="script.name"></span>
-                                            <span x-text="script.framework_type"
-                                                class="text-xs text-zinc-500 dark:text-zinc-400"></span>
-                                        </div>
-                                    </x-dropdown.item>
-                                </template>
                             </x-slot:content>
-                        </x-dropdown.search>
+                        </x-dropdown.index>
                     </div>
 
                     <!-- Environment Dropdown -->
                     <div>
                         <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Environment</label>
-                        <x-dropdown.search width="full" searchTerm="environmentSearchTerm" triggerClasses="w-full">
+                        <x-dropdown.index width="full" triggerClasses="w-full">
                             <x-slot:trigger>
-                                <div class="w-full flex items-center justify-between px-4 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-200 shadow-sm cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-700"
-                                    :class="{ 'opacity-50': !filters.project_id }">
+                                <div
+                                    class="w-full flex items-center justify-between px-4 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-200 shadow-sm cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-700">
                                     <span x-text="filters.environmentLabel || 'All Environments'"></span>
-                                    <div class="flex items-center">
-                                        <div x-show="isLoadingEnvironments" class="mr-2">
-                                            <svg class="animate-spin h-4 w-4 text-indigo-500"
-                                                xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                <circle class="opacity-25" cx="12" cy="12" r="10"
-                                                    stroke="currentColor" stroke-width="4"></circle>
-                                                <path class="opacity-75" fill="currentColor"
-                                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
-                                                </path>
-                                            </svg>
-                                        </div>
-                                        <i data-lucide="chevron-down" class="w-4 h-4 text-zinc-400"></i>
-                                    </div>
+                                    <i data-lucide="chevron-down" class="w-4 h-4 text-zinc-400"></i>
                                 </div>
                             </x-slot:trigger>
                             <x-slot:content>
-                                <!-- No project selected message -->
-                                <div x-show="!filters.project_id"
-                                    class="px-4 py-3 text-sm text-zinc-500 dark:text-zinc-400 text-center">
-                                    Please select a project first
+                                <div class="max-h-60 overflow-y-auto">
+                                    <x-dropdown.item @click="selectEnvironment('', 'All Environments')"
+                                        :active="request('environment_id') === ''">All Environments</x-dropdown.item>
+                                    @foreach ($environments ?? [] as $environment)
+                                        <x-dropdown.item
+                                            @click="selectEnvironment('{{ $environment->id }}', '{{ $environment->name }}')"
+                                            :active="request('environment_id') === $environment->id">
+                                            {{ $environment->name }}
+                                        </x-dropdown.item>
+                                    @endforeach
                                 </div>
-
-                                <!-- Loading indicator -->
-                                <div x-show="filters.project_id && isLoadingEnvironments"
-                                    class="px-4 py-3 text-sm text-zinc-500 dark:text-zinc-400 text-center">
-                                    <svg class="animate-spin h-5 w-5 mx-auto mb-2 text-indigo-500"
-                                        xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                        <circle class="opacity-25" cx="12" cy="12" r="10"
-                                            stroke="currentColor" stroke-width="4"></circle>
-                                        <path class="opacity-75" fill="currentColor"
-                                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
-                                        </path>
-                                    </svg>
-                                    Loading environments...
-                                </div>
-
-                                <!-- No environments message -->
-                                <div x-show="filters.project_id && !isLoadingEnvironments && filteredEnvironments.length === 0"
-                                    class="px-4 py-3 text-sm text-zinc-500 dark:text-zinc-400 text-center">
-                                    No environments found
-                                </div>
-
-                                <!-- All Environments option -->
-                                <template x-if="filters.project_id && filteredEnvironments.length > 0">
-                                    <x-dropdown.item @click="selectEnvironment('', 'All Environments')">All
-                                        Environments</x-dropdown.item>
-                                </template>
-
-                                <!-- Environment list -->
-                                <template x-for="env in filteredEnvironments" :key="env.id">
-                                    <x-dropdown.item @click="selectEnvironment(env.id, env.name)" :class="{'bg-indigo-50 dark:bg-indigo-900/20': filters.environment_id === env.id}">
-                                        <div class="flex flex-col">
-                                            <span x-text="env.name"></span>
-                                            <span x-text="env.is_global ? 'Global' : 'Project-specific'"
-                                                class="text-xs text-zinc-500 dark:text-zinc-400"></span>
-                                        </div>
-                                    </x-dropdown.item>
-                                </template>
                             </x-slot:content>
-                        </x-dropdown.search>
+                        </x-dropdown.index>
                     </div>
 
-                    <!-- Status Filter Pills -->
-                    <div>
-                        <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Status</label>
-                        <div class="flex flex-wrap gap-2">
-                            <button type="button" @click="toggleStatus('')"
-                                class="px-3 py-1.5 rounded-full text-sm font-medium border transition-colors"
-                                :class="{
-                                    'bg-indigo-100 dark:bg-indigo-900/30 border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300': selectedStatuses
-                                        .length === 0,
-                                    'bg-white dark:bg-zinc-800 border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300': selectedStatuses
-                                        .length > 0
-                                }">
-                                All Statuses
-                            </button>
-
-                            @foreach ($statusOptions as $status)
-                                <button type="button" @click="toggleStatus('{{ $status }}')"
-                                    class="px-3 py-1.5 rounded-full text-sm font-medium border transition-colors"
-                                    :class="{
-                                        'bg-indigo-100 dark:bg-indigo-900/30 border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300': isStatusActive(
-                                            '{{ $status }}'),
-                                        'bg-white dark:bg-zinc-800 border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300':
-                                            !isStatusActive('{{ $status }}')
-                                    }">
-                                    {{ ucfirst($status) }}
-                                </button>
-                            @endforeach
-                        </div>
-                    </div>
-
-                    <!-- Time Period Filter Pills -->
+                    <!-- Time Period Dropdown -->
                     <div>
                         <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Time Period</label>
-                        <div class="flex flex-wrap gap-2">
-                            <button type="button" @click="toggleDateFilter('')"
-                                class="px-3 py-1.5 rounded-full text-sm font-medium border transition-colors"
-                                :class="{
-                                    'bg-indigo-100 dark:bg-indigo-900/30 border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300': selectedDateFilters
-                                        .length === 0,
-                                    'bg-white dark:bg-zinc-800 border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300': selectedDateFilters
-                                        .length > 0
-                                }">
-                                All Time
-                            </button>
-
-                            @foreach ($dateFilterOptions as $filter)
-                                <button type="button" @click="toggleDateFilter('{{ $filter }}')"
-                                    class="px-3 py-1.5 rounded-full text-sm font-medium border transition-colors"
-                                    :class="{
-                                        'bg-indigo-100 dark:bg-indigo-900/30 border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300': isDateFilterActive(
-                                            '{{ $filter }}'),
-                                        'bg-white dark:bg-zinc-800 border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300':
-                                            !isDateFilterActive('{{ $filter }}')
-                                    }">
-                                    {{ $filter === 'today' ? 'Today' : ($filter === 'week' ? 'This Week' : 'This Month') }}
-                                </button>
-                            @endforeach
-                        </div>
+                        <x-dropdown.index width="full" triggerClasses="w-full">
+                            <x-slot:trigger>
+                                <div
+                                    class="w-full flex items-center justify-between px-4 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-200 shadow-sm cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-700">
+                                    <span x-text="filters.dateLabel || 'All Time'"></span>
+                                    <i data-lucide="chevron-down" class="w-4 h-4 text-zinc-400"></i>
+                                </div>
+                            </x-slot:trigger>
+                            <x-slot:content>
+                                <x-dropdown.item @click="selectDateFilter('', 'All Time')" :active="request('date_filter') === ''">All
+                                    Time</x-dropdown.item>
+                                <x-dropdown.item @click="selectDateFilter('today', 'Today')"
+                                    :active="request('date_filter') === 'today'">Today</x-dropdown.item>
+                                <x-dropdown.item @click="selectDateFilter('week', 'This Week')" :active="request('date_filter') === 'week'">This
+                                    Week</x-dropdown.item>
+                                <x-dropdown.item @click="selectDateFilter('month', 'This Month')" :active="request('date_filter') === 'month'">This
+                                    Month</x-dropdown.item>
+                            </x-slot:content>
+                        </x-dropdown.index>
                     </div>
+                </div>
 
-                    <div class="flex justify-end mt-4">
-                        <button type="button" @click="applyFilters()"
-                            class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center gap-2">
-                            <i data-lucide="filter" class="w-4 h-4"></i>
-                            Apply Filters
-                        </button>
-                        <button type="button" @click="resetFilters()"
-                            class="ml-2 px-4 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2">
-                            <i data-lucide="x" class="w-4 h-4"></i>
-                            Reset
-                        </button>
-                    </div>
+                <div class="flex justify-end mt-4">
+                    <button type="button" @click="applyFilters()"
+                        class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center gap-2">
+                        <i data-lucide="filter" class="w-4 h-4"></i>
+                        Apply Filters
+                    </button>
+                    <button type="button" @click="resetFilters()"
+                        class="ml-2 px-4 py-2 border border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center gap-2">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                        Reset
+                    </button>
+                </div>
             </x-slot:filters>
         </x-index-header>
 
@@ -476,6 +381,7 @@
                 timerIntervals: {},
                 filters: {
                     status: '{{ request('status') }}',
+                    statusLabel: '{{ request('status') ? ucfirst(request('status')) : 'All Statuses' }}',
                     project_id: '{{ request('project_id') }}',
                     projectLabel: 'All Projects',
                     script_id: '{{ request('script_id') }}',
@@ -485,170 +391,58 @@
                     date_filter: '{{ request('date_filter') }}',
                     dateLabel: '{{ request('date_filter') ? getDateFilterLabel(request('date_filter')) : 'All Time' }}'
                 },
-                scripts: @json($scripts ?? []),
-                environments: @json($environments ?? []),
-                filteredScripts: [],
-                filteredEnvironments: [],
-                isLoadingScripts: false,
-                isLoadingEnvironments: false,
-                searchTerm: '',
-                environmentSearchTerm: '',
-                selectedStatuses: [],
-                selectedDateFilters: [],
-
                 init() {
                     // Initialize dropdown labels
                     this.initializeDropdownLabels();
 
-                    // Initialize filtered lists
-                    this.filteredScripts = this.scripts;
-                    this.filteredEnvironments = this.environments;
+                    // Add event listener for project change
+                    this.$watch('filters.project_id', (value) => {
+                        if (value !== this.filters.project_id) {
+                            // Reset script and environment when project changes
+                            this.filters.script_id = '';
+                            this.filters.scriptLabel = 'All Scripts';
+                            this.filters.environment_id = '';
+                            this.filters.environmentLabel = 'All Environments';
 
-                    // Initialize status and date filter pills
-                    this.selectedStatuses = this.filters.status ? [this.filters.status] : [];
-                    this.selectedDateFilters = this.filters.date_filter ? [this.filters.date_filter] : [];
-
-                    // Set up watchers
-                    this.$watch('searchTerm', () => this.filterScripts());
-                    this.$watch('environmentSearchTerm', () => this.filterEnvironments());
+                            this.applyFilters();
+                        }
+                    });
                 },
 
                 initializeDropdownLabels() {
-                    // Project label
-                    if (this.filters.project_id) {
-                        const project = @json($projects).find(p => p.id === this.filters.project_id);
-                        if (project) {
-                            this.filters.projectLabel = project.name;
-                        }
-                    }
-
-                    // Script label
+                    // Script label initialization
                     if (this.filters.script_id) {
-                        const script = this.scripts.find(s => s.id === this.filters.script_id);
-                        if (script) {
-                            this.filters.scriptLabel = script.name;
-                        }
+                        @foreach ($scripts ?? [] as $script)
+                            if ('{{ $script->id }}' === this.filters.script_id) {
+                                this.filters.scriptLabel = '{{ $script->name }}';
+                            }
+                        @endforeach
                     }
 
-                    // Environment label
+                    // Environment label initialization
                     if (this.filters.environment_id) {
-                        const env = this.environments.find(e => e.id === this.filters.environment_id);
-                        if (env) {
-                            this.filters.environmentLabel = env.name;
-                        }
-                    }
-                },
-
-                selectProject(id, name) {
-                    this.filters.project_id = id;
-                    this.filters.projectLabel = id ? name : 'All Projects';
-
-                    // Reset script and environment when project changes
-                    this.filters.script_id = '';
-                    this.filters.scriptLabel = 'All Scripts';
-                    this.filters.environment_id = '';
-                    this.filters.environmentLabel = 'All Environments';
-
-                    if (id) {
-                        // Load scripts and environments via AJAX
-                        this.loadScriptsForProject(id);
-                        this.loadEnvironmentsForProject(id);
-                    } else {
-                        // Reset to empty
-                        this.scripts = [];
-                        this.environments = [];
-                        this.filteredScripts = [];
-                        this.filteredEnvironments = [];
-                    }
-                },
-
-                async loadScriptsForProject(projectId) {
-                    this.isLoadingScripts = true;
-
-                    try {
-                        const response = await fetch(`/dashboard/api/projects/${projectId}/test-scripts`);
-                        if (!response.ok) throw new Error(`Failed to fetch scripts (${response.status})`);
-
-                        const result = await response.json();
-                        if (result.success) {
-                            this.scripts = result.scripts || [];
-                            this.filteredScripts = this.scripts;
-                        } else {
-                            throw new Error(result.message || 'Failed to load scripts');
-                        }
-                    } catch (error) {
-                        console.error('Error loading scripts:', error);
-                        this.scripts = [];
-                        this.filteredScripts = [];
-
-                        // Show error notification
-                        window.dispatchEvent(new CustomEvent('notify', {
-                            detail: {
-                                type: 'error',
-                                message: `Failed to load scripts: ${error.message}`
+                        @foreach ($environments ?? [] as $environment)
+                            if ('{{ $environment->id }}' === this.filters.environment_id) {
+                                this.filters.environmentLabel = '{{ $environment->name }}';
                             }
-                        }));
-                    } finally {
-                        this.isLoadingScripts = false;
+                        @endforeach
+                    }
+
+                    // Date filter label initialization
+                    if (this.filters.date_filter) {
+                        const dateLabels = {
+                            'today': 'Today',
+                            'week': 'This Week',
+                            'month': 'This Month'
+                        };
+                        this.filters.dateLabel = dateLabels[this.filters.date_filter] || 'All Time';
                     }
                 },
 
-                async loadEnvironmentsForProject(projectId) {
-                    this.isLoadingEnvironments = true;
-
-                    try {
-                        const response = await fetch(`/dashboard/api/projects/${projectId}/environments`);
-                        if (!response.ok) throw new Error(`Failed to fetch environments (${response.status})`);
-
-                        const result = await response.json();
-                        if (result.success) {
-                            this.environments = result.environments || [];
-                            this.filteredEnvironments = this.environments;
-                        } else {
-                            throw new Error(result.message || 'Failed to load environments');
-                        }
-                    } catch (error) {
-                        console.error('Error loading environments:', error);
-                        this.environments = [];
-                        this.filteredEnvironments = [];
-
-                        // Show error notification
-                        window.dispatchEvent(new CustomEvent('notify', {
-                            detail: {
-                                type: 'error',
-                                message: `Failed to load environments: ${error.message}`
-                            }
-                        }));
-                    } finally {
-                        this.isLoadingEnvironments = false;
-                    }
-                },
-
-                filterScripts() {
-                    if (!this.searchTerm) {
-                        this.filteredScripts = this.scripts;
-                        return;
-                    }
-
-                    const term = this.searchTerm.toLowerCase();
-                    this.filteredScripts = this.scripts.filter(script =>
-                        script.name?.toLowerCase().includes(term) ||
-                        script.framework_type?.toLowerCase().includes(term) ||
-                        (script.test_case?.title && script.test_case.title.toLowerCase().includes(term))
-                    );
-                },
-
-                filterEnvironments() {
-                    if (!this.environmentSearchTerm) {
-                        this.filteredEnvironments = this.environments;
-                        return;
-                    }
-
-                    const term = this.environmentSearchTerm.toLowerCase();
-                    this.filteredEnvironments = this.environments.filter(env =>
-                        env.name?.toLowerCase().includes(term) ||
-                        (env.is_global ? 'global' : 'project').includes(term)
-                    );
+                // Dropdown selection methods
+                selectStatus(status) {
+                    this.filters.status = status;
+                    this.filters.statusLabel = status ? status.charAt(0).toUpperCase() + status.slice(1) : 'All Statuses';
                 },
 
                 selectScript(id, name) {
@@ -661,41 +455,24 @@
                     this.filters.environmentLabel = id ? name : 'All Environments';
                 },
 
-                // For status pills
-                toggleStatus(status) {
-                    this.selectedStatuses = status ? [status] : []; // Single selection
-                    this.filters.status = status || '';
+                selectDateFilter(filter, label) {
+                    this.filters.date_filter = filter;
+                    this.filters.dateLabel = filter ? label : 'All Time';
                 },
 
-                isStatusActive(status) {
-                    return this.selectedStatuses.includes(status);
-                },
-
-                // For date filter pills
-                toggleDateFilter(filter) {
-                    this.selectedDateFilters = filter ? [filter] : []; // Single selection
-                    this.filters.date_filter = filter || '';
-                },
-
-                isDateFilterActive(filter) {
-                    return this.selectedDateFilters.includes(filter);
-                },
-
+                // Apply filters and redirect
                 applyFilters() {
                     let url = new URL(window.location.href);
 
                     // Update or clear parameters based on filter values
-                    if (this.filters.project_id) url.searchParams.set('project_id', this.filters.project_id);
-                    else url.searchParams.delete('project_id');
+                    if (this.filters.status) url.searchParams.set('status', this.filters.status);
+                    else url.searchParams.delete('status');
 
                     if (this.filters.script_id) url.searchParams.set('script_id', this.filters.script_id);
                     else url.searchParams.delete('script_id');
 
                     if (this.filters.environment_id) url.searchParams.set('environment_id', this.filters.environment_id);
                     else url.searchParams.delete('environment_id');
-
-                    if (this.filters.status) url.searchParams.set('status', this.filters.status);
-                    else url.searchParams.delete('status');
 
                     if (this.filters.date_filter) url.searchParams.set('date_filter', this.filters.date_filter);
                     else url.searchParams.delete('date_filter');
@@ -704,6 +481,7 @@
                     window.location.href = url.toString();
                 },
 
+                // Reset all filters
                 resetFilters() {
                     window.location.href = '{{ route('dashboard.executions.index') }}';
                 },
@@ -780,6 +558,19 @@
                             console.error('Error polling execution status:', error);
                         }
                     }, 5000);
+                },
+
+                selectProject(id, name) {
+                    this.filters.project_id = id;
+                    this.filters.projectLabel = id ? name : 'All Projects';
+
+                    // Reset script and environment when project changes
+                    this.filters.script_id = '';
+                    this.filters.scriptLabel = 'All Scripts';
+                    this.filters.environment_id = '';
+                    this.filters.environmentLabel = 'All Environments';
+
+                    this.applyFilters();
                 },
 
                 // Clear polling and timer intervals
