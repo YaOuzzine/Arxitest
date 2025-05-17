@@ -13,19 +13,32 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
-use Symfony\Component\Process\Process;
 use Illuminate\Support\Str;
 
 class RunTestExecutionJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    /**
+     * The number of seconds the job can run before timing out.
+     *
+     * @var int
+     */
+    public $timeout = 1800; // 30 minutes
+
+    /**
+     * The number of times the job may be attempted.
+     *
+     * @var int
+     */
+    public $tries = 1;
+
+    /**
+     * The test execution instance.
+     *
+     * @var \App\Models\TestExecution
+     */
     protected $execution;
-    protected $logPath;
-    protected $logFile;
-    protected $containerName;
-    protected $containerInstance;
-    protected $timeout = 600; // Default timeout in seconds (10 minutes)
 
     /**
      * Create a new job instance.
@@ -33,278 +46,125 @@ class RunTestExecutionJob implements ShouldQueue
     public function __construct(TestExecution $execution)
     {
         $this->execution = $execution;
-
-        // Create a base directory path without any trailing slashes
-        $baseDir = rtrim(storage_path('app'), '/\\');
-
-        // Build paths with explicit directory separators
-        $execDir = 'executions' . DIRECTORY_SEPARATOR . $execution->id;
-        $this->logPath = $baseDir . DIRECTORY_SEPARATOR . $execDir;
-        $this->logFile = $this->logPath . DIRECTORY_SEPARATOR . 'execution_log.txt';
-        $this->containerName = "test_exec_{$execution->id}";
-
-        // Debug log paths at construction time
-        Log::debug("Job constructor paths", [
-            'execution_id' => $execution->id,
-            'storage_path' => storage_path(),
-            'app_path' => $baseDir,
-            'log_path' => $this->logPath,
-            'log_file' => $this->logFile
-        ]);
-
-        // Get custom timeout if specified in metadata
-        if (isset($execution->metadata['timeout_minutes']) && is_numeric($execution->metadata['timeout_minutes'])) {
-            $this->timeout = (int)$execution->metadata['timeout_minutes'] * 60;
-        }
     }
 
     /**
      * Execute the job.
      */
-    public function handle()
+    public function handle(): void
     {
+        Log::info("Starting test execution #{$this->execution->id}");
+        $container = null;
+
         try {
-            $scriptName = $this->execution->testScript->name ?? 'Unknown Script';
-            $envName = $this->execution->environment->name ?? 'Unknown Environment';
+            // 1. Update execution status to running
+            $runningStatus = ExecutionStatus::where('name', 'running')->first();
+            $this->execution->status_id = $runningStatus->id;
+            $this->execution->save();
 
-            Log::info("Starting test execution", [
-                'execution_id' => $this->execution->id,
-                'script_name' => $scriptName,
-                'environment' => $envName
-            ]);
+            // 2. Get test script and environment details
+            $script = $this->execution->testScript;
+            $environment = $this->execution->environment;
 
-            // Check all parent directories exist
-            $parentDir = dirname($this->logPath);
-            Log::debug("Directory structure check", [
-                'execution_id' => $this->execution->id,
-                'log_path' => $this->logPath,
-                'parent_dir' => $parentDir,
-                'parent_exists' => file_exists($parentDir),
-                'storage_app_dir' => storage_path('app'),
-                'storage_app_exists' => file_exists(storage_path('app')),
-                'storage_app_executions' => storage_path('app' . DIRECTORY_SEPARATOR . 'executions'),
-                'executions_exists' => file_exists(storage_path('app' . DIRECTORY_SEPARATOR . 'executions'))
-            ]);
-
-            // Make sure parent directories exist
-            $this->createParentDirectories();
-
-            // Create log directory
-            $dirResult = mkdir($this->logPath, 0755, true);
-
-            Log::debug("Log directory creation", [
-                'execution_id' => $this->execution->id,
-                'log_path' => $this->logPath,
-                'creation_result' => $dirResult,
-                'dir_exists_after' => is_dir($this->logPath),
-                'dir_writable' => is_dir($this->logPath) ? is_writable($this->logPath) : false
-            ]);
-
-            if (!is_dir($this->logPath)) {
-                throw new \Exception("Could not create log directory at: {$this->logPath}");
+            if (!$script) {
+                throw new \Exception("Test script not found for execution #{$this->execution->id}");
             }
 
-            // Initialize log file
-            $logInitResult = file_put_contents($this->logFile, "=== Test Execution Log ===\n");
-            if ($logInitResult === false) {
-                throw new \Exception("Could not write to log file at: {$this->logFile}");
+            // 3. Prepare working directory
+            $workDirName = 'execution_' . $this->execution->id . '_' . Str::random(8);
+            $workDir = storage_path("app/executions/{$workDirName}");
+            if (!is_dir($workDir)) {
+                mkdir($workDir, 0755, true);
             }
 
-            $this->appendLog("Starting execution for script: {$scriptName}");
-            $this->appendLog("Environment: {$envName}");
+            // 4. Write test script to file
+            $scriptExtension = $this->getScriptExtension($script->framework_type);
+            $scriptPath = $workDir . '/your_tests' . $scriptExtension;
+            file_put_contents($scriptPath, $script->script_content);
 
-            // Update execution status to running
-            $this->updateExecutionStatus('running');
-
-            // Prepare test script and environment
-            $this->prepareTestFiles();
-
-            // Create and run container
-            $this->createContainer();
-            $exitCode = $this->runContainer();
-
-            // Process results and generate report
-            $this->processResults($exitCode);
-
-            Log::info("Test execution completed", [
+            // 5. Create container record
+            $containerId = 'arxitest_' . Str::random(10);
+            $container = Container::create([
                 'execution_id' => $this->execution->id,
-                'exit_code' => $exitCode
+                'container_id' => $containerId,
+                'status' => Container::PENDING,
+                'configuration' => [
+                    'framework' => $script->framework_type,
+                    'environment' => $environment ? $environment->name : 'default',
+                    'work_dir' => $workDir,
+                ],
+                'start_time' => now()
             ]);
+
+            // 6. Prepare Docker run command
+            $dockerImage = $this->getDockerImage($script->framework_type);
+            $envVars = $this->getEnvironmentVars($environment);
+            $envVars .= ' -e CHROME_OPTIONS="--headless --no-sandbox --disable-dev-shm-usage --disable-gpu"';
+
+            $dockerCommand = [
+                'docker run',
+                "--name {$containerId}",
+                '-d',
+                "--label arxitest_execution_id={$this->execution->id}",
+                "-v {$workDir}:/tests",
+                $envVars,
+                "--entrypoint python",
+                $dockerImage,
+                "-m",  // Use Python's module running capability
+                "unittest",  // Invoke the unittest module
+                "/tests/your_tests{$scriptExtension}"  // Path to your test file
+            ];
+            $fullCommand = implode(' ', array_filter($dockerCommand));
+
+            // 7. Start the container
+            Log::info("Running Docker command: {$fullCommand}");
+            exec($fullCommand . ' 2>&1', $output, $exitCode);
+
+            if ($exitCode !== 0) {
+                throw new \Exception("Failed to start Docker container: " . implode("\n", $output));
+            }
+
+            // Container started successfully, update status
+            $container->status = Container::RUNNING;
+            $container->save();
+
+            // 8. Monitor container execution
+            $this->monitorContainer($container);
+
+            // 9. Process test results
+            $this->processResults($container);
         } catch (\Exception $e) {
-            Log::error("Failed to start container: {$e->getMessage()}", [
-                'execution_id' => $this->execution->id,
-                'error_file' => $e->getFile(),
-                'error_line' => $e->getLine()
-            ]);
+            Log::error("Error executing test #{$this->execution->id}: " . $e->getMessage());
 
-            Log::debug("Execution error trace", [
-                'execution_id' => $this->execution->id,
-                'trace' => $e->getTraceAsString()
-            ]);
-
-            $this->updateExecutionStatus('failed');
-            $this->cleanup();
-        }
-    }
-
-    /**
-     * Create parent directories for log path
-     */
-    protected function createParentDirectories()
-    {
-        // Create the executions directory
-        $executionsDir = dirname($this->logPath);
-        if (!is_dir($executionsDir)) {
-            $result = mkdir($executionsDir, 0755, true);
-            Log::debug("Created executions directory", [
-                'directory' => $executionsDir,
-                'result' => $result,
-                'exists_after' => is_dir($executionsDir)
-            ]);
-        }
-    }
-
-    /**
-     * Append to log file
-     */
-    protected function appendLog($message)
-    {
-        try {
-            $timestamp = now()->format('Y-m-d H:i:s');
-            $logLine = "[{$timestamp}] {$message}\n";
-
-            $result = file_put_contents($this->logFile, $logLine, FILE_APPEND);
-
-            if ($result === false) {
-                Log::warning("Failed to write to log file", [
-                    'execution_id' => $this->execution->id,
-                    'log_file' => $this->logFile
-                ]);
+            // Set execution to failed
+            $failedStatus = ExecutionStatus::where('name', 'failed')->first();
+            if ($failedStatus) {
+                $this->execution->status_id = $failedStatus->id;
+                $this->execution->end_time = now();
+                $this->execution->save();
             }
-        } catch (\Exception $e) {
-            Log::warning("Error writing to log file: {$e->getMessage()}", [
-                'execution_id' => $this->execution->id
-            ]);
-        }
-    }
 
-    /**
-     * Prepare test script and environment files
-     */
-    protected function prepareTestFiles()
-    {
-        $this->appendLog("Preparing test files...");
+            // Update container status if it exists
+            if ($container) {
+                $container->status = Container::FAILED;
+                $container->end_time = now();
+                $container->save();
 
-        $testScript = $this->execution->testScript;
-        if (!$testScript) {
-            throw new \Exception("Test script not found");
-        }
+                // Try to clean up the container
+                $this->cleanupContainer($container->container_id);
+            }
 
-        // Determine file extension based on framework type
-        $extension = $this->getFileExtension($testScript->framework_type);
-        $scriptPath = $this->logPath . DIRECTORY_SEPARATOR . 'test_script' . $extension;
-
-        Log::debug("Writing test script file", [
-            'execution_id' => $this->execution->id,
-            'script_path' => $scriptPath,
-            'directory_exists' => is_dir($this->logPath),
-            'directory_writable' => is_writable($this->logPath),
-            'content_length' => strlen($testScript->script_content ?? '')
-        ]);
-
-        // Write script content to file
-        $scriptResult = file_put_contents($scriptPath, $testScript->script_content);
-
-        if ($scriptResult === false) {
-            Log::error("Failed to write test script", [
-                'execution_id' => $this->execution->id,
-                'script_path' => $scriptPath,
-                'directory_exists' => is_dir($this->logPath)
-            ]);
-            throw new \Exception("Failed to write test script file");
-        }
-
-        $this->appendLog("Test script written successfully");
-
-        // Create environment file
-        $this->createEnvironmentFile();
-
-        // Load test data if available
-        $testCase = $testScript->testCase;
-        if ($testCase && $testCase->testData && $testCase->testData->isNotEmpty()) {
-            $this->appendLog("Processing test data...");
-
-            foreach ($testCase->testData as $testData) {
-                $dataFileName = Str::slug($testData->name) . $this->getDataExtension($testData->format);
-                $dataPath = $this->logPath . DIRECTORY_SEPARATOR . $dataFileName;
-
-                $dataResult = file_put_contents($dataPath, $testData->content);
-                if ($dataResult === false) {
-                    Log::warning("Failed to write test data file", [
-                        'execution_id' => $this->execution->id,
-                        'data_path' => $dataPath
-                    ]);
-                } else {
-                    $this->appendLog("Test data written: {$dataFileName}");
-                }
+            // Cleanup work directory
+            if (isset($workDir) && is_dir($workDir)) {
+                exec("rm -rf {$workDir}");
             }
         }
     }
 
     /**
-     * Create a .env file with environment variables
+     * Get the script file extension based on framework type.
      */
-    protected function createEnvironmentFile()
-    {
-        $environment = $this->execution->environment;
-        if (!$environment) {
-            $this->appendLog("[WARN] No environment configured for this execution");
-            return;
-        }
-
-        $this->appendLog("Setting up environment: {$environment->name}");
-        $envContent = "# Environment: {$environment->name}\n";
-
-        // Ensure environment->configuration is an array
-        $config = $environment->configuration;
-        if (is_array($config)) {
-            foreach ($config as $key => $value) {
-                // Mask sensitive values in logs
-                $logValue = Str::contains(strtolower($key), ['password', 'token', 'secret', 'key'])
-                    ? '********'
-                    : $value;
-
-                $this->appendLog("ENV: {$key}={$logValue}");
-                $envContent .= "{$key}={$value}\n";
-            }
-        } else {
-            Log::warning("Environment configuration is not an array", [
-                'execution_id' => $this->execution->id,
-                'config_type' => gettype($config)
-            ]);
-        }
-
-        // Add execution context variables
-        $envContent .= "TEST_EXECUTION_ID={$this->execution->id}\n";
-        $envContent .= "TEST_SCRIPT_NAME={$this->execution->testScript->name}\n";
-
-        $envPath = $this->logPath . DIRECTORY_SEPARATOR . '.env';
-        $envResult = file_put_contents($envPath, $envContent);
-
-        if ($envResult === false) {
-            Log::warning("Failed to write environment file", [
-                'execution_id' => $this->execution->id,
-                'env_path' => $envPath
-            ]);
-        } else {
-            $this->appendLog("Environment file created");
-        }
-    }
-
-    /**
-     * Get file extension based on framework type
-     */
-    protected function getFileExtension($frameworkType)
+    protected function getScriptExtension(string $frameworkType): string
     {
         return match ($frameworkType) {
             'selenium-python' => '.py',
@@ -314,260 +174,312 @@ class RunTestExecutionJob implements ShouldQueue
     }
 
     /**
-     * Get file extension for test data
+     * Get the Docker image based on framework type.
      */
-    protected function getDataExtension($format)
-    {
-        return match ($format) {
-            'json' => '.json',
-            'csv' => '.csv',
-            'xml' => '.xml',
-            default => '.txt'
-        };
-    }
-
-    /**
-     * Create Docker container for the test
-     */
-    protected function createContainer()
-    {
-        $this->appendLog("Creating container...");
-
-        // Determine which Docker image to use based on framework type
-        $frameworkType = $this->execution->testScript->framework_type;
-        $dockerImage = $this->getDockerImage($frameworkType);
-
-        // Create container record in database
-        $this->containerInstance = Container::create([
-            'execution_id' => $this->execution->id,
-            'container_id' => 'pending', // Will update with actual ID
-            'container_type' => $frameworkType,
-            'status' => 'pending',
-            'start_time' => now(),
-        ]);
-
-        // Normalize path for Docker volume mounting (convert Windows path if needed)
-        $volumePath = $this->getDockerPath($this->logPath);
-
-        Log::debug("Docker volume path preparation", [
-            'execution_id' => $this->execution->id,
-            'original_path' => $this->logPath,
-            'docker_volume_path' => $volumePath
-        ]);
-
-        // Build Docker run command
-        $createCmd = [
-            'docker', 'create',
-            '--name', $this->containerName,
-            '--network', 'host',
-            '-v', "{$volumePath}:/tests",
-        ];
-
-        // Add environment variables from environment file
-        $envFilePath = $this->logPath . DIRECTORY_SEPARATOR . '.env';
-        if (file_exists($envFilePath)) {
-            $createCmd[] = '--env-file';
-            $createCmd[] = $this->getDockerPath($envFilePath);
-        } else {
-            Log::warning("Environment file not found for Docker", [
-                'execution_id' => $this->execution->id,
-                'env_file_path' => $envFilePath
-            ]);
-        }
-
-        // Add resource limits
-        $createCmd[] = '--memory';
-        $createCmd[] = '1g';
-        $createCmd[] = '--cpus';
-        $createCmd[] = '1.0';
-
-        // Add image and command
-        $createCmd[] = $dockerImage;
-
-        // Add command based on framework type
-        $createCmd = array_merge($createCmd, $this->getContainerCommand($frameworkType));
-
-        // Debug output
-        $this->appendLog("Docker command: " . implode(' ', $createCmd));
-
-        // Create container
-        $process = new Process($createCmd);
-        $process->setTimeout(60); // 1 minute timeout for container creation
-        $process->run();
-
-        if (!$process->isSuccessful()) {
-            throw new \Exception("Container creation failed: " . $process->getErrorOutput());
-        }
-
-        // Get actual container ID
-        $containerId = trim($process->getOutput());
-        $this->containerInstance->update([
-            'container_id' => $containerId,
-            'status' => 'created'
-        ]);
-
-        $this->appendLog("Container created: {$containerId}");
-    }
-
-    /**
-     * Get Docker image based on framework type
-     */
-    protected function getDockerImage($frameworkType)
+    protected function getDockerImage(string $frameworkType): string
     {
         return match ($frameworkType) {
             'selenium-python' => 'arxitest/selenium-python:latest',
-            'cypress' => 'cypress/included:latest',
-            default => 'alpine:latest'
+            'cypress' => 'arxitest/cypress:latest',
+            default => 'alpine:latest' // Fallback image
         };
     }
 
     /**
-     * Get container command array based on framework type
+     * Get environment variables string for Docker.
      */
-    protected function getContainerCommand($frameworkType)
+    protected function getEnvironmentVars($environment): string
     {
-        return match ($frameworkType) {
-            'selenium-python' => ['python', '-u', '/tests/test_script.py'],
-            'cypress' => ['cypress', 'run', '--spec', '/tests/test_script.js'],
-            default => ['cat', '/tests/test_script.txt']
-        };
-    }
-
-    /**
-     * Convert Windows paths to Docker-compatible paths
-     */
-    protected function getDockerPath($path)
-    {
-        // For Windows, convert C:\path\to\dir to /c/path/to/dir
-        if (DIRECTORY_SEPARATOR === '\\') {
-            // Check if path starts with a drive letter (e.g., C:)
-            if (preg_match('/^([A-Z]:)(.*)$/i', $path, $matches)) {
-                $driveLetter = strtolower($matches[1][0]); // Get drive letter and make lowercase
-                $remainingPath = str_replace('\\', '/', $matches[2]); // Convert backslashes to forward slashes
-                $dockerPath = "/{$driveLetter}{$remainingPath}";
-
-                Log::debug("Windows path converted for Docker", [
-                    'windows_path' => $path,
-                    'docker_path' => $dockerPath
-                ]);
-
-                return $dockerPath;
-            }
+        if (!$environment || !$environment->configuration) {
+            return '';
         }
 
-        // For non-Windows or paths without drive letters, just replace backslashes
-        return str_replace('\\', '/', $path);
+        $envVars = [];
+        foreach ($environment->configuration as $key => $value) {
+            // Properly escape the value for shell
+            $escapedValue = addslashes($value);
+            $envVars[] = "-e {$key}=\"{$escapedValue}\"";
+        }
+
+        return implode(' ', $envVars);
+    }
+
+    protected function monitorContainer(Container $container): void
+    {
+        $containerId = $container->container_id;
+        $startTime = time();
+        $timeout = 1200; // 20 minutes timeout
+        $checkInterval = 5; // Check every 5 seconds
+        $memoryLimit = 100 * 1024 * 1024; // 100MB memory limit for PHP process
+        $lastLogsHash = ''; // Track changes in logs to detect completion
+        $completionPattern = '/Ran \d+ test.* in \d+\.\d+s\s+OK/'; // Pattern to detect successful test completion
+        $failurePattern = '/Ran \d+ test.* in \d+\.\d+s\s+FAILED/'; // Pattern to detect failed test completion
+        $noChangesCount = 0; // Counter for when logs aren't changing
+
+        Log::info("Monitoring container {$containerId}");
+
+        // Create a log file for this execution
+        $executionLogPath = storage_path("app/executions/{$this->execution->id}/execution_log.txt");
+        if (!is_dir(dirname($executionLogPath))) {
+            mkdir(dirname($executionLogPath), 0755, true);
+        }
+        file_put_contents($executionLogPath, "Starting execution: " . date('Y-m-d H:i:s') . "\n");
+
+        while (time() - $startTime < $timeout) {
+            // Check container status
+            if (memory_get_usage(true) > $memoryLimit) {
+                $errorMsg = "Memory usage exceeded limit. Stopping execution to prevent crash.";
+                Log::error($errorMsg);
+                file_put_contents($executionLogPath, $errorMsg . "\n", FILE_APPEND);
+                $this->failExecution($container, "Memory limit exceeded");
+                break;
+            }
+
+            // Check if container is still running
+            exec("docker inspect --format='{{.State.Status}}' {$containerId} 2>&1", $statusOutput, $statusCode);
+
+            if ($statusCode !== 0 || !isset($statusOutput[0])) {
+                $errorMsg = "Failed to get container status: " . implode("\n", $statusOutput);
+                Log::error($errorMsg);
+                file_put_contents($executionLogPath, $errorMsg . "\n", FILE_APPEND);
+                $this->failExecution($container, "Container monitoring failed");
+                break;
+            }
+
+            $containerStatus = trim($statusOutput[0]);
+
+            // If container has already exited, break the loop
+            if ($containerStatus === 'exited' || $containerStatus === 'dead') {
+                Log::info("Container {$containerId} finished with status: {$containerStatus}");
+                file_put_contents($executionLogPath, "Container finished with status: {$containerStatus}\n", FILE_APPEND);
+                break;
+            }
+
+            // Get current logs to track progress
+            exec("docker logs {$containerId} 2>&1", $logsOutput, $logsStatus);
+            if ($logsStatus === 0 && !empty($logsOutput)) {
+                $currentLogs = implode("\n", $logsOutput);
+
+                // Hash the logs to determine if they've changed
+                $currentLogsHash = md5($currentLogs);
+                $logsChanged = ($currentLogsHash !== $lastLogsHash);
+
+                if ($logsChanged) {
+                    file_put_contents($executionLogPath, $currentLogs . "\n", FILE_APPEND);
+                    $lastLogsHash = $currentLogsHash;
+                    $noChangesCount = 0; // Reset counter when logs change
+
+                    // Check for test completion patterns in the logs
+                    if (preg_match($completionPattern, $currentLogs)) {
+                        Log::info("Test completion detected in logs for container {$containerId}");
+                        file_put_contents($executionLogPath, "Test completion detected in logs\n", FILE_APPEND);
+                        // Give container a moment to fully complete and exit on its own
+                        sleep(5);
+                        break;
+                    }
+
+                    if (preg_match($failurePattern, $currentLogs)) {
+                        Log::info("Test failure detected in logs for container {$containerId}");
+                        file_put_contents($executionLogPath, "Test failure detected in logs\n", FILE_APPEND);
+                        // Give container a moment to fully complete and exit on its own
+                        sleep(5);
+                        break;
+                    }
+                } else {
+                    // If logs aren't changing, increment counter
+                    $noChangesCount++;
+
+                    // If logs haven't changed for 6 checks (30 seconds), assume test is done
+                    if ($noChangesCount >= 6) {
+                        Log::info("No log changes detected for 30 seconds, assuming test completion for {$containerId}");
+                        file_put_contents($executionLogPath, "No log changes for 30 seconds, assuming completion\n", FILE_APPEND);
+                        break;
+                    }
+                }
+
+                // Update execution with current logs for better tracking
+                $this->execution->s3_results_key = "executions/{$this->execution->id}/execution_log.txt";
+                $this->execution->save();
+            }
+
+            // Collect resource metrics every 15 seconds
+            if (time() % 15 === 0) {
+                $this->collectResourceMetrics($container);
+            }
+
+            gc_collect_cycles();
+            sleep($checkInterval);
+        }
+
+        // Check if we hit the timeout
+        if (time() - $startTime >= $timeout) {
+            Log::warning("Container {$containerId} execution timed out");
+            file_put_contents($executionLogPath, "Execution timed out after " . round((time() - $startTime) / 60) . " minutes\n", FILE_APPEND);
+
+            // Stop the container
+            exec("docker stop {$containerId} 2>&1");
+            $this->failExecution($container, "timeout");
+        }
+
+        // Make sure we get final logs
+        exec("docker logs {$containerId} 2>&1", $finalLogsOutput, $finalLogsStatus);
+        if ($finalLogsStatus === 0 && !empty($finalLogsOutput)) {
+            $finalLogs = implode("\n", $finalLogsOutput);
+            file_put_contents($executionLogPath, "Final logs:\n" . $finalLogs . "\n", FILE_APPEND);
+        }
     }
 
     /**
-     * Run the container and capture output
+     * Helper method to fail the execution with the given reason
      */
-    protected function runContainer()
+    private function failExecution(Container $container, string $reason): void
     {
-        $this->containerInstance->update(['status' => 'running']);
-        $this->appendLog("Starting container execution...");
+        // Get appropriate status based on failure reason
+        $statusName = ($reason === 'timeout') ? 'timeout' : 'failed';
+        $failedStatus = ExecutionStatus::where('name', $statusName)->first();
 
-        // Start container
-        $startProcess = new Process(['docker', 'start', '-a', $this->containerName]);
-        $startProcess->setTimeout($this->timeout + 30); // Add buffer time
-
-        // Capture output in real-time
-        $startProcess->run(function ($type, $buffer) {
-            $this->appendLog($buffer);
-        });
-
-        $exitCode = $startProcess->getExitCode();
+        // Update execution status
+        $this->execution->status_id = $failedStatus->id;
+        $this->execution->end_time = now();
+        $this->execution->save();
 
         // Update container status
-        $this->containerInstance->update([
-            'status' => $exitCode === 0 ? 'completed' : 'failed',
-            'exit_code' => $exitCode,
-            'end_time' => now()
-        ]);
+        $container->status = ($reason === 'timeout') ? Container::TERMINATED : Container::FAILED;
+        $container->end_time = now();
+        $container->save();
 
-        $this->appendLog("Container execution finished with exit code: {$exitCode}");
-
-        return $exitCode;
+        // If reason is timeout, throw an exception to break out of job
+        if ($reason === 'timeout') {
+            throw new \Exception("Test execution timed out");
+        }
     }
 
     /**
-     * Process execution results and generate report
+     * Helper method to update status for failed executions
      */
-    protected function processResults($exitCode)
+    private function updateExecutionFailure(Container $container, string $reason): void
     {
-        // Set final status based on exit code
-        $status = $exitCode === 0 ? 'completed' : 'failed';
-        $this->updateExecutionStatus($status);
+        $failedStatus = ExecutionStatus::where('name', 'failed')->first();
+        $this->execution->status_id = $failedStatus->id;
+        $this->execution->end_time = now();
+        $this->execution->save();
 
-        // Clean up resources
-        $this->cleanup();
+        $container->status = Container::FAILED;
+        $container->end_time = now();
+        $container->save();
     }
 
     /**
-     * Clean up resources
+     * Collect resource metrics for the container.
      */
-    protected function cleanup()
+    protected function collectResourceMetrics(Container $container): void
     {
-        $this->appendLog("Cleaning up resources...");
+        $containerId = $container->container_id;
 
-        try {
-            // Only attempt to remove if we have a container
-            if ($this->containerInstance && $this->containerInstance->container_id &&
-                $this->containerInstance->container_id !== 'pending') {
+        // Get CPU and memory stats
+        exec("docker stats {$containerId} --no-stream --format '{{.CPUPerc}}|{{.MemUsage}}' 2>&1", $statsOutput, $statsCode);
 
-                // Remove container
-                $process = new Process(['docker', 'rm', '-f', $this->containerName]);
-                $process->run();
+        if ($statsCode !== 0 || !isset($statsOutput[0])) {
+            Log::warning("Failed to collect resource metrics for container {$containerId}");
+            return;
+        }
 
-                if (!$process->isSuccessful()) {
-                    Log::warning("Failed to remove container", [
-                        'execution_id' => $this->execution->id,
-                        'container_name' => $this->containerName,
-                        'error' => $process->getErrorOutput()
-                    ]);
-                }
-            }
-        } catch (\Exception $e) {
-            Log::error("Cleanup error: {$e->getMessage()}", [
-                'execution_id' => $this->execution->id
+        // Parse stats output
+        $stats = explode('|', $statsOutput[0]);
+        if (count($stats) >= 2) {
+            $cpuPerc = trim($stats[0]);
+            $memUsage = trim($stats[1]);
+
+            // Extract numeric values
+            $cpuValue = floatval(str_replace('%', '', $cpuPerc));
+
+            // Memory is typically in format "100MiB / 8GiB"
+            $memParts = explode('/', $memUsage);
+            $memValue = floatval(preg_replace('/[^0-9.]/', '', $memParts[0]));
+
+            // Save metric
+            ResourceMetric::create([
+                'container_id' => $container->id,
+                'cpu_usage' => $cpuValue,
+                'memory_usage' => $memValue,
+                'additional_metrics' => [
+                    'raw_cpu' => $cpuPerc,
+                    'raw_memory' => $memUsage
+                ],
+                'metric_time' => now()
             ]);
         }
     }
 
     /**
-     * Update execution status
+     * Process the results after container execution completes.
      */
-    protected function updateExecutionStatus($statusName)
+    protected function processResults(Container $container): void
+    {
+        $containerId = $container->container_id;
+
+        // Get container exit code
+        exec("docker inspect --format='{{.State.ExitCode}}' {$containerId} 2>&1", $exitCodeOutput, $exitCodeStatus);
+
+        if ($exitCodeStatus !== 0 || !isset($exitCodeOutput[0])) {
+            Log::error("Failed to get container exit code: " . implode("\n", $exitCodeOutput));
+            throw new \Exception("Failed to get container exit code");
+        }
+
+        $exitCode = (int)trim($exitCodeOutput[0]);
+
+        // Get container logs
+        exec("docker logs {$containerId} 2>&1", $logsOutput, $logsStatus);
+
+        if ($logsStatus !== 0) {
+            Log::error("Failed to get container logs: " . implode("\n", $logsOutput));
+        }
+
+        $logs = implode("\n", $logsOutput);
+
+        // Save logs to storage
+        $logsPath = "executions/{$this->execution->id}/logs.txt";
+        Storage::put($logsPath, $logs);
+
+        // Update container status
+        $container->status = Container::COMPLETED;
+        $container->end_time = now();
+        $container->save();
+
+        // Update execution status based on exit code
+        if ($exitCode === 0) {
+            $completedStatus = ExecutionStatus::where('name', 'completed')->first();
+            $this->execution->status_id = $completedStatus->id;
+        } else {
+            $failedStatus = ExecutionStatus::where('name', 'failed')->first();
+            $this->execution->status_id = $failedStatus->id;
+        }
+
+        $this->execution->end_time = now();
+        $this->execution->s3_results_key = $logsPath;
+        $this->execution->save();
+
+        // Clean up container
+        $this->cleanupContainer($containerId);
+    }
+
+    /**
+     * Clean up the Docker container.
+     */
+    protected function cleanupContainer($containerId): void
     {
         try {
-            $status = ExecutionStatus::where('name', $statusName)->first();
+            // First stop the container if it's still running
+            exec("docker stop {$containerId} 2>&1", $stopOutput, $stopCode);
 
-            if (!$status) {
-                Log::warning("Status '{$statusName}' not found, using default", [
-                    'execution_id' => $this->execution->id
-                ]);
+            // Then remove it
+            exec("docker rm {$containerId} 2>&1", $rmOutput, $rmCode);
 
-                // Try to fallback to a generic status
-                $status = ExecutionStatus::where('name', 'failed')->first();
-
-                if (!$status) {
-                    throw new \Exception("Could not find status '{$statusName}' or fallback status");
-                }
+            if ($rmCode !== 0) {
+                Log::error("Failed to remove container {$containerId}: " . implode("\n", $rmOutput));
             }
-
-            $data = ['status_id' => $status->id];
-
-            // If this is a completion status, set the end time
-            if (in_array($statusName, ['completed', 'failed', 'aborted', 'timeout'])) {
-                $data['end_time'] = now();
-            }
-
-            $this->execution->update($data);
-
         } catch (\Exception $e) {
-            Log::error("Error updating execution status: {$e->getMessage()}", [
-                'execution_id' => $this->execution->id
-            ]);
+            Log::error("Error cleaning up container {$containerId}: " . $e->getMessage());
         }
     }
 }
