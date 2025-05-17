@@ -110,6 +110,54 @@ class TestExecutionController extends Controller
         ));
     }
 
+    /**
+     * Show the combined creation and monitoring dashboard.
+     */
+    public function dashboard(Request $request, $executionId = null)
+    {
+        // Get current team
+        $team = $this->getCurrentTeam($request);
+
+        // Get projects for this team
+        $projects = $team
+            ->projects()
+            ->orderBy('name')
+            ->get(['id', 'name']);
+        $selectedProjectId = $request->input('project_id');
+
+        // Get active environments
+        $environments = Environment::where('is_active', true)->get();
+
+        // Load execution details if an ID is provided
+        $execution = null;
+        $logs = null;
+        $hasMoreLogs = false;
+        $logFileExists = false;
+        $logFilePath = null;
+
+        if ($executionId) {
+            $execution = TestExecution::with(['testScript', 'initiator', 'environment', 'status', 'containers'])
+                ->find($executionId);
+
+            if ($execution) {
+                ['logs' => $logs, 'hasMore' => $hasMoreLogs] = $this->execService->getRecentLogs($execution);
+                $logFileExists = file_exists(storage_path("app/executions/{$execution->id}/execution_log.txt"));
+                $logFilePath = $execution->id;
+            }
+        }
+
+        return view('dashboard.executions.combined', compact(
+            'projects',
+            'environments',
+            'selectedProjectId',
+            'execution',
+            'logs',
+            'hasMoreLogs',
+            'logFileExists',
+            'logFilePath'
+        ));
+    }
+
     public function create(Request $request)
     {
         // Get current team
@@ -133,67 +181,66 @@ class TestExecutionController extends Controller
         return view('dashboard.executions.create', compact('scripts', 'environments', 'projects', 'selectedProjectId'));
     }
 
+    /**
+     * Store a newly created test execution.
+     */
     public function store(StoreTestExecutionRequest $request)
     {
         try {
-            // Initial logging
             Log::info('TestExecutionController: Received execution request', [
-                'request_data' => $request->all(),
                 'user_id' => Auth::id(),
-                'user_email' => Auth::user()->email ?? 'unknown',
-                'request_method' => $request->method(),
-                'content_type' => $request->header('Content-Type'),
-                'referrer' => $request->header('Referer'),
-            ]);
-
-            // Log validated data
-            $validatedData = $request->validated();
-            Log::info('TestExecutionController: Validated data', [
-                'validated_data' => $validatedData,
-                'missing_fields' => array_diff(['script_id', 'environment_id'], array_keys($validatedData)),
-            ]);
-
-            // Check for required dependencies before creating
-            $scriptExists = \App\Models\TestScript::where('id', $validatedData['script_id'] ?? '')->exists();
-            $environmentExists = \App\Models\Environment::where('id', $validatedData['environment_id'] ?? '')->exists();
-            $pendingStatusExists = \App\Models\ExecutionStatus::where('name', 'pending')->exists();
-
-            Log::info('TestExecutionController: Dependencies check', [
-                'script_exists' => $scriptExists,
-                'script_id' => $validatedData['script_id'] ?? 'missing',
-                'environment_exists' => $environmentExists,
-                'environment_id' => $validatedData['environment_id'] ?? 'missing',
-                'pending_status_exists' => $pendingStatusExists,
+                'validated_data' => $request->validated(),
             ]);
 
             // Create execution
-            Log::info('TestExecutionController: Calling execution service create method');
-            $execution = $this->execService->create($validatedData);
+            $execution = $this->execService->create($request->validated());
 
-            Log::info('TestExecutionController: Execution created successfully', [
-                'execution_id' => $execution->id,
-                'script_id' => $execution->script_id,
-                'environment_id' => $execution->environment_id,
-                'status_id' => $execution->status_id,
-                'start_time' => $execution->start_time,
-            ]);
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Test execution queued successfully!',
+                    'execution' => $execution->load(['testScript', 'initiator', 'environment', 'status'])
+                ]);
+            }
 
-            return redirect()->route('dashboard.executions.show', $execution->id)->with('success', 'Test execution queued successfully!');
+            return redirect()->route('dashboard.executions.show', $execution->id)
+                ->with('success', 'Test execution queued successfully!');
         } catch (\Exception $e) {
             Log::error('TestExecutionController: Failed to create test execution', [
                 'error' => $e->getMessage(),
-                'error_code' => $e->getCode(),
-                'error_file' => $e->getFile(),
-                'error_line' => $e->getLine(),
                 'trace' => $e->getTraceAsString(),
-                'request_data' => $request->all(),
             ]);
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to create test execution: ' . $e->getMessage()
+                ], 500);
+            }
 
             return redirect()
                 ->back()
                 ->withInput()
                 ->with('error', 'Failed to create test execution: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Get execution data in JSON format.
+     */
+    public function getJson(TestExecution $execution)
+    {
+        $execution->load(['testScript', 'initiator', 'environment', 'status', 'containers']);
+        ['logs' => $logs, 'hasMore' => $hasMoreLogs] = $this->execService->getRecentLogs($execution);
+
+        return response()->json([
+            'success' => true,
+            'execution' => $execution,
+            'logs' => $logs,
+            'hasMoreLogs' => $hasMoreLogs,
+            'logOffset' => 0,
+            'logFileExists' => file_exists(storage_path("app/executions/{$execution->id}/execution_log.txt")),
+        ]);
     }
 
     public function show(TestExecution $execution)

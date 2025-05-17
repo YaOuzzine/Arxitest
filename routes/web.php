@@ -352,6 +352,8 @@ Route::prefix('/dashboard/executions')->name('dashboard.executions.')->middlewar
     Route::post('/', [TestExecutionController::class, 'store'])->name('store');
     Route::get('/{execution}', [TestExecutionController::class, 'show'])->name('show');
     Route::post('/{execution}/abort', [TestExecutionController::class, 'abort'])->name('abort');
+    Route::get('/dashboard/{execution?}', [TestExecutionController::class, 'dashboard'])->name('dashboard');
+    Route::get('/{execution}/json', [TestExecutionController::class, 'getJson'])->name('json');
 });
 
 Route::get('/emergency-stop/{id}', [TestExecutionController::class, 'emergencyStop'])
