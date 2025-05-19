@@ -256,8 +256,16 @@ class RunTestExecutionJob implements ShouldQueue
         $startScriptContent .= "echo 'Starting test execution...' > $logFilePath\n";
 
         if ($script->framework_type === 'selenium-python') {
-            // Run the test and capture the exit code directly (no PIPESTATUS)
-            $startScriptContent .= "python -m unittest -v /tests/test_script$scriptExtension > /tests/test_output.tmp 2>&1\n";
+            // Check if this is a pytest script by looking for pytest imports or fixtures
+            $isPytest = strpos($script->script_content, 'pytest') !== false;
+
+            if ($isPytest) {
+                // Run with pytest
+                $startScriptContent .= "python -m pytest -v /tests/test_script$scriptExtension > /tests/test_output.tmp 2>&1\n";
+            } else {
+                // Run with unittest (original code)
+                $startScriptContent .= "python -m unittest -v /tests/test_script$scriptExtension > /tests/test_output.tmp 2>&1\n";
+            }
             $startScriptContent .= "TEST_EXIT_CODE=\$?\n";
             $startScriptContent .= "cat /tests/test_output.tmp | tee -a $logFilePath\n";
         } elseif ($script->framework_type === 'cypress') {
@@ -988,7 +996,6 @@ class RunTestExecutionJob implements ShouldQueue
      */
     protected function getDockerImage(string $frameworkType): string
     {
-
         $configImages = Config::get('testing.docker_images', []);
         Log::info("Docker image config", [
             'execution_id' => $this->execution->id,
