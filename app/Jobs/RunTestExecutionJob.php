@@ -90,7 +90,7 @@ class RunTestExecutionJob implements ShouldQueue
 
         try {
             // 1. Update status to preparing workspace
-            $this->updateExecutionStatus('preparing_workspace');
+            $this->updateExecutionStatus(ExecutionStatus::PENDING);
 
             // 2. Get test script and environment details
             $script = $this->execution->testScript;
@@ -830,10 +830,16 @@ class RunTestExecutionJob implements ShouldQueue
      */
     protected function getDockerImage(string $frameworkType): string
     {
+
+        $configImages = Config::get('testing.docker_images', []);
+        Log::info("Docker image config", [
+            'execution_id' => $this->execution->id,
+            'config' =>  $configImages,
+        ]);
         return match ($frameworkType) {
-            'selenium-python' => Config::get('testing.docker_images.selenium_python', 'arxitest/selenium-python:latest'),
-            'cypress' => Config::get('testing.docker_images.cypress', 'arxitest/cypress:latest'),
-            default => Config::get('testing.docker_images.default', 'alpine:latest')
+            'selenium-python' => $configImages['selenium_python'] ?? 'youzzine/arxitest-selenium-python:latest',
+            'cypress' => $configImages['cypress'] ?? 'youzzine/arxitest-cypress:latest',
+            default => $configImages['default'] ?? 'alpine:latest'
         };
     }
 }
