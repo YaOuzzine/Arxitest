@@ -113,22 +113,17 @@ class RunTestExecutionJob implements ShouldQueue
             $containerId = 'arxitest_' . Str::random(10);
             $container = $this->createContainerRecord($containerId, $script, $environment, $workDir);
 
-            // 5. Update status to starting container
-            $this->updateExecutionStatus('starting_container');
+            // 5. Update status to running when starting container
+            $this->updateExecutionStatus(ExecutionStatus::RUNNING);
 
             // 6. Start the Docker container
             $this->startContainer($container, $script, $environment, $workDir);
 
-            // 7. Update status to running
-            $this->updateExecutionStatus('running');
-
-            // 8. Monitor container execution
+            // 7. Monitor container execution
             $this->monitorContainer($container);
 
-            // 9. Process test results
-            $this->updateExecutionStatus('processing_results');
+            // 8. Process test results
             $this->processResults($container);
-
         } catch (\Exception $e) {
             Log::error("Error executing test", [
                 'execution_id' => $this->execution->id,
@@ -137,7 +132,7 @@ class RunTestExecutionJob implements ShouldQueue
             ]);
 
             // Set execution to failed
-            $this->updateExecutionStatus('failed');
+            $this->updateExecutionStatus(ExecutionStatus::FAILED);
 
             // Update container status if it exists
             if ($container) {
@@ -382,7 +377,7 @@ class RunTestExecutionJob implements ShouldQueue
                 Storage::disk($this->logDisk)->append(
                     $logPath,
                     "\n=== EXECUTION TIMED OUT AFTER " .
-                    round((time() - $startTime) / 60) . " MINUTES ===\n"
+                        round((time() - $startTime) / 60) . " MINUTES ===\n"
                 );
 
                 // Stop the container
@@ -622,9 +617,9 @@ class RunTestExecutionJob implements ShouldQueue
 
         // Update execution status based on exit code
         if ($exitCode === 0) {
-            $this->updateExecutionStatus('completed');
+            $this->updateExecutionStatus(ExecutionStatus::COMPLETED);
         } else {
-            $this->updateExecutionStatus('failed');
+            $this->updateExecutionStatus(ExecutionStatus::FAILED);
         }
 
         // Clean up container
@@ -658,7 +653,7 @@ class RunTestExecutionJob implements ShouldQueue
     protected function failExecution(Container $container, string $reason): void
     {
         // Get appropriate status based on failure reason
-        $statusName = ($reason === 'timeout') ? 'timeout' : 'failed';
+        $statusName = ($reason === 'timeout') ? ExecutionStatus::TIMEOUT : ExecutionStatus::FAILED;
         $this->updateExecutionStatus($statusName);
 
         // Update container status
@@ -684,19 +679,46 @@ class RunTestExecutionJob implements ShouldQueue
     protected function updateExecutionStatus(string $statusName): void
     {
         try {
+            // Validate the status name against constants
+            if (!in_array($statusName, [
+                ExecutionStatus::PENDING,
+                ExecutionStatus::RUNNING,
+                ExecutionStatus::COMPLETED,
+                ExecutionStatus::FAILED,
+                ExecutionStatus::ABORTED,
+                ExecutionStatus::TIMEOUT
+            ])) {
+                // Log a warning and fall back to a default status
+                Log::warning("Invalid status name used", [
+                    'execution_id' => $this->execution->id,
+                    'status_name' => $statusName,
+                    'falling_back_to' => ExecutionStatus::RUNNING
+                ]);
+
+                // Default to RUNNING for unrecognized intermediate states
+                $statusName = ExecutionStatus::RUNNING;
+            }
+
             $status = ExecutionStatus::where('name', $statusName)->first();
             if (!$status) {
-                Log::error("Status not found", [
+                // This should now never happen, but if it does, it's a critical error
+                $errorMsg = "Status not found in database: {$statusName}";
+                Log::error($errorMsg, [
                     'execution_id' => $this->execution->id,
                     'status_name' => $statusName
                 ]);
-                return;
+                throw new \RuntimeException($errorMsg);
             }
 
             $this->execution->status_id = $status->id;
 
             // Set end time for final statuses
-            if (in_array($statusName, ['completed', 'failed', 'aborted', 'timeout'])) {
+            if (in_array($statusName, [
+                ExecutionStatus::COMPLETED,
+                ExecutionStatus::FAILED,
+                ExecutionStatus::ABORTED,
+                ExecutionStatus::TIMEOUT
+            ])) {
                 $this->execution->end_time = now();
             }
 
@@ -710,8 +732,12 @@ class RunTestExecutionJob implements ShouldQueue
             Log::error("Failed to update execution status", [
                 'execution_id' => $this->execution->id,
                 'status' => $statusName,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
+
+            // Re-throw to ensure job fails if status update fails
+            throw new \RuntimeException("Failed to update execution status: {$e->getMessage()}", 0, $e);
         }
     }
 
