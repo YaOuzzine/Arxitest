@@ -247,11 +247,55 @@ class RunTestExecutionJob implements ShouldQueue
         // Get Docker-compatible mount path
         $mountPath = $this->getDockerMountPath($workDir);
 
+        // Create a simpler shell script that's compatible with basic /bin/sh
+        $startScriptPath = $workDir . DIRECTORY_SEPARATOR . 'run_test.sh';
+        $logFilePath = '/tests/output.log';
+
+        // Create a wrapper script that captures all output using basic sh
+        $startScriptContent = "#!/bin/sh\n";
+        $startScriptContent .= "echo 'Starting test execution...' > $logFilePath\n";
+
+        if ($script->framework_type === 'selenium-python') {
+            // Run the test and capture the exit code directly (no PIPESTATUS)
+            $startScriptContent .= "python -m unittest -v /tests/test_script$scriptExtension > /tests/test_output.tmp 2>&1\n";
+            $startScriptContent .= "TEST_EXIT_CODE=\$?\n";
+            $startScriptContent .= "cat /tests/test_output.tmp | tee -a $logFilePath\n";
+        } elseif ($script->framework_type === 'cypress') {
+            $startScriptContent .= "npx cypress run --spec /tests/test_script$scriptExtension > /tests/test_output.tmp 2>&1\n";
+            $startScriptContent .= "TEST_EXIT_CODE=\$?\n";
+            $startScriptContent .= "cat /tests/test_output.tmp | tee -a $logFilePath\n";
+        } else {
+            $startScriptContent .= "/tests/test_script$scriptExtension > /tests/test_output.tmp 2>&1\n";
+            $startScriptContent .= "TEST_EXIT_CODE=\$?\n";
+            $startScriptContent .= "cat /tests/test_output.tmp | tee -a $logFilePath\n";
+        }
+
+        // Add command to write exit code to a file
+        $startScriptContent .= "echo \$TEST_EXIT_CODE > /tests/exit_code.txt\n";
+
+        // Add a small delay to ensure logs are written
+        $startScriptContent .= "sleep 2\n";
+
+        // Exit with the original exit code
+        $startScriptContent .= "exit \$TEST_EXIT_CODE\n";
+
+        // Save the start script with Unix line endings
+        $content = str_replace("\r\n", "\n", $startScriptContent);
+        file_put_contents($startScriptPath, $content);
+
+        // Make the script executable (won't work on Windows but harmless)
+        if (!$this->isWindows) {
+            chmod($startScriptPath, 0755);
+        }
+
         // Build Docker command
         $command = ['docker', 'run'];
         $command[] = '--name';
         $command[] = $containerId;
-        $command[] = '-d'; // detached mode
+
+        // Use detached mode for more reliability
+        $command[] = '-d';
+
         $command[] = "--label";
         $command[] = "arxitest_execution_id={$this->execution->id}";
         $command[] = "-v";
@@ -281,33 +325,19 @@ class RunTestExecutionJob implements ShouldQueue
             $command[] = $chromeOptions;
         }
 
-        // Add command specifics based on framework type
-        if ($script->framework_type === 'selenium-python') {
-            $command[] = '--entrypoint';
-            $command[] = 'python';
-            $command[] = $dockerImage;
-            $command[] = '-m';
-            $command[] = 'unittest';
-            $command[] = "/tests/test_script{$scriptExtension}";
-        } elseif ($script->framework_type === 'cypress') {
-            $command[] = $dockerImage;
-            $command[] = 'npx';
-            $command[] = 'cypress';
-            $command[] = 'run';
-            $command[] = '--spec';
-            $command[] = "/tests/test_script{$scriptExtension}";
-        } else {
-            // Fallback for other frameworks
-            $command[] = $dockerImage;
-            $command[] = "/tests/test_script{$scriptExtension}";
-        }
+        // Use a shell as entry point to run our script
+        $command[] = '--entrypoint';
+        $command[] = '/bin/sh';
+        $command[] = $dockerImage;
+        $command[] = '/tests/run_test.sh';
 
         Log::info("Starting Docker container", [
             'execution_id' => $this->execution->id,
             'container_id' => $containerId,
             'docker_image' => $dockerImage,
             'command' => implode(' ', $command),
-            'mount_path' => $mountPath
+            'mount_path' => $mountPath,
+            'start_script' => $startScriptContent
         ]);
 
         // Use Process to run Docker command
@@ -415,7 +445,49 @@ class RunTestExecutionJob implements ShouldQueue
             sleep($this->checkInterval);
         }
 
-        // Ensure we get the final logs
+        // Try to get the output log file from the container
+        $workDir = $container->configuration['work_dir'];
+        $outputLogPath = $workDir . DIRECTORY_SEPARATOR . 'output.log';
+        $exitCodePath = $workDir . DIRECTORY_SEPARATOR . 'exit_code.txt';
+
+        if (file_exists($outputLogPath)) {
+            $outputContent = file_get_contents($outputLogPath);
+            if (!empty($outputContent)) {
+                Storage::disk($this->logDisk)->append(
+                    $logPath,
+                    "\n=== TEST OUTPUT ===\n" . $outputContent
+                );
+
+                Log::info("Read test output from log file", [
+                    'execution_id' => $this->execution->id,
+                    'container_id' => $containerId,
+                    'output_size' => strlen($outputContent)
+                ]);
+            }
+        } else {
+            Log::warning("Output log file not found", [
+                'execution_id' => $this->execution->id,
+                'container_id' => $containerId,
+                'expected_path' => $outputLogPath
+            ]);
+        }
+
+        // Try to get the exit code file
+        if (file_exists($exitCodePath)) {
+            $exitCode = trim(file_get_contents($exitCodePath));
+            Storage::disk($this->logDisk)->append(
+                $logPath,
+                "\n=== EXIT CODE: $exitCode ===\n"
+            );
+
+            Log::info("Read exit code from file", [
+                'execution_id' => $this->execution->id,
+                'container_id' => $containerId,
+                'exit_code' => $exitCode
+            ]);
+        }
+
+        // Ensure we get the final logs as well
         $this->fetchAndStoreLogs($containerId, $logPath, $lastLogSize, true);
 
         // Update execution with log file path
@@ -444,7 +516,75 @@ class RunTestExecutionJob implements ShouldQueue
     protected function fetchAndStoreLogs(string $containerId, string $logPath, int &$lastLogSize, bool $isFinal = false): void
     {
         try {
-            $process = new Process(['docker', 'logs', $containerId]);
+            // For final logs, use a more aggressive approach to ensure we get everything
+            if ($isFinal) {
+                // Allow a little time for logs to flush to Docker's logging system
+                sleep(1);
+
+                // Use --timestamps to help debugging and include stderr explicitly
+                $process = new Process(['docker', 'logs', '--timestamps', '--details', $containerId]);
+                $process->setTimeout(30); // Longer timeout for final log collection
+                $process->run();
+
+                if (!$process->isSuccessful()) {
+                    Log::warning("Failed to fetch final container logs", [
+                        'execution_id' => $this->execution->id,
+                        'container_id' => $containerId,
+                        'error' => $process->getErrorOutput()
+                    ]);
+                    return;
+                }
+
+                $logs = $process->getOutput();
+
+                // If we have logs, append them no matter what
+                if (!empty($logs)) {
+                    Storage::disk($this->logDisk)->append($logPath, "\n=== FINAL LOGS ===\n");
+                    Storage::disk($this->logDisk)->append($logPath, $logs);
+
+                    Log::info("Final logs collected", [
+                        'execution_id' => $this->execution->id,
+                        'container_id' => $containerId,
+                        'size' => strlen($logs)
+                    ]);
+                } else {
+                    // Try one more time with different options if no logs found
+                    $process = new Process(['docker', 'logs', '--tail', 'all', $containerId]);
+                    $process->run();
+                    $logs = $process->getOutput();
+
+                    if (!empty($logs)) {
+                        Storage::disk($this->logDisk)->append($logPath, "\n=== FINAL LOGS (RETRY) ===\n");
+                        Storage::disk($this->logDisk)->append($logPath, $logs);
+
+                        Log::info("Final logs collected on retry", [
+                            'execution_id' => $this->execution->id,
+                            'size' => strlen($logs)
+                        ]);
+                    } else {
+                        // If we still have no logs, try to get the exit details
+                        $inspectProcess = new Process(['docker', 'inspect', $containerId]);
+                        $inspectProcess->run();
+
+                        if ($inspectProcess->isSuccessful()) {
+                            $inspect = $inspectProcess->getOutput();
+                            Storage::disk($this->logDisk)->append($logPath, "\n=== CONTAINER DETAILS ===\n");
+                            Storage::disk($this->logDisk)->append($logPath, $inspect);
+
+                            Log::info("No logs available, added container inspect data", [
+                                'execution_id' => $this->execution->id,
+                                'container_id' => $containerId
+                            ]);
+                        }
+                    }
+                }
+
+                return;
+            }
+
+            // Regular log capture during execution
+            // Use --since flag to get only new logs since start time
+            $process = new Process(['docker', 'logs', '--timestamps', $containerId]);
             $process->run();
 
             if (!$process->isSuccessful()) {
@@ -458,45 +598,46 @@ class RunTestExecutionJob implements ShouldQueue
 
             $logs = $process->getOutput();
 
+            // If there are no logs yet, don't do anything
             if (empty($logs)) {
                 return;
             }
 
-            // For final logs fetch, we always want to get everything
-            if ($isFinal) {
-                // Mark these as final logs
-                Storage::disk($this->logDisk)->append($logPath, "\n=== FINAL LOGS ===\n");
-                Storage::disk($this->logDisk)->append($logPath, $logs);
-
-                Log::info("Final logs collected", [
-                    'execution_id' => $this->execution->id,
-                    'container_id' => $containerId,
-                    'size' => strlen($logs)
-                ]);
-
-                $lastLogSize = strlen($logs);
-                return;
-            }
-
-            // Only append new logs
+            // Get only new logs - this is the key fix
             $currentSize = strlen($logs);
+
+            // Log the raw content for debugging
+            Log::debug("Fetched raw container logs", [
+                'execution_id' => $this->execution->id,
+                'container_id' => $containerId,
+                'log_size' => $currentSize,
+                'last_log_size' => $lastLogSize,
+                'has_new_content' => ($currentSize > $lastLogSize)
+            ]);
+
             if ($currentSize > $lastLogSize) {
+                // Extract only the new content
                 $newLogs = substr($logs, $lastLogSize);
+
+                // Append only new logs to the log file
                 Storage::disk($this->logDisk)->append($logPath, $newLogs);
 
-                Log::debug("New logs collected", [
+                Log::debug("Appended new logs", [
                     'execution_id' => $this->execution->id,
                     'container_id' => $containerId,
-                    'new_bytes' => strlen($newLogs)
+                    'new_bytes' => strlen($newLogs),
+                    'sample' => substr($newLogs, 0, min(100, strlen($newLogs))) . (strlen($newLogs) > 100 ? '...' : '')
                 ]);
 
+                // Update last log size for next iteration
                 $lastLogSize = $currentSize;
             }
         } catch (\Exception $e) {
             Log::error("Error fetching container logs", [
                 'execution_id' => $this->execution->id,
                 'container_id' => $containerId,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
         }
     }
@@ -601,26 +742,43 @@ class RunTestExecutionJob implements ShouldQueue
             'container_id' => $containerId
         ]);
 
-        // Get container exit code
-        $exitCode = $this->getContainerExitCode($containerId);
+        // Check for exit code file first
+        $exitCodePath = $container->configuration['work_dir'] . DIRECTORY_SEPARATOR . 'exit_code.txt';
+        if (file_exists($exitCodePath)) {
+            $exitCode = (int)trim(file_get_contents($exitCodePath));
+            Log::info("Using exit code from file", [
+                'execution_id' => $this->execution->id,
+                'container_id' => $containerId,
+                'exit_code' => $exitCode
+            ]);
+        } else {
+            // Fall back to Docker's exit code
+            $exitCode = $this->getContainerExitCode($containerId);
+            Log::info("Using Docker exit code", [
+                'execution_id' => $this->execution->id,
+                'container_id' => $containerId,
+                'exit_code' => $exitCode
+            ]);
+        }
 
-        Log::info("Container exit code", [
-            'execution_id' => $this->execution->id,
-            'container_id' => $containerId,
-            'exit_code' => $exitCode
-        ]);
-
-        // Update container status
-        $container->status = Container::COMPLETED;
-        $container->end_time = now();
-        $container->save();
-
-        // Update execution status based on exit code
+        // Update container status based on exit code
         if ($exitCode === 0) {
+            $container->status = Container::COMPLETED;
             $this->updateExecutionStatus(ExecutionStatus::COMPLETED);
         } else {
+            $container->status = Container::FAILED;
             $this->updateExecutionStatus(ExecutionStatus::FAILED);
+
+            // Add exit code info to the log
+            $logPath = "executions" . DIRECTORY_SEPARATOR . $this->execution->id . DIRECTORY_SEPARATOR . "execution_log.txt";
+            Storage::disk($this->logDisk)->append(
+                $logPath,
+                "\n=== TEST EXECUTION FAILED WITH EXIT CODE {$exitCode} ===\n"
+            );
         }
+
+        $container->end_time = now();
+        $container->save();
 
         // Clean up container
         $this->cleanupContainer($containerId);
