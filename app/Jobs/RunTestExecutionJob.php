@@ -440,6 +440,19 @@ class RunTestExecutionJob implements ShouldQueue
                     "\n=== CONTAINER " . strtoupper($status) . " ===\n"
                 );
 
+                // If status is 'dead' or other abnormal termination, mark container as failed
+                if ($status === 'dead') {
+                    $container->status = Container::FAILED;
+                    $container->end_time = now();
+                    $container->save();
+                    $this->updateExecutionStatus(ExecutionStatus::FAILED);
+
+                    Storage::disk($this->logDisk)->append(
+                        $logPath,
+                        "\n=== CONTAINER FAILED ABNORMALLY ===\n"
+                    );
+                }
+
                 break;
             }
 
@@ -769,12 +782,15 @@ class RunTestExecutionJob implements ShouldQueue
             ]);
         }
 
-        // Update container status based on exit code
+        // Container always completes its lifecycle successfully if it exited normally
+        $container->status = Container::COMPLETED;
+        $container->end_time = now();
+        $container->save();
+
+        // Test execution status depends on exit code
         if ($exitCode === 0) {
-            $container->status = Container::COMPLETED;
             $this->updateExecutionStatus(ExecutionStatus::COMPLETED);
         } else {
-            $container->status = Container::FAILED;
             $this->updateExecutionStatus(ExecutionStatus::FAILED);
 
             // Add exit code info to the log
@@ -784,9 +800,6 @@ class RunTestExecutionJob implements ShouldQueue
                 "\n=== TEST EXECUTION FAILED WITH EXIT CODE {$exitCode} ===\n"
             );
         }
-
-        $container->end_time = now();
-        $container->save();
 
         // Clean up container
         $this->cleanupContainer($containerId);
@@ -818,19 +831,32 @@ class RunTestExecutionJob implements ShouldQueue
      */
     protected function failExecution(Container $container, string $reason): void
     {
-        // Get appropriate status based on failure reason
-        $statusName = ($reason === 'timeout') ? ExecutionStatus::TIMEOUT : ExecutionStatus::FAILED;
-        $this->updateExecutionStatus($statusName);
+        // Container status reflects what happened to the container
+        if ($reason === 'timeout') {
+            $container->status = Container::TERMINATED;
+        } else if ($reason === 'container_failed') {
+            $container->status = Container::FAILED;
+        } else {
+            $container->status = Container::TERMINATED; // Default for other cases
+        }
 
-        // Update container status
-        $container->status = ($reason === 'timeout') ? Container::TERMINATED : Container::FAILED;
         $container->end_time = now();
         $container->save();
+
+        // Execution status reflects impact on the test
+        if ($reason === 'timeout') {
+            $this->updateExecutionStatus(ExecutionStatus::TIMEOUT);
+        } else if ($reason === 'container_failed' || $reason === 'execution_aborted') {
+            $this->updateExecutionStatus(ExecutionStatus::ABORTED);
+        } else {
+            $this->updateExecutionStatus(ExecutionStatus::FAILED);
+        }
 
         Log::warning("Execution failed", [
             'execution_id' => $this->execution->id,
             'container_id' => $container->container_id,
-            'reason' => $reason
+            'container_status' => $container->status,
+            'execution_status' => $reason,
         ]);
 
         // For timeout, throw an exception to break out of the monitoring loop
