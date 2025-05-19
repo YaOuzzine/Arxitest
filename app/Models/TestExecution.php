@@ -29,9 +29,9 @@ class TestExecution extends Model
 
     protected $casts = [
         'start_time' => 'datetime',
-        'end_time' => 'datetime'
+        'end_time' => 'datetime',
+        'metadata' => 'array'
     ];
-
     /**
      * Get the test script being executed.
      */

@@ -99,6 +99,52 @@ class AIGenerationService
     }
 
     /**
+     * Generate a test execution report
+     *
+     * @param string $executionId The execution ID
+     * @param array $context Additional context data
+     * @return array Generated report data
+     */
+    public function generateExecutionReport(string $executionId, array $context = []): array
+    {
+        Log::info("Generating test execution report", [
+            'execution_id' => $executionId
+        ]);
+
+        try {
+            // Create system prompt for execution report
+            $systemPrompt = \App\Services\AI\Prompts\TestExecutionReportPrompts::getSystemPrompt($context);
+
+            // Simple prompt for the AI
+            $userPrompt = "Please analyze these test execution logs and provide a detailed report.";
+
+            // Generate with the selected provider
+            $result = $this->generate('test-execution-report', $userPrompt, $context);
+
+            Log::info("Successfully generated execution report", [
+                'execution_id' => $executionId
+            ]);
+
+            return $result;
+        } catch (\Exception $e) {
+            Log::error("Error generating execution report", [
+                'execution_id' => $executionId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return [
+                'summary' => [
+                    'title' => 'Report Generation Failed',
+                    'content' => 'Failed to generate AI analysis: ' . $e->getMessage()
+                ],
+                'status' => 'error',
+                'confidence' => 0
+            ];
+        }
+    }
+
+    /**
      * Get the system prompt for a specific entity type
      *
      * @param string $entityType
@@ -113,6 +159,7 @@ class AIGenerationService
             'test-suite' => \App\Services\AI\Prompts\TestSuitePrompts::getSystemPrompt($context),
             'test-script' => \App\Services\AI\Prompts\TestScriptPrompts::getSystemPrompt($context),
             'test-data' => \App\Services\AI\Prompts\TestDataPrompts::getSystemPrompt($context),
+            'test-execution-report' => \App\Services\AI\Prompts\TestExecutionReportPrompts::getSystemPrompt($context),
             default => throw new \InvalidArgumentException("Unsupported entity type: {$entityType}")
         };
     }
@@ -126,7 +173,7 @@ class AIGenerationService
     protected function getOutputFormat(string $entityType): string
     {
         return match ($entityType) {
-            'story', 'test-case', 'test-suite' => 'json',
+            'story', 'test-case', 'test-suite', 'test-execution-report' => 'json',
             'test-script' => 'code',
             'test-data' => 'data',
             default => 'text'

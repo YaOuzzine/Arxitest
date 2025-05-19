@@ -9,6 +9,7 @@ use App\Models\TestExecution;
 use App\Models\TestScript;
 use App\Models\Environment;
 use App\Models\Project;
+use App\Services\AI\AIGenerationService;
 use App\Services\TestExecutionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -226,6 +227,77 @@ class TestExecutionController extends Controller
     }
 
     /**
+     * Generate AI report for a completed execution
+     */
+    private function generateAIReport(TestExecution $execution): ?array
+    {
+        try {
+            // Only generate reports for completed or failed executions
+            if (!in_array($execution->status->name ?? '', ['completed', 'failed'])) {
+                return null;
+            }
+
+            // Get the execution logs
+            ['logs' => $logs] = $this->execService->getRecentLogs($execution);
+
+            if (empty($logs)) {
+                Log::warning("No logs available for AI report generation", [
+                    'execution_id' => $execution->id
+                ]);
+                return null;
+            }
+
+            // Get test case details
+            $testScript = $execution->testScript;
+            $testCase = $testScript?->testCase;
+
+            if (!$testCase) {
+                Log::warning("No test case found for execution", [
+                    'execution_id' => $execution->id
+                ]);
+            }
+
+            // Prepare context for AI
+            $context = [
+                'execution_id' => $execution->id,
+                'test_case_title' => $testCase?->title ?? 'Unknown Test Case',
+                'test_case_steps' => $testCase?->steps ?? [],
+                'test_case_expected_results' => $testCase?->expected_results ?? '',
+                'script_name' => $testScript?->name ?? 'Unknown Script',
+                'environment_name' => $execution->environment?->name ?? 'Unknown Environment',
+                'execution_status' => $execution->status?->name ?? 'unknown',
+                'execution_duration' => $execution->duration ? gmdate('H:i:s', $execution->duration) : 'Unknown',
+                'execution_logs' => $logs
+            ];
+
+            // Generate report using AI service
+            $aiService = app(AIGenerationService::class);
+            $report = $aiService->generateExecutionReport($execution->id, $context);
+
+            // Store the report in the execution's metadata
+            $metadata = $execution->metadata ?? [];
+            $metadata['ai_report'] = $report;
+            $metadata['ai_report_generated_at'] = now()->toIso8601String();
+
+            $execution->metadata = $metadata;
+            $execution->save();
+
+            Log::info("AI report generated and stored for execution", [
+                'execution_id' => $execution->id
+            ]);
+
+            return $report;
+        } catch (\Exception $e) {
+            Log::error("Error generating AI report", [
+                'execution_id' => $execution->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return null;
+        }
+    }
+
+    /**
      * Get execution data in JSON format.
      */
     public function getJson(TestExecution $execution)
@@ -245,19 +317,56 @@ class TestExecutionController extends Controller
 
     public function show(TestExecution $execution)
     {
-        $execution->load(['testScript', 'initiator', 'environment', 'status', 'containers']);
+        $execution->load(['testScript.testCase', 'initiator', 'environment', 'status', 'containers']);
 
-        ['logs' => $logs, 'hasMore' => $hasMore] = $this->execService->getRecentLogs($execution);
+        ['logs' => $allLogs, 'hasMore' => $hasMore] = $this->execService->getRecentLogs($execution);
+
+        // Extract test results from logs
+        // Look for specific sections in the logs
+        $testResultLogs = '';
+
+        // First try to find the TEST OUTPUT section
+        if (preg_match('/=== TEST OUTPUT ===([\s\S]*?)(===|$)/m', $allLogs, $matches)) {
+            $testResultLogs = $matches[1];
+        }
+        // If not found, look for specific test framework output patterns
+        elseif (preg_match('/\bRunning tests?\b|\bTesting started\b|\bTest results\b/i', $allLogs)) {
+            // Extract all lines after finding test results patterns
+            preg_match('/((?:\bRunning tests?\b|\bTesting started\b|\bTest results\b)[\s\S]*)/i', $allLogs, $matches);
+            if (isset($matches[1])) {
+                $testResultLogs = $matches[1];
+            }
+        }
+        // Fallback to getting all lines after "Starting test execution..."
+        elseif (preg_match('/Starting test execution\.\.\.[\s\S]*([\s\S]*)/m', $allLogs, $matches)) {
+            $testResultLogs = $matches[1];
+        } else {
+            // Fallback to all logs if no test output section is found
+            $testResultLogs = $allLogs;
+        }
 
         $containerStatus = $this->execService->getContainerStatuses($execution);
 
+        // Get or generate AI report
+        $aiReport = null;
+        $metadata = $execution->metadata ?? [];
+
+        if (isset($metadata['ai_report'])) {
+            $aiReport = $metadata['ai_report'];
+        } elseif (in_array($execution->status->name ?? '', ['completed', 'failed'])) {
+            // Generate report now if execution is complete and no report exists
+            $aiReport = $this->generateAIReport($execution);
+        }
+
         return view('dashboard.executions.show', [
             'execution' => $execution,
-            'logs' => $logs,
+            'logs' => $testResultLogs,
+            'allLogs' => $allLogs, // Keep original logs for context
             'hasMoreLogs' => $hasMore,
             'containerStatus' => $containerStatus,
             'logFileExists' => file_exists(storage_path("app/executions/{$execution->id}/execution_log.txt")),
             'logFilePath' => $execution->id,
+            'aiReport' => $aiReport,
         ]);
     }
 
